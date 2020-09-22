@@ -1,6 +1,6 @@
-(*open Core
-
-open Tool*)
+open Tool
+open MyStdLib
+open Core
 
 (*let _ = let full_spec = ProcessFile.process_full_problem problem in
   let ans =
@@ -123,3 +123,35 @@ let () =
     (Command.basic_spec spec main
       ~summary: "Infer a representation invariant that is sufficient for proving the correctness of a module implementation.")
 *)
+
+let synthesize_solution (fname:string) : unit =
+  let p_unprocessed =
+    Parser.unprocessed_problem
+      Lexer.token
+      (Lexing.from_string
+         (Prelude.prelude_string ^ (SimpleFile.read_from_file ~fname)))
+  in
+  print_endline (Problem.show_t_unprocessed p_unprocessed)
+
+open Command.Let_syntax
+let param =
+  Command.basic ~summary:"..."
+    [%map_open
+      let input_spec  = anon ("input_spec" %: string)
+      (*and no_grammar_output   = flag "no-grammar-output" no_arg ~doc:"do not output the discovered grammar"
+      and log_progress   = flag "log-progress" no_arg ~doc:"output the progress log"
+      and print_runtime_specs  = flag "print-runtime-specs" no_arg ~doc:"output the runtime specs"
+      and run_experiments  = flag "run-experiments" no_arg ~doc:"output experient info"
+      and positive_examples  = flag "pos" (listed string) ~doc:"path positive example path"
+      and negative_examples  = flag "neg" (listed string) ~doc:"path negative example path"
+      and pos_ndfo  = flag "pos-ndf" (optional string) ~doc:"path newline delimited positive example path"
+        and neg_ndfo  = flag "neg-ndf" (optional string) ~doc:"path newline delimited negative example path"*)
+      in
+      fun () ->
+        synthesize_solution
+          input_spec
+    ]
+
+let () =
+  Command.run
+    param

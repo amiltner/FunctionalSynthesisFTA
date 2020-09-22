@@ -56,18 +56,30 @@ unprocessed_problem:
       { (ds,st,exs) }
 
 examples:
+  | exs=nonempty_examples
+    { exs }
+  | { [] }
+
+nonempty_examples:
   | ex=example COMMA exs=examples
     { ex::exs }
-  | { [] }
+  | ex=example
+    { [ex] }
 
 example:
   | LBRACKET es=exp_list RBRACKET ARR e=exp
     { (es,e) }
 
 exp_list:
+  | es=nonempty_exp_list
+    { es }
+  | { [] }
+
+nonempty_exp_list:
   | e=exp COMMA es=exp_list
     { e::es }
-  | { [] }
+  | e=exp
+    { [e] }
 
 (***** Declarations {{{ *****)
 
@@ -371,13 +383,3 @@ evidencelist_one:    (* NOTE: reversed *)
 
 (***** }}} *****)
 
-
-(* formula begin *)
-
-formula:
-  | e=exp
-    { ([],e) }
-  | FORALL a=arg DOT f=formula
-    { (a::(fst f),(snd f)) }
-
-(* formula end *)

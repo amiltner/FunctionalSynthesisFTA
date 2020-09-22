@@ -47,7 +47,7 @@ let symbols : (string * Parser.token) list =
 let create_token lexbuf =
   let str = lexeme lexbuf in
   match List.Assoc.find ~equal:String.equal reserved_words str with
-  | None   -> failwith "ah"(*LID str*)
+  | None   -> LID str
   | Some t -> t
 
 let create_symbol lexbuf =
@@ -62,16 +62,16 @@ let create_symbol lexbuf =
   PROJ (int_of_string (String.sub str ~pos:1 ~len:(len - 1)))*)
 }
 
-(*let newline    = '\n' | ('\r' '\n') | '\r'
+let newline    = '\n' | ('\r' '\n') | '\r'
 let whitespace = ['\t' ' ']
 let lowercase  = ['a'-'z']
 let uppercase  = ['A'-'Z']
 let character  = uppercase | lowercase
 let digit      = ['0'-'9']
-*)
+
 rule token = parse
   | eof   { EOF }
-  (*| digit { INT (int_of_string (lexeme lexbuf)) }
+  | digit { INT (int_of_string (lexeme lexbuf)) }
   (*| "#" digit+ { create_proj lexbuf } *)
   | "(*" {comments 0 lexbuf}
   | whitespace+ | newline+    { token lexbuf }
@@ -79,7 +79,7 @@ rule token = parse
   | uppercase (digit | character | '_')* { UID (lexeme lexbuf) }
   | '?' | "|>" | '=' | "->" | "=>" | '*' | ',' | ':' | ';' | '|' | '(' | ')'
   | '{' | '}' | '[' | ']' | '_' | '.'
-    { create_symbol lexbuf }*)
+    { create_symbol lexbuf }
   | _ as c { raise @@ Lexer_error ("Unexpected character: " ^ Char.escaped c) }
 
 and comments level = parse

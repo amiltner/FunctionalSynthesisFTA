@@ -5,18 +5,19 @@ open Typecheck
 type t_unprocessed = Declaration.t list
                      * Type.t
                      * (Expr.t list * Expr.t) list
-[@@deriving eq, hash, ord]
+[@@deriving eq, hash, ord, show]
 
 type t = {
-  synth_type   : Type.t                 ;
-  ec           : Context.Exprs.t        ;
-  tc           : Context.Types.t        ;
-  vc           : Context.Variants.t     ;
-  examples     : (Value.t list) list    ;
-  eval_context : (Id.t * Expr.t) list   ;
-  unprocessed  : t_unprocessed          ;
+  synth_type   : Type.t                          ;
+  ec           : Context.Exprs.t                 ;
+  tc           : Context.Types.t                 ;
+  vc           : Context.Variants.t              ;
+  examples     : ((Value.t list) * Value.t) list ;
+  eval_context : (Id.t * Expr.t) list            ;
+  unprocessed  : t_unprocessed                   ;
 }
 [@@deriving eq, hash, make, ord]
+
 
 let extract_variants
     (t:Type.t)
@@ -77,35 +78,8 @@ let process_decl_list
               ,(ec,tc,vc)))
        ds)
 
-(*let process_module_sig
-    (ec:Context.Exprs.t)
-    ((_,ets):Module.Specification.t)
-  : Context.Exprs.t =
-  List.fold_left
-    ~f:(fun ec (i,t) -> Context.set ec ~key:i ~data:t)
-    ~init:ec
-    ets
-
-let validate
-    (full_tc:Context.Types.t)
-    (ec:Context.Exprs.t)
-    (tc:Context.Types.t)
-    ((i,es):Module.Specification.t)
-  : bool =
-  List.fold_left
-    ~f:(fun acc (i,t) ->
-            if not acc then
-              acc
-            else
-              begin match Context.find ec i with
-                | None -> false
-                | Some t' -> Typecheck.type_equiv full_tc t t'
-              end)
-    ~init:(Option.is_some (Context.find tc i))
-    es
-
 let process (unprocessed : t_unprocessed) : t =
-  let (decs,modi,mods,uf,accumulator) = unprocessed in
+  let (decs,synth_type,exs) = unprocessed in
   let (ec,tc,vc,i_e) =
     process_decl_list
       Context.empty
@@ -113,45 +87,37 @@ let process (unprocessed : t_unprocessed) : t =
       Context.empty
       decs
   in
-  let m_ec,m_tc,m_vc,i_e' = process_decl_list ec tc vc modi in
-  let i_e = i_e'@i_e in
-  let full_tc =
-    Map.merge_skewed tc m_tc ~combine:(fun ~key:_ v1 _ -> v1)
+  let eval_context =
+    (*(List.concat_map
+       ~f:(fun cts ->
+           List.map
+             ~f:(fun (c,t) -> (c, Expr.mk_func (Id.create "i",t) (Expr.Ctor (c, Expr.mk_var (Id.create "i")))))
+             cts)
+       (Context.data vc))
+      @*) i_e
   in
-  let satisfies = validate full_tc m_ec m_tc mods in
-  if not satisfies then
-    failwith "module doesn't satisfy spec"
-  else
-    let module_vals =
-      List.map
-        ~f:(fun (i,t) ->
-            (List.Assoc.find_exn ~equal:Id.equal i_e i, t))
-        (snd mods)
-    in
-    let ec_sig = process_module_sig ec mods in
-    let _ = typecheck_formula ec_sig tc vc uf in
-    let full_ec = Map.merge_skewed ec m_ec ~combine:(fun ~key:_ v1 _ -> v1) in
-    let full_tc = Map.merge_skewed tc m_tc ~combine:(fun ~key:_ v1 _ -> v1) in
-    let full_vc = Map.merge_skewed vc m_vc ~combine:(fun ~key:_ v1 _ -> v1) in
-    let type_instantiation = Context.find_exn full_tc (fst mods) in
-    let eval_context =
-      (List.concat_map
-         ~f:(fun cts ->
-             List.map
-               ~f:(fun (c,t) -> (c, Expr.mk_func ("i",t) (Expr.Ctor (c, Expr.mk_var "i"))))
-               cts)
-         (Context.data full_vc))
-      @ i_e
-    in
-    let partial_problem = make ~module_type:type_instantiation
-                               ~ec:full_ec
-                               ~tc:full_tc
-                               ~vc:full_vc
-                               ~mod_vals:module_vals
-                               ~post:uf
-                               ~eval_context
-                               ~unprocessed
-     in match accumulator with
-        | None -> partial_problem ()
-        | Some acc -> partial_problem ~accumulator:acc ()
-*)
+  let examples =
+    List.map
+      ~f:(fun (es,e) ->
+          let vs =
+            List.map
+              ~f:(Eval.evaluate_with_holes ~eval_context)
+              es
+          in
+          let v =
+            Eval.evaluate_with_holes
+            ~eval_context
+            e
+          in
+          (vs,v))
+      exs
+  in
+  make
+    ~ec
+    ~tc
+    ~vc
+    ~eval_context
+    ~unprocessed
+    ~synth_type
+    ~examples
+    ()

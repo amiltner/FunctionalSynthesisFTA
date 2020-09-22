@@ -1,0 +1,7 @@
+synth int -> int
+
+satisfying
+
+[O] -> O,
+[S O] -> S (S O),
+[S (S O)] -> S (S (S (S O)))

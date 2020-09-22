@@ -110,3 +110,22 @@ let size : t -> int =
        ~tuple_f:(fun ss -> List.fold_left ~f:(+) ~init:1 ss)
        ~mu_f:(fun _ s -> s+1)
        ~variant_f:(List.fold_left ~init:1 ~f:(fun acc (_,i) -> i+acc))
+
+let is_functionless
+  : t -> bool =
+  fold
+    ~name_f:(fun _ -> true)
+    ~arr_f:(fun _ _ -> false)
+    ~tuple_f:(fun ss -> List.for_all ~f:ident ss)
+    ~mu_f:(fun _ _ -> true)
+    ~variant_f:(List.fold ~f:(fun acc (_,b) -> acc && b) ~init:true)
+
+let rec split_to_arg_list_result
+    (x:t)
+  : t list * t =
+  begin match x with
+    | Arrow (t1,t2) ->
+      let (args,res) = split_to_arg_list_result t2 in
+      (t1::args,res)
+    | _ -> ([],x)
+  end
