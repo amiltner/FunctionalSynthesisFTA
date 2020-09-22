@@ -1,4 +1,4 @@
-synth int -> int
+synth nat -> nat
 
 satisfying
 

@@ -96,6 +96,26 @@ let process (unprocessed : t_unprocessed) : t =
        (Context.data vc))
       @*) i_e
   in
+  List.iter
+    ~f:(fun (es,e) ->
+        let typecheck = Typecheck.typecheck_exp ec tc vc in
+        let es_ts =
+          List.map
+            ~f:typecheck
+            es
+        in
+        let e_t = typecheck e in
+        let ex_t =
+          List.fold_right
+            ~f:Type.mk_arrow
+            ~init:e_t
+            es_ts
+        in
+        if Typecheck.type_equiv tc synth_type ex_t then
+          ()
+        else
+          failwith "example doesn't satisfy the expected type")
+    exs;
   let examples =
     List.map
       ~f:(fun (es,e) ->

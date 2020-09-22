@@ -131,6 +131,7 @@ let synthesize_solution (fname:string) : unit =
       (Lexing.from_string
          (Prelude.prelude_string ^ (SimpleFile.read_from_file ~fname)))
   in
+  let _ = Problem.process p_unprocessed in
   print_endline (Problem.show_t_unprocessed p_unprocessed)
 
 open Command.Let_syntax
