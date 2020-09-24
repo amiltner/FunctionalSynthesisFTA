@@ -6,7 +6,7 @@ type t =
   | Tuple of t list
   | Mu of Id.t * t
   | Variant of (Id.t * t) list
-[@@deriving eq, hash, ord, show]
+[@@deriving eq, hash, ord, show, sexp]
 
 let mk_named (i : Id.t) : t =
   Named i

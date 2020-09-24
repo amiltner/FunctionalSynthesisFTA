@@ -124,21 +124,39 @@ let () =
       ~summary: "Infer a representation invariant that is sufficient for proving the correctness of a module implementation.")
 *)
 
-let synthesize_solution (fname:string) : unit =
+let synthesize_solution
+    (fname:string)
+    (use_myth:bool)
+    (use_l2:bool)
+  : unit =
   let p_unprocessed =
     Parser.unprocessed_problem
       Lexer.token
       (Lexing.from_string
          (Prelude.prelude_string ^ (SimpleFile.read_from_file ~fname)))
   in
-  let _ = Problem.process p_unprocessed in
-  print_endline (Problem.show_t_unprocessed p_unprocessed)
+  let problem = Problem.process p_unprocessed in
+  let e =
+    if use_myth then
+      MythSynthesisCaller.myth_synthesize
+        ~problem
+    else if use_l2 then
+      failwith "unimplemented"
+    else
+      begin
+        print_endline (Problem.show_t_unprocessed p_unprocessed);
+        Expr.Tuple []
+      end
+  in
+  print_endline (Expr.show e)
 
 open Command.Let_syntax
 let param =
   Command.basic ~summary:"..."
     [%map_open
       let input_spec  = anon ("input_spec" %: string)
+      and use_myth   = flag "use-myth" no_arg ~doc:"Solve using the myth synthesis engine"
+      and use_l2   = flag "use-l2" no_arg ~doc:"Solve using the l2 synthesis engine"
       (*and no_grammar_output   = flag "no-grammar-output" no_arg ~doc:"do not output the discovered grammar"
       and log_progress   = flag "log-progress" no_arg ~doc:"output the progress log"
       and print_runtime_specs  = flag "print-runtime-specs" no_arg ~doc:"output the runtime specs"
@@ -151,6 +169,8 @@ let param =
       fun () ->
         synthesize_solution
           input_spec
+          use_myth
+          use_l2
     ]
 
 let () =
