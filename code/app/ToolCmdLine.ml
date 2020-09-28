@@ -141,7 +141,7 @@ let synthesize_solution
       MythSynthesisCaller.myth_synthesize
         ~problem
     else if use_l2 then
-      failwith "unimplemented"
+      MythSynthesisCaller.myth_synthesize_print ~problem
     else
       begin
         print_endline (Problem.show_t_unprocessed p_unprocessed);

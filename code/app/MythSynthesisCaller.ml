@@ -219,7 +219,7 @@ end
 
 module MythToDS = struct
   let rec explode (binder: Expr.t) : Myth.Lang.pattern list -> (Expr.t * Id.t) list =
-    let rec helper i acc = 
+    let rec helper i acc =
       function
       | [] -> acc
       | (Myth.Lang.PVar id) :: plist
@@ -355,3 +355,20 @@ let myth_synthesize
              gamma
              env
              t w 0)))
+
+let myth_synthesize_print
+    ~(problem:Problem.t)
+  : Expr.t =
+  let (_,examples,_) = DSToMyth.convert_problem_examples_type_to_myth problem in
+  let _ = print_endline "{";
+          print_endline "  \"name\": \"f\",";
+          print_endline "  \"description\": \"\",";
+          print_endline "  \"kind\": \"examples\",";
+          print_endline "  \"contents\": {,";
+          print_endline "    \"examples\": [" in
+  let _ = List.map ~f:(fun x -> let y = Myth.Pp.pp_exp x in print_endline ("      \"" ^ y ^ "\",")) examples in
+  let _ = print_endline "    ],";
+          print_endline "    \"background\": [],";
+          print_endline "  }";
+          print_endline "}" in
+  Expr.Tuple []

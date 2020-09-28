@@ -176,8 +176,8 @@ and fpf_arg_list ppf (xs:arg list) =
 and fpf_ios ppf ((lvl, ios):int * (exp * exp) list) =
   match ios with
   | []            -> ()
-  | [(e1, e2)]    -> fpf ppf "%a => %a" fpf_exp (lvl, e1) fpf_exp (lvl, e2)
-  | (e1, e2)::ios -> fpf ppf "%a => %a@\n| %a"
+  | [(e1, e2)]    -> fpf ppf "(f %a) -> %a" fpf_exp (lvl, e1) fpf_exp (lvl, e2)
+  | (e1, e2)::ios -> fpf ppf "(f %a) -> %a@\n| %a"
       fpf_exp (lvl, e1) fpf_exp (lvl, e2) fpf_ios (lvl, ios)
 
 and fpf_decl ppf (d:decl) =
@@ -238,7 +238,7 @@ and fpf_list_literal ppf e =
     | ECtor ("Nil", EUnit) -> ()
     | ECtor ("Cons", ETuple [e; ECtor ("Nil", EUnit)]) -> fpf ppf "%a" fpf_exp (0, e)
     | ECtor ("Cons", ETuple [e1; e2]) -> begin
-        fpf ppf "%a; " fpf_exp (0, e1);
+        fpf ppf "%a, " fpf_exp (0, e1);
         fpf_elems ppf e2
       end
     | _ -> internal_error "fpf_list_literal"
