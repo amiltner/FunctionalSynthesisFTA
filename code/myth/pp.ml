@@ -238,7 +238,7 @@ and fpf_list_literal ppf e =
     | ECtor ("Nil", EUnit) -> ()
     | ECtor ("Cons", ETuple [e; ECtor ("Nil", EUnit)]) -> fpf ppf "%a" fpf_exp (0, e)
     | ECtor ("Cons", ETuple [e1; e2]) -> begin
-        fpf ppf "%a, " fpf_exp (0, e1);
+        fpf ppf "%a " fpf_exp (0, e1);
         fpf_elems ppf e2
       end
     | _ -> internal_error "fpf_list_literal"
