@@ -227,6 +227,11 @@ module type UIDData = sig
   val uid : t -> int
 end
 
+module type Container = sig
+  type t
+  val v : t
+end
+
 module UnitModule = struct
   type t = unit
   [@@deriving ord, show, hash, eq]

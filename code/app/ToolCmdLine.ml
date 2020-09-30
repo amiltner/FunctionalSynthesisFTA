@@ -136,6 +136,7 @@ let synthesize_solution
          (Prelude.prelude_string ^ (SimpleFile.read_from_file ~fname)))
   in
   let problem = Problem.process p_unprocessed in
+  FTAConstructor.get_states ~problem;
   let e =
     if use_myth then
       MythSynthesisCaller.myth_synthesize
@@ -144,7 +145,6 @@ let synthesize_solution
       MythSynthesisCaller.myth_synthesize_print ~problem
     else
       begin
-        print_endline (Problem.show_t_unprocessed p_unprocessed);
         Expr.Tuple []
       end
   in

@@ -8,7 +8,7 @@ type t_unprocessed = Declaration.t list
 [@@deriving eq, hash, ord, show]
 
 type t = {
-  synth_type   : Type.t                          ;
+  synth_type   : Type.t list * Type.t            ;
   ec           : Context.Exprs.t                 ;
   tc           : Context.Types.t                 ;
   vc           : Context.Variants.t              ;
@@ -131,6 +131,15 @@ let process (unprocessed : t_unprocessed) : t =
           in
           (vs,v))
       exs
+  in
+  let synth_type =
+    fold_until_completion
+      ~f:(fun (acc,t) ->
+          begin match t with
+            | Type.Arrow (t1,t2) -> Left (t1::acc,t2)
+            | _ -> Right (List.rev acc,t)
+          end)
+      ([],synth_type)
   in
   make
     ~ec

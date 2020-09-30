@@ -188,3 +188,56 @@ let rec align_types
       Expr.mk_func (i,t1) (align_types t2 e)
     | _ -> e
   end
+
+let all_subtypes
+    (tc:Context.Types.t)
+    (t:Type.t)
+  : Type.t list =
+  let rec all_subtypes
+      (t:Type.t)
+      (added:Type.t list)
+    : Type.t list =
+    if List.mem ~equal:Type.equal added t then
+      added
+    else
+      let added = t::added in
+      begin match t with
+        | Named i ->
+          all_subtypes
+            (Context.find_exn tc i)
+            added
+        | Arrow (t1,t2) ->
+          let added =
+            all_subtypes
+              t1
+              added
+          in
+          all_subtypes
+            t2
+            added
+        | Tuple ts ->
+          List.fold
+            ~f:(fun added t ->
+                all_subtypes
+                  t
+                  added)
+            ~init:added
+            ts
+        | Mu (i,t') ->
+          let t = Type.replace t' i t in
+          all_subtypes
+            t
+            added
+        | Variant branches ->
+          List.fold
+            ~f:(fun added (_,t) ->
+                all_subtypes
+                  t
+                  added)
+            ~init:added
+            branches
+      end
+  in
+  all_subtypes
+    t
+    []

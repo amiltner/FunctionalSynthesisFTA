@@ -129,3 +129,25 @@ let rec split_to_arg_list_result
       (t1::args,res)
     | _ -> ([],x)
   end
+
+let rec replace
+    (t:t)
+    (i:Id.t)
+    (rep:t)
+  : t =
+  let replace t = replace t i rep in
+  begin match t with
+    | Named i' ->
+      if Id.equal i i' then
+        rep
+      else
+        t
+    | Arrow (t1,t2) ->
+      mk_arrow (replace t1) (replace t2)
+    | Tuple ts ->
+      mk_tuple (List.map ~f:replace ts)
+    | Mu (i',t) ->
+      mk_mu i' (replace t)
+    | Variant branches ->
+      mk_variant (List.map ~f:(fun (i,t) -> (i,replace t)) branches)
+  end

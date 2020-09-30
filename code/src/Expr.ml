@@ -1,19 +1,5 @@
 open MyStdLib
 
-module ContractArity =
-struct
-  type t =
-    | P
-    | Q
-  [@@deriving bin_io, eq, hash, ord, sexp, show]
-
-  let switch_arity (c:t) : t =
-    begin match c with
-      | P -> Q
-      | Q -> P
-    end
-end
-
 type t =
   | Var of Id.t
   | App of t * t
