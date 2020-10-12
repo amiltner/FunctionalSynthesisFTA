@@ -51,6 +51,7 @@ module TimbukBuilder : AutomatonBuilder =
   functor (Symbol : Symbol) ->
   functor (State : State) ->
   struct
+    (* A is the timbuk automaton module *)
     module A =
     struct
       module Symb =
