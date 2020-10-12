@@ -1,4 +1,4 @@
-open CodeMap
+open Codemap
 
 module type S = sig
   module Id: Set.OrderedType

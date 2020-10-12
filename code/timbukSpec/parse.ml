@@ -1,5 +1,5 @@
 open Unicode
-open CodeMap
+open Codemap
 open Lexer
 open Ast
 open Collections

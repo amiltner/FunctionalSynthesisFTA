@@ -1,7 +1,7 @@
 open Timbuk
 open TimbukTyping
 open Spec
-open CodeMap
+open Codemap
 
 type item_kind =
   | Atom (* symbol, variable or state *)

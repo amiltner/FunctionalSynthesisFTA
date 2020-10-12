@@ -5,4 +5,4 @@
 (library
     (name timbukSpec)
     (public_name timbukSpec)
-    (libraries collections timbuk codemap unicode))
+    (libraries collections timbuk codemap unicode timbukTyping))

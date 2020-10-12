@@ -1,4 +1,4 @@
-open CodeMap
+open Codemap
 
 type item_kind =
   | Atom (* symbol, variable or state *)

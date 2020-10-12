@@ -1,4 +1,4 @@
-open CodeMap
+open Codemap
 
 type error =
   | Unexpected of Lexer.token option * Lexer.TokenKind.t list

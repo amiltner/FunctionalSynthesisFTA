@@ -1,4 +1,4 @@
-open CodeMap
+open Codemap
 
 type symbol = {
   sym_name : string Span.located;

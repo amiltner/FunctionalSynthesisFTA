@@ -1,6 +1,6 @@
 open Unicode
 open UString
-open CodeMap
+open Codemap
 
 type error =
   | Unexpected of UChar.t option

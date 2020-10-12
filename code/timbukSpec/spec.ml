@@ -1,7 +1,7 @@
 open Collections
 open Timbuk
 open TimbukTyping
-open CodeMap
+open Codemap
 
 module Symbol = AppSymbol.Make (StringSymbol)
 module Base = UserState
