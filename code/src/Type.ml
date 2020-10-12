@@ -104,6 +104,8 @@ let _t = mk_named (Id.create "t")
 
 let _bool = mk_named (Id.create "bool")
 
+let _nat = mk_named (Id.create "nat")
+
 let size : t -> int =
   fold ~name_f:(fun _ -> 1)
        ~arr_f:(fun x y -> x+y+1)

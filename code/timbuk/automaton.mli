@@ -98,6 +98,8 @@ module type BASE = sig
   (** Add a transition to the automaton, and nothing else.
       Note that it is an internal method that should not be called by users. *)
   val add_transition_unchecked : Configuration.t -> Label.t -> State.t -> t -> t
+
+  val remove_transition : Configuration.t -> Label.t -> State.t -> t -> t
 end
 
 module type S = sig
@@ -246,6 +248,7 @@ module type S = sig
       hook is called for each state of the produced automaton, with a partially built automaton. *)
 
   val reachable_states : ?epsilon:bool -> t -> StateSet.t
+  val reachable_values : t -> BoundTerm.t StateMap.t
   (* Return the set of reachable states. *)
 
   val reduce : ?epsilon:bool -> ?from_finals:bool -> t -> t
@@ -291,6 +294,8 @@ module type S = sig
                  f(q0, ..., qk, qb, qk+2, ..., qn) -> q and
       - if qa is final <=> qb is final and
       - if filter is given, (filter qa qb) = true. *)
+
+  val prune_useless : t -> t
 
   type renaming = State.t StateMap.t
   (* Represents the current knowledge of the renaming checker functions.

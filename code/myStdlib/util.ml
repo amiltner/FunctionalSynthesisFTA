@@ -901,6 +901,13 @@ let rec remove_at_index_exn
         (x,h::t)
   end
 
+let print_to_string
+    (p:'a -> Format.formatter -> unit)
+    (x:'a)
+  : string =
+  p x Format.str_formatter;
+  Format.flush_str_formatter ()
+
 let fold_on_head_exn ~f:(f:'a -> 'a -> 'a) (l:'a list) : 'a =
   let (h,t) = split_by_first_exn l in
   List.fold_left

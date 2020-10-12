@@ -103,3 +103,11 @@ let size : t -> int =
     ~func_f:(fun (_,t) e -> 1 + (Type.size t) + (Expr.size e))
     ~ctor_f:(fun _ i -> i+1)
     ~tuple_f:(fun is -> List.fold ~f:(+) ~init:1 is)
+
+let true_val = Ctor (Id.create "True",Tuple [])
+let false_val = Ctor (Id.create "False",Tuple [])
+let rec num_val n =
+  if n = 0 then
+    Ctor (Id.create "O",Tuple [])
+  else
+    Ctor (Id.create "S",num_val (n-1))

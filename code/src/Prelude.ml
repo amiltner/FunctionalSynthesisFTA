@@ -38,14 +38,14 @@ type nat = mu nat .
   | O
   | S of nat
 
-let add =
+(*let add =
   fix (add : nat -> nat -> nat) =
     fun (x1 : nat) ->
       fun (x2 : nat) ->
         match x1 binding x1 with
         | O -> x2
         | S -> add x1 (S x2)
-;;
+;;*)
 
 let nat_lte =
   fix (nat_lte : nat -> nat -> bool) =
@@ -56,19 +56,6 @@ let nat_lte =
         | S -> (match x2 binding x2 with
                 | O -> False
                 | S -> nat_lte x1 x2)
-;;
-
-let nat_lt =
-  fix (nat_lt : nat -> nat -> bool) =
-    fun (x1 : nat) ->
-      fun (x2 : nat) ->
-        match x1 binding x1 with
-        | O -> (match x2 binding x2 with
-                | O -> False
-                | S -> True)
-        | S -> (match x2 binding x2 with
-                | O -> False
-                | S -> nat_lt x1 x2)
 ;;
 
 let nat_eq =
@@ -82,15 +69,6 @@ let nat_eq =
         | S -> (match x2 binding x2 with
                 | O -> False
                 | S -> nat_eq x1 x2)
-;;
-
-let nat_between =
-  fun (x1 : nat) ->
-    fun (x2 : nat) ->
-      fun (x3 : nat) ->
-        (and
-          (nat_lt x1 x2)
-          (nat_lt x2 x3))
 ;;
 
 (* END_PRELUDE *)
