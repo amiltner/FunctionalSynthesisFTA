@@ -948,12 +948,12 @@ module Extend (B: BASE) = struct
               end
             | _, None -> aut
           in
-          print_endline "begin confs";
+          (*print_endline "begin confs";*)
           (*print_endline (State.print qa Format.str_formatter; Format.flush_str_formatter ());
             print_endline (State.print qb Format.str_formatter; Format.flush_str_formatter ());*)
-          print_endline (string_of_int (LabeledConfigurationSet.fold (fun _ s -> s+1) qa_confs 0));
+          (*print_endline (string_of_int (LabeledConfigurationSet.fold (fun _ s -> s+1) qa_confs 0));
             print_endline (string_of_int (LabeledConfigurationSet.fold (fun _ s -> s+1) qb_confs 0));
-          print_endline "end confs";
+            print_endline "end confs";*)
           let aut = LabeledConfigurationSet.fold2 (labeled_conf_product) (qa_confs) (qb_confs) aut in
           begin
             match hook with
