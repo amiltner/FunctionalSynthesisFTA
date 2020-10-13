@@ -14,7 +14,7 @@ module Label = NoLabel
 module Pattern : Pattern.S with type Sym.t = Symbol.t and type Var.t = Var.t
 module Aut : Automaton.S with type Sym.t = Symbol.t and type State.t = State.t and type Label.t = Label.t and type data = unit
 
-module LocPattern : TypedPattern.S with type Sym.t = Symbol.t and type Var.t = Var.t and type Type.t = (State.t option * CodeMap.Span.t)
+module LocPattern : TypedPattern.S with type Sym.t = Symbol.t and type Var.t = Var.t and type Type.t = (State.t option * Codemap.Span.t)
 module LocPatternSet : Set.S with type elt = LocPattern.t * Aut.StateSet.t option
 module LocRule : Rule.S with type elt = LocPattern.t
 module LocTrs : Relation.S with type ord = LocPattern.t and type elt = LocRule.t

@@ -43,3 +43,5 @@ module LocType = LocType
 (** {2 Higher-Order encoding} *)
 
 module AppSymbol = AppSymbol
+
+module GenericTypes = GenericTypes
