@@ -15,3 +15,5 @@ module List = List
 module Set = Set
 
 module Map = Map
+
+module Graph = Graph
