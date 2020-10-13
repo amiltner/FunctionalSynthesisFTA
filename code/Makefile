@@ -9,7 +9,7 @@ CREATE_DEFAULT_ANSWERS := python2 create-default-answers.py
 all: build link
 
 build:
-	dune build app/ToolCmdLine.exe
+	dune build app/ToolCmdLine.exe --profile release # ignores warnings as errors
 
 link: $(TARGETS)
 
