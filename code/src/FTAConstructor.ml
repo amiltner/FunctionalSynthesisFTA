@@ -385,8 +385,7 @@ let get_states
     let ds =
       initialize_types_from_type_space
         ~problem
-        (res_t
-         ::args_t
+        ([res_t;args_t]
          @(List.map ~f:Type.mk_named (Context.keys problem.tc))
          @(Context.data problem.ec))
     in
@@ -395,8 +394,8 @@ let get_states
       ~f:(fun (vs,v) ->
           List.map2_exn
             ~f:(ValueTCIntegration.tc_val problem.tc)
-            (v::vs)
-            (res_t::args_t))
+            ([v;vs])
+            ([res_t;args_t]))
       problem.examples
   in
   let sub_vs =
@@ -436,7 +435,7 @@ let get_states
   let relevant_vs =
     TypeToValues.lookup_exn
       d
-      (List.hd_exn args_t)
+      args_t
   in
   let eval_context = problem.eval_context in
   let e_t =
@@ -604,12 +603,12 @@ let get_states
                  ~equal:(fun ex1 ex2 ->
                      is_equal
                        (pair_compare
-                          (compare_list ~cmp:Value.compare)
+                          Value.compare
                           Value.compare
                           ex1
                           ex2))
                  problem.examples
-                 ([v21],v22) && (Value.equal v12 v21)
+                 (v21,v22) && (Value.equal v12 v21)
                 && List.mem ~equal:Value.equal (Value.strict_subvalues v11) v12
              then
                A.add_transition
@@ -673,7 +672,7 @@ let get_states
     List.map
       ~f:(fun (ins,out) ->
           (*print_endline "hiyo";*)
-          let inp = List.hd_exn ins in
+          let inp = ins in
           let a =
             (A.add_final_state
                (A.St.Vals ([(inp,out)],res_t))

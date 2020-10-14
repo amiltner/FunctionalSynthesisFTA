@@ -8,13 +8,13 @@ type t_unprocessed = Declaration.t list
 [@@deriving eq, hash, ord, show]
 
 type t = {
-  synth_type   : Type.t list * Type.t            ;
-  ec           : Context.Exprs.t                 ;
-  tc           : Context.Types.t                 ;
-  vc           : Context.Variants.t              ;
-  examples     : ((Value.t list) * Value.t) list ;
-  eval_context : (Id.t * Expr.t) list            ;
-  unprocessed  : t_unprocessed                   ;
+  synth_type   : Type.t * Type.t          ;
+  ec           : Context.Exprs.t          ;
+  tc           : Context.Types.t          ;
+  vc           : Context.Variants.t       ;
+  examples     : (Value.t * Value.t) list ;
+  eval_context : (Id.t * Expr.t) list     ;
+  unprocessed  : t_unprocessed            ;
 }
 [@@deriving eq, hash, make, ord]
 
@@ -129,7 +129,7 @@ let process (unprocessed : t_unprocessed) : t =
             ~eval_context
             e
           in
-          (vs,v))
+          (Value.mk_tuple vs,v))
       exs
   in
   let synth_type =
@@ -137,7 +137,7 @@ let process (unprocessed : t_unprocessed) : t =
       ~f:(fun (acc,t) ->
           begin match t with
             | Type.Arrow (t1,t2) -> Left (t1::acc,t2)
-            | _ -> Right (List.rev acc,t)
+            | _ -> Right (Type.mk_tuple (List.rev acc),t)
           end)
       ([],synth_type)
   in

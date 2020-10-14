@@ -948,12 +948,6 @@ module Extend (B: BASE) = struct
               end
             | _, None -> aut
           in
-          (*print_endline "begin confs";*)
-          (*print_endline (State.print qa Format.str_formatter; Format.flush_str_formatter ());
-            print_endline (State.print qb Format.str_formatter; Format.flush_str_formatter ());*)
-          (*print_endline (string_of_int (LabeledConfigurationSet.fold (fun _ s -> s+1) qa_confs 0));
-            print_endline (string_of_int (LabeledConfigurationSet.fold (fun _ s -> s+1) qb_confs 0));
-            print_endline "end confs";*)
           let aut = LabeledConfigurationSet.fold2 (labeled_conf_product) (qa_confs) (qb_confs) aut in
           begin
             match hook with
@@ -969,11 +963,8 @@ module Extend (B: BASE) = struct
         | None -> aut
       in
 
-      print_endline "aut begin";
       let aut = StateMap.fold2 product (configurations_for_states a) (configurations_for_states b) (create (data_product (data a) (data b))) in
-      print_endline "aut done";
       let a = StateSet.fold2 add_final (final_states a) (final_states b) aut in
-      print_endline "final done";
       a
 
   let reachable_states ?(epsilon=true) a =
@@ -1416,74 +1407,10 @@ module Extend (B: BASE) = struct
 
   let prune_useless (x:t)
     : t =
-    print_endline "min-red sub";
     let x = reduce x in
-    print_endline "prune final";
     let fs = final_states x in
     let x = sub_automaton fs x in
-      print_endline "prune done";
-    (*minimalise*) x
-
-  (*let top_down_inter
-      (x:t)
-      (y:t)
-    : t =
-    let visited = Hashtbl.create 8 in
-    let rec visit_state qx qy u =
-      let q = State.product q1 q2 in
-      match Hashtbl.find_opt visited q with
-      | Some () -> u
-      | None ->
-        let confsx = configurations_for_state q1 x in
-        let confsy = configurations_for_state q1 y in
-        labeled_conf_product confsx confsy u
-    and labeled_conf_product (ca, la) (cb, lb) aut =
-      match (Configuration.product ca cb), (Label.product la lb) with
-      | Some conf, Some label -> add_transition conf label q aut
-          | None, Some label ->
-            begin
-              match ca, cb with
-              | Configuration.Var qa', _ ->
-                begin
-                  match State.product qa' qb with
-                  | Some q' -> add_transition (Configuration.Var q') label q aut
-                  | None -> aut
-                end
-              | _, Configuration.Var qb' ->
-                begin
-                  match State.product qa qb' with
-                  | Some q' -> add_transition (Configuration.Var q') label q aut
-                  | None -> aut
-                end
-              | _, _ -> aut
-            end
-          | _, None -> aut
-        in
-
-
-  let visited = Hashtbl.create 8 in
-  let rec visit_state q u =
-    match Hashtbl.find_opt visited q with
-    | Some () -> u
-    | None ->
-      Hashtbl.add visited q ();
-      let confs = configurations_for_state q t in
-      let add_conf (conf, label) u =
-        let u = add_transition conf label q u in
-        visit_conf conf u
-      in
-      LabeledConfigurationSet.fold add_conf confs u
-  and visit_conf conf u =
-    match conf with
-    | Configuration.Cons (_, l) ->
-      List.fold_right visit_conf l u
-    | Configuration.Var q ->
-      visit_state q u
-  in
-  StateSet.fold visit_state states (set_final_states states (clear t))
-    let fx = final_states x in
-    let fy = final_states y in
-    failwith "ah"*)
+    x
 
   type renaming = State.t StateMap.t
 

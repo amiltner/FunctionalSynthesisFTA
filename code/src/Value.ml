@@ -36,7 +36,10 @@ let destruct_ctor_exn (v:t) : Id.t * t =
   Option.value_exn (destruct_ctor v)
 
 let mk_tuple (vs:t list) : t =
-  Tuple vs
+  begin match vs with
+    | [v] -> v
+    | _ -> Tuple vs
+  end
 
 let apply_tuple (type a) ~(f:t list -> a) (v:t) : a option =
   begin match v with

@@ -74,7 +74,10 @@ let destruct_variant_exn (t:t) : (Id.t * t) list =
   Option.value_exn (destruct_variant t)
 
 let mk_tuple (ts:t list) : t =
-  Tuple ts
+  begin match ts with
+    | [t] -> t
+    | _ -> Tuple ts
+  end
 
 let tuple_apply (type a) ~(f:t list -> a) (ty:t) : a option =
   match ty with

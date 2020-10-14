@@ -24,7 +24,7 @@ struct
       ~init:s
       xs
   let singleton x = insert x empty
-  let union s1 s2 = D.fold (fun x _ s -> insert x s) s2 s1
+  let union s1 s2 = D.fold (fun x _ s -> insert x s) s1 s2
   let member = D.member
   let subset s1 s2 =
     D.fold (fun x _ acc -> acc && (member s2 x)) true s1
