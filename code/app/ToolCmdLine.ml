@@ -124,7 +124,7 @@ let () =
       ~summary: "Infer a representation invariant that is sufficient for proving the correctness of a module implementation.")
 *)
 
-module FTAC = FTAConstructor2.Compute(FTASynthesizer.TimbukBuilder)
+module FTAS = FTASynthesizer.Create(Automata.TimbukBuilder)
 
 let synthesize_solution
     (fname:string)
@@ -138,7 +138,7 @@ let synthesize_solution
          (Prelude.prelude_string ^ (SimpleFile.read_from_file ~fname)))
   in
   let problem = Problem.process p_unprocessed in
-  FTAC.perform_process ~problem;
+  FTAS.perform_process ~problem;
   let e =
     if use_myth then
       MythSynthesisCaller.myth_synthesize
