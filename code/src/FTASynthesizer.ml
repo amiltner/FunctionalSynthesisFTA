@@ -5,15 +5,46 @@ module Create(B : Automata.AutomatonBuilder) = struct
   module C = FTAConstructor.Make(A)
 
   let rec term_to_exp
-      (Term (s,ts):A.term)
+      (Term ((s,_),ts):A.term)
     : Expr.t =
-    List.fold
-      ~f:(fun acc bt ->
-          Expr.mk_app
-            acc
-            (term_to_exp bt))
-      ~init:(Expr.mk_var (fst s))
-      ts
+    begin match s with
+      | FunctionApp i ->
+        List.fold
+          ~f:(fun acc bt ->
+              Expr.mk_app
+                acc
+                (term_to_exp bt))
+          ~init:(Expr.mk_var i)
+          ts
+      | VariantConstruct c ->
+        begin match ts with
+          | [t] ->
+            Expr.mk_ctor c (term_to_exp t)
+          | _ -> failwith "incorrect"
+        end
+      | TupleConstruct ->
+        failwith "ah"
+      | Var ->
+        Expr.mk_var (Id.create "x")
+      | LetIn ->
+        failwith "not permitted"
+      | Rec ->
+        begin match ts with
+          | [t] ->
+            Expr.mk_app (Expr.mk_var (Id.create "f")) (term_to_exp t)
+          | _ -> failwith "incorrect"
+        end
+      | IfThenElse ->
+        (* TODO, make destructors *)
+        List.fold
+          ~f:(fun acc bt ->
+              Expr.mk_app
+                acc
+                (term_to_exp bt))
+          ~init:(Expr.mk_var (Id.create "ifthenelse"))
+          ts
+    end
+
 
   let perform_process
       ~(problem:Problem.t)
@@ -95,15 +126,32 @@ module Create(B : Automata.AutomatonBuilder) = struct
         c
         states_ts
     in
-    let conversions =
+    let context_conversions =
       List.map
         ~f:(fun (i,e) ->
             let t = Context.find_exn problem.ec i in
             let (ins,out) = Type.split_to_arg_list_result t in
             let e = Expr.replace_holes ~i_e:(problem.eval_context) e in
-            (i,e,ins,out))
+            let evaluation vs =
+              let es = List.map ~f:Value.to_exp vs in
+              Eval.evaluate
+                (List.fold
+                  ~f:Expr.mk_app
+                  ~init:e
+                  es)
+            in
+            (FTAConstructor.Transition.FunctionApp i,evaluation,ins,out))
         problem.eval_context
     in
+    let variant_conversions =
+      (* Ana, fill this in *)
+      []
+    in
+    let tuple_conversions =
+      (* Fill this in too, though currently there's no test for them *)
+      []
+    in
+    let conversions = context_conversions@variant_conversions@tuple_conversions in
     let c = C.update_from_conversions c conversions in
     let c = C.update_from_conversions c conversions in
     let c = C.add_destructors c in

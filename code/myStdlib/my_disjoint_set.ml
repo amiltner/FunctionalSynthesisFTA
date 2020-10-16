@@ -2,8 +2,13 @@ open Core
 open Util
 open My_dict
 
+module type PrefData = sig
+  include Data
+  val preferred : t -> t -> bool
+end
+
 module DisjointSetWithSetDataOf
-    (DA : Data)
+    (DA : PrefData)
     (DS : Data)
     (EF : Container with type t = DA.t -> DS.t)
     (MF : Container with type t = DS.t -> DS.t -> DS.t) =
@@ -39,7 +44,12 @@ struct
       ds
     else
       let mv = MF.v s1v s2v in
-      let reference = (ref (e2rep,mv)) in
+      let reference =
+        if DA.preferred e1rep e2rep then
+          (ref (e1rep,mv))
+        else
+          (ref (e2rep,mv))
+      in
       let ds =
         D.insert
           ds
@@ -88,7 +98,7 @@ struct
 end
 
 
-module DisjointSetOf(DA : Data) =
+module DisjointSetOf(DA : PrefData) =
 struct
   module EF = struct type t = DA.t -> unit let v = func_of () end
   module MF = struct type t = unit ->unit -> unit let v = func_of (func_of ()) end

@@ -40,7 +40,16 @@ end
 
 module Transition =
 struct
-  type t = (Id.t * int)
+  type id =
+    | FunctionApp of Id.t
+    | VariantConstruct of Id.t
+    | TupleConstruct
+    | Var
+    | LetIn
+    | Rec
+    | IfThenElse (* TODO change to destructor-switch *)
+  [@@deriving eq, hash, ord, show]
+  type t = (id * int)
   [@@deriving eq, hash, ord, show]
 
   let print a b = pp b a
@@ -51,7 +60,16 @@ end
 module Make(A : Automata.Automaton with module Symbol := Transition and module State := State) = struct
   module TypeDS =
     DisjointSetWithSetDataOf
-      (Type)
+      (struct
+        include Type
+        let preferred t1 t2 =
+          begin match t1 with
+            | Variant _
+            | Arrow _
+            | Tuple _ -> true
+            | _ -> false
+          end
+      end)
       (BoolModule)
       (struct
         type t = Type.t -> bool
@@ -76,6 +94,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       inputs           : Value.t list list          ;
       tset             : TransitionSet.t            ;
       final_candidates : Value.t -> Value.t -> bool ;
+      all_types        : Type.t list                ;
     }
 
   let get_type_rep
@@ -163,7 +182,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let add_transition
       (c:t)
-      (trans_id:Id.t)
+      (trans_id:Transition.id)
       (sins:State.t list)
       (sout:State.t)
     : t =
@@ -185,7 +204,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   let evaluate
       (c:t)
       (input:Value.t list)
-      (e:Expr.t)
+      (f:Value.t list -> Value.t)
       (args:State.t list)
       (t:Type.t)
     : State.t =
@@ -197,12 +216,13 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         | _ -> List.transpose_exn vs
       end
     in
-    let args =
+    let outs = List.map ~f args in
+    (*let args =
       List.map
         ~f:(List.map
               ~f:Value.to_exp)
         args
-    in
+      in
     let full_exps =
       List.map
         ~f:(List.fold
@@ -210,13 +230,13 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
               ~init:e)
         args
     in
-    let outs = List.map ~f:Eval.evaluate full_exps in
+      let outs = List.map ~f:Eval.evaluate full_exps in*)
     let in_outs = List.zip_exn input outs in
     val_state c in_outs t
 
   let update_from_conversions
       (c:t)
-      (conversions:(Id.t * Expr.t * (Type.t list) * Type.t) list)
+      (conversions:(Transition.id * (Value.t list -> Value.t) * (Type.t list) * Type.t) list)
     : t =
     let ids_ins_outs =
       List.concat_map
@@ -283,17 +303,23 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         inputs           ;
         tset             ;
         final_candidates ;
+        all_types        ;
       }
     in
     List.fold
       ~f:(fun c i ->
           add_transition
             c
-            (Id.create "x")
+            Var
             []
             (val_state c [(i,i)] input_type))
       ~init:c
       input_vals
+
+  let get_all_types
+      (c:t)
+    : Type.t list =
+    c.all_types
 
   let add_let_ins
       (c:t)
@@ -308,7 +334,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
               then
                 add_transition
                   c
-                  (Id.create "let-in")
+                  LetIn
                   [s1;s2]
                   (val_state c [v11,v22] t)
               else
@@ -342,7 +368,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
               let c =
                 add_transition
                   c
-                  (Id.create "ifthenelse")
+                  IfThenElse
                   [(val_state c [(i,Value.true_val)] Type._bool)
                   ;s
                   ;State.top]
@@ -351,7 +377,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
               let c =
                 add_transition
                   c
-                  (Id.create "ifthenelse")
+                  IfThenElse
                   [(val_state c [(i,Value.false_val)] Type._bool)
                   ;State.top
                   ;s]
