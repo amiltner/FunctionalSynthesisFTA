@@ -144,8 +144,29 @@ module Create(B : Automata.AutomatonBuilder) = struct
         problem.eval_context
     in
     let variant_conversions =
-      (* Ana, fill this in *)
-      []
+      (*** Ana, fill this in
+        * nat_succ pseudocode:
+        (Transition.FunctionApp "S", fun [v] -> Value.mk_ctor ("S", v), [nat], nat)
+        * nat_zero psuedocode:
+        (Transition.FunctionApp "O", fun [v] -> Value.mk_ctor ("O", v), [unit], nat)
+        * bool_t pseudocode:
+        (Transition.FunctionApp "True", fun [v] -> Value.mk_ctor ("True", v), [bool], bool)
+        * bool_f pseudocode:
+        (Transition.FunctionApp "False", fun [v] -> Value.mk_ctor ("False", v), [bool], bool)
+      ***)
+      [(FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "S"),
+         (fun vs -> Value.mk_ctor (MyStdLib.Id.Id "S") (List.hd_exn vs)),
+                             [Type.mk_named (MyStdLib.Id.Id "nat")], Type.mk_named (MyStdLib.Id.Id "nat"));
+        (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "O"),
+         (fun vs -> Value.mk_ctor (MyStdLib.Id.Id "O") (List.hd_exn vs)),
+                             [Type.mk_named (MyStdLib.Id.Id "unit")], Type.mk_named (MyStdLib.Id.Id "nat"));
+        (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "True"),
+         (fun vs -> Value.mk_ctor (MyStdLib.Id.Id "True") (List.hd_exn vs)),
+                             [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"));
+        (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "False"),
+         (fun vs -> Value.mk_ctor (MyStdLib.Id.Id "False") (List.hd_exn vs)),
+                             [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"))
+        ]
     in
     let tuple_conversions =
       (* Fill this in too, though currently there's no test for them *)
