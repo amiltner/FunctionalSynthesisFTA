@@ -915,6 +915,18 @@ let fold_on_head_exn ~f:(f:'a -> 'a -> 'a) (l:'a list) : 'a =
     ~init:h
     t
 
+let rec binary_merge_exn
+    ~(f:'a -> 'a -> 'a)
+    (l:'a list)
+  : 'a =
+  begin match l with
+    | [] -> failwith "empty list given"
+    | [h] -> h
+    | h1::h2::t ->
+      let t' = f h1 h2 in
+      binary_merge_exn ~f (t@[t'])
+  end
+
 let fold_on_head ~f:(f:'a -> 'a -> 'a) (l:'a list) : 'a option =
   begin match l with
     | [] -> None

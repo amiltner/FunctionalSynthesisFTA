@@ -5,4 +5,4 @@
 (library
     (name timbukSolving)
     (public_name timbukSolving)
-    (libraries collections timbuk codemap unicode logs process))
+    (libraries collections timbuk codemap unicode logs async_unix core))

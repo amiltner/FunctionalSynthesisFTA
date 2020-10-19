@@ -138,7 +138,7 @@ let synthesize_solution
          (Prelude.prelude_string ^ (SimpleFile.read_from_file ~fname)))
   in
   let problem = Problem.process p_unprocessed in
-  FTAS.perform_process ~problem;
+  FTAS.other_alg ~problem;
   let e =
     if use_myth then
       MythSynthesisCaller.myth_synthesize
