@@ -1,4 +1,5 @@
 open Collections
+open Async_unix
 
 let log_src = Logs.Src.create "timbuk.solving.cvc4"
 module Log = (val Logs.src_log log_src : Logs.LOG)
@@ -90,7 +91,7 @@ module Make (Conf : CONF) (Var : Solver.VARIABLE) = struct
         Format.pp_print_flush out ()
       | None -> ()
     end;
-    let out = Format.formatter_of_out_channel (Process.stdin proc) in
+    let out = Writer.to_formatter (Process.stdin proc) in
     Smt2.print smt2 out;
     Format.pp_print_flush out ()
   (* ;
@@ -99,8 +100,7 @@ module Make (Conf : CONF) (Var : Solver.VARIABLE) = struct
 
   let create_process () =
     (* NODE the --finite-model-find is very important. It the one guarantying us to find the SMALLEST solution. *)
-    let cmd = (Conf.path ())^" --incremental --finite-model-find --produce-model --lang=smtlib2" in
-    Process.create cmd
+    Core.Or_error.ok_exn (Core.Option.value_exn (Async_unix__Import.Deferred.peek (Process.create ~prog:(Conf.path ()) ~args:["--incremental";"--finite-model-find";"--produce-model";"--lang=smtlib2"] ())))
 
   let create () =
     let proc = create_process () in
@@ -117,7 +117,7 @@ module Make (Conf : CONF) (Var : Solver.VARIABLE) = struct
 
   let release t =
     match !t with
-    | Owner o -> ignore (Process.close o.proc)
+    | Owner o -> () (*ignore (Process.close o.proc)*)
     | _ -> ()
 
   let index_of v vars =
@@ -372,18 +372,18 @@ module Make (Conf : CONF) (Var : Solver.VARIABLE) = struct
 
   let get_model ?(debug=false) t =
     let cvc4 = own !t in
-    let out = Format.formatter_of_out_channel (Process.stdin cvc4.proc) in
+    let out = Writer.to_formatter (Process.stdin cvc4.proc) in
     begin match cvc4.log with
       | Some (id, _) -> Log.debug (fun m -> m "CVC4 solving `%s`...@." id)
       | None -> () (* Log.debug (fun m -> m "CVC4 solving...@.") *)
     end;
     Smt2.print [Smt2.Check] out;
     Format.pp_print_flush out ();
-    match parse_result (Lexing.from_channel (Process.stdout cvc4.proc)) with
+    match parse_result (Lexing.from_string (Core.Option.value_exn (Async_unix__Import.Deferred.peek (Reader.contents (Process.stdout cvc4.proc))))) with
     | Smt2.Sat ->
       Smt2.print [Smt2.GetModel] out;
       Format.pp_print_flush out ();
-      let model = parse_model (Lexing.from_channel (Process.stdout cvc4.proc)) in
+      let model = parse_model (Lexing.from_string (Core.Option.value_exn (Async_unix__Import.Deferred.peek (Reader.contents (Process.stdout cvc4.proc))))) in
       Sat (model_of_smt2 model cvc4.vars)
     | Smt2.Unsat -> Unsat
     | Smt2.Unknown -> Unknown

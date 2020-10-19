@@ -95,6 +95,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       tset             : TransitionSet.t            ;
       final_candidates : Value.t -> Value.t -> bool ;
       all_types        : Type.t list                ;
+      up_to_date       : bool                       ;
     }
 
   let get_type_rep
@@ -152,6 +153,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (vinsvouts:(Value.t * Value.t) list)
       (t:Type.t)
     : t =
+    let t = get_type_rep c t in
     let vins = List.map ~f:fst vinsvouts in
     let d =
       InputsAndTypeToStates.insert_or_combine
@@ -160,6 +162,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         (vins,t)
         (StateSet.singleton (val_state c vinsvouts t))
     in
+    let _ = InputsAndTypeToStates.lookup_exn d (vins,t) in
     {c with d}
 
   let update_tset
@@ -201,13 +204,23 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let a = A.add_transition c.a (trans_id,List.length sins) sins sout in
     {c with a}
 
+
+  let remove_transition
+      (c:t)
+      (trans:Transition.t)
+      (sins:State.t list)
+      (sout:State.t)
+    : t =
+    {c with
+     a = A.remove_transition c.a trans sins sout }
+
   let evaluate
       (c:t)
       (input:Value.t list)
-      (f:Value.t list -> Value.t)
+      (f:Value.t list -> Value.t option)
       (args:State.t list)
       (t:Type.t)
-    : State.t =
+    : State.t option =
     let vs = List.map ~f:State.destruct_vals_exn args in
     let vs = List.map ~f:(List.map ~f:snd % fst) vs in
     let args =
@@ -216,7 +229,13 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         | _ -> List.transpose_exn vs
       end
     in
-    let outs = List.map ~f args in
+    let outos = List.map ~f args in
+    let outso = distribute_option outos in
+    Option.map
+      ~f:(fun outs ->
+          let in_outs = List.zip_exn input outs in
+          val_state c in_outs t)
+      outso
     (*let args =
       List.map
         ~f:(List.map
@@ -231,12 +250,12 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         args
     in
       let outs = List.map ~f:Eval.evaluate full_exps in*)
-    let in_outs = List.zip_exn input outs in
-    val_state c in_outs t
 
   let update_from_conversions
       (c:t)
-      (conversions:(Transition.id * (Value.t list -> Value.t) * (Type.t list) * Type.t) list)
+      (conversions:(Transition.id
+                    * (Value.t list -> Value.t option)
+                    * (Type.t list) * Type.t) list)
     : t =
     let ids_ins_outs =
       List.concat_map
@@ -252,9 +271,12 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                     combinations
                       args_choices
                   in
-                  List.map
+                  List.filter_map
                     ~f:(fun ins ->
-                        (i,ins,evaluate c input e ins tout))
+                        let outso = evaluate c input e ins tout in
+                        Option.map
+                          ~f:(fun out -> (i,ins,out))
+                          outso)
                     args_list)
               c.inputs)
         conversions
@@ -297,13 +319,14 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let tset = TransitionSet.empty in
     let c =
       {
-        a                ;
-        d                ;
-        ds               ;
-        inputs           ;
-        tset             ;
-        final_candidates ;
-        all_types        ;
+        a                 ;
+        d                 ;
+        ds                ;
+        inputs            ;
+        tset              ;
+        final_candidates  ;
+        all_types         ;
+        up_to_date = true ;
       }
     in
     List.fold
@@ -338,7 +361,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                   [s1;s2]
                   (val_state c [v11,v22] t)
               else
-                c
+                 c
             | _ -> c
           end)
       ~init:c
@@ -355,7 +378,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (c:t)
     : t =
     let a = A.minimize c.a in
-    { c with a }
+    { c with a ; up_to_date=false }
 
   let add_destructors
       (c:t)
@@ -398,4 +421,96 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
           add_state c vvs t)
       ~init:c
       states
+
+  let recursion_targets
+      (c:t)
+    : State.t list =
+    List.filter
+      ~f:(fun s ->
+          let ps = A.transitions_from c.a s in
+          (not (State.equal s State.top)) &&
+          List.exists
+            ~f:(fun (t,ss,_) ->
+                begin match (t,ss) with
+                  | ((Transition.LetIn,_),[_;s2])
+                    (*when State.equal s2 s*) ->
+                    true
+                  | _ -> false
+                end)
+            ps)
+      (A.states c.a)
+
+  let prune_with_recursion_intro
+      c
+      s =
+    let ps = A.transitions_from c.a s in
+    let transitions_to_prune_and_add =
+      List.filter_map
+        ~f:(fun tp ->
+            let ((t,_),ss,st) = tp in
+            begin match (t,ss) with
+              | (Transition.LetIn,[s1;s2])
+                when State.equal s s2 ->
+                Some (tp,(s1,st))
+              | _ -> None
+            end)
+        (ps)
+    in
+    let (prunes,adds) =
+      List.unzip
+        transitions_to_prune_and_add
+    in
+    let c =
+      List.fold
+        ~f:(fun c (t,ss,s) ->
+            remove_transition
+              c
+              t
+              ss
+              s)
+        ~init:c
+        prunes
+    in
+    let c =
+      List.fold
+        ~f:(fun c (sarg,target) ->
+            add_transition
+              c
+              Transition.Rec
+              [sarg]
+              target)
+        ~init:c
+        adds
+    in
+    c
+
+  let intersect
+      (c1:t)
+      (c2:t)
+    : t =
+    let a = A.intersect c1.a c2.a in
+    { c1 with a ; up_to_date = false ; }
+
+  let rec replace_all_recursions
+      (c:t)
+    : t =
+    let candidates =
+      recursion_targets
+        c
+    in
+    begin match candidates with
+      | [] -> c
+      | h::_ ->
+        replace_all_recursions
+          (prune_with_recursion_intro c h)
+    end
+
+  let rec replace_single_recursions
+      (c:t)
+    : t list =
+    let candidates =
+      recursion_targets
+        c
+    in
+    List.map ~f:(prune_with_recursion_intro c) candidates
 end

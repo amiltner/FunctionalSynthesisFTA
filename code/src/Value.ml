@@ -96,10 +96,14 @@ let rec subvalues (v:t) : t list =
          | Func _ -> []
          | Ctor (_,v) -> subvalues v
          | Tuple vs -> List.concat_map ~f:subvalues vs
-       end
+  end
 
 let strict_subvalues (e:t) : t list =
   List.tl_exn (subvalues e)
+
+let strict_subvalue (e1:t) (e2:t) : bool =
+  List.mem ~equal (strict_subvalues e2) e1
+
 
 let size : t -> int =
   fold
