@@ -197,18 +197,18 @@ module Create(B : Automata.AutomatonBuilder) = struct
         (Transition.FunctionApp "False", fun [v] -> Value.mk_ctor ("False", v), [bool], bool)
       ***)
       [(FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "S"),
-         (fun vs -> Value.mk_ctor (MyStdLib.Id.Id "S") (List.hd_exn vs)),
-                             [Type.mk_named (MyStdLib.Id.Id "nat")], Type.mk_named (MyStdLib.Id.Id "nat"));
-        (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "O"),
-         (fun vs -> Value.mk_ctor (MyStdLib.Id.Id "O") (List.hd_exn vs)),
-                             [Type.mk_named (MyStdLib.Id.Id "unit")], Type.mk_named (MyStdLib.Id.Id "nat"));
-        (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "True"),
-         (fun vs -> Value.mk_ctor (MyStdLib.Id.Id "True") (List.hd_exn vs)),
-                             [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"));
-        (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "False"),
-         (fun vs -> Value.mk_ctor (MyStdLib.Id.Id "False") (List.hd_exn vs)),
-                             [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"))
-        ]
+        (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "S") (List.hd_exn vs))),
+        [Type.mk_named (MyStdLib.Id.Id "nat")], Type.mk_named (MyStdLib.Id.Id "nat"));
+       (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "O"),
+        (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "O") (List.hd_exn vs))),
+        [Type.mk_named (MyStdLib.Id.Id "unit")], Type.mk_named (MyStdLib.Id.Id "nat"));
+       (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "True"),
+        (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "True") (List.hd_exn vs))),
+        [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"));
+       (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "False"),
+        (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "False") (List.hd_exn vs))),
+        [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"))
+      ]
     in
     let tuple_conversions =
       (* Fill this in too, though currently there's no test for them *)
@@ -313,6 +313,11 @@ module Create(B : Automata.AutomatonBuilder) = struct
                 (fst problem.synth_type)
                 checker
             in
+            let c = C.add_state
+                c
+                [(i,Value.mk_tuple[])]
+                (Type.mk_tuple[])
+                in
             let subcall_sites =
               List.filter_map
                 ~f:(fun (i',_) ->
