@@ -217,9 +217,8 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let conversions = context_conversions@variant_conversions@tuple_conversions in
     let c = C.update_from_conversions c conversions in
     let c = C.update_from_conversions c conversions in
-    let c = C.update_from_conversions c conversions in
-    let c = C.update_from_conversions c conversions in
-    let c = C.add_destructors c in
+    print_endline (A.show c.a);
+    (*let c = C.add_destructors c in*)
     let c = C.add_let_ins c in
     let cs =
       List.map
@@ -281,8 +280,19 @@ module Create(B : Automata.AutomatonBuilder) = struct
       List.map
         ~f:(fun (i,o) ->
             let variant_conversions =
-              (* Ana, fill this in *)
-              []
+              [(FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "S"),
+                (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "S") (List.hd_exn vs))),
+                [Type.mk_named (MyStdLib.Id.Id "nat")], Type.mk_named (MyStdLib.Id.Id "nat"));
+               (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "O"),
+                (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "O") (List.hd_exn vs))),
+                [Type.mk_named (MyStdLib.Id.Id "unit")], Type.mk_named (MyStdLib.Id.Id "nat"));
+               (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "True"),
+                (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "True") (List.hd_exn vs))),
+                [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"));
+               (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "False"),
+                (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "False") (List.hd_exn vs))),
+                [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"))
+              ]
             in
             let tuple_conversions =
               (* Fill this in too, though currently there's no test for them *)
