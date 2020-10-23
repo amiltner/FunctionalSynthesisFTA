@@ -279,8 +279,47 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let cs =
       List.map
         ~f:(fun (i,o) ->
+            let c =
+              C.initialize
+                ~problem
+                ([res_t;args_t]
+                 @(List.map ~f:Type.mk_named (Context.keys problem.tc))
+                 @(Context.data problem.ec))
+                [i]
+                (fst problem.synth_type)
+                checker
+            in
+            let c =
+              C.add_state
+                c
+                [(i,Value.mk_tuple[])]
+                (Type.mk_tuple[])
+            in
+            let subcall_sites =
+              List.filter_map
+                ~f:(fun (i',_) ->
+                    if Value.strict_subvalue i' i then
+                      Some ([(i,i')],args_t)
+                    else
+                      None)
+                problem.examples
+            in
+            let c = C.add_states c subcall_sites in
+
             let variant_conversions =
-              [(FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "S"),
+              List.concat_map
+                ~f:(fun t ->
+                    (*
+                     match with
+                     | nonvariant -> []
+                     | variant l ->
+                    List.map
+                      ~f:(fun (i,t) -> make_conversion_with i t)
+                      l*)
+                    failwith "TODO"(*your code here!*))
+                (C.get_all_types c)
+            in
+              (*[(FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "S"),
                 (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "S") (List.hd_exn vs))),
                 [Type.mk_named (MyStdLib.Id.Id "nat")], Type.mk_named (MyStdLib.Id.Id "nat"));
                (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "O"),
@@ -293,7 +332,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
                 (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "False") (List.hd_exn vs))),
                 [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"))
               ]
-            in
+                in*)
             let tuple_conversions =
               (* Fill this in too, though currently there's no test for them *)
               []
@@ -313,31 +352,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
               [(FTAConstructor.Transition.Rec,evaluation,[args_t],res_t)]
             in
             let conversions = context_conversions@variant_conversions@tuple_conversions@rec_call_conversions in
-            let c =
-              C.initialize
-                ~problem
-                ([res_t;args_t]
-                 @(List.map ~f:Type.mk_named (Context.keys problem.tc))
-                 @(Context.data problem.ec))
-                [i]
-                (fst problem.synth_type)
-                checker
-            in
-            let c = C.add_state
-                c
-                [(i,Value.mk_tuple[])]
-                (Type.mk_tuple[])
-                in
-            let subcall_sites =
-              List.filter_map
-                ~f:(fun (i',_) ->
-                    if Value.strict_subvalue i' i then
-                      Some ([(i,i')],args_t)
-                    else
-                      None)
-                problem.examples
-            in
-            let c = C.add_states c subcall_sites in
             let c = C.update_from_conversions c rec_call_conversions in
             let c = C.update_from_conversions c conversions in
             let c = C.update_from_conversions c conversions in
@@ -347,7 +361,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
             let c = C.minimize c in
             c
           )
-        problem.examples
+        [List.hd_exn problem.examples]
     in
     (*let vs =
       List.concat_map
