@@ -488,6 +488,38 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (c1:t)
       (c2:t)
     : t =
+    let merge_tset
+        (c1:TransitionSet.t)
+        (c2:TransitionSet.t)
+      : TransitionSet.t =
+      let merged = TransitionSet.union c1 c2 in
+      let all_ts_by_id =
+        group_by
+          ~key:fst
+          ~equal:Transition.equal_id
+          (TransitionSet.as_list merged)
+      in
+      List.iter
+        ~f:(fun l -> assert (List.length l = 1))
+        all_ts_by_id;
+      merged
+    in
+    let ts =
+      TransitionSet.as_list
+        (merge_tset c1.tset c2.tset)
+    in
+    let c1 =
+      List.fold
+        ~f:update_tset
+        ~init:c1
+        ts
+    in
+    let c2 =
+      List.fold
+        ~f:update_tset
+        ~init:c2
+        ts
+    in
     let a = A.intersect c1.a c2.a in
     { c1 with a ; up_to_date = false ; }
 
@@ -513,4 +545,158 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         c
     in
     List.map ~f:(prune_with_recursion_intro c) candidates
+
+  module StateToTree = DictOf(State)(A.Term)
+  module StateToTree' = DictOf(State)(PairOf(IntModule)(A.Term))
+  module StateToProd = DictOf(State)(PairOf(Transition)(ListOf(State)))
+
+  let rec term_size
+      (t:A.Term.t)
+    : int =
+    begin match t with
+      | Term (_,ts) -> List.fold_left ~f:(fun i t -> i+(term_size t)) ~init:1 ts
+    end
+
+  module ProductionPQ = PriorityQueueOf(struct
+      module Priority = IntModule
+      type t = int * A.Term.t * State.t
+      [@@deriving eq, hash, ord, show]
+      let priority = fst3
+    end)
+
+  type min_tree_acc = StateToTree.t * (Transition.t * State.t list * State.t) list
+  module PQ = PriorityQueueOf(struct
+      module Priority = IntModule
+      type t = (int * StateToProd.t * State.t list * StateSet.t)
+      [@@deriving eq, hash, ord, show]
+      let priority (i,_,_,_) = i
+    end)
+  type min_tree_acc' = StateToTree.t * (A.term * State.t) list
+
+  let min_tree'
+      (c:t)
+    : A.term =
+    let get_produced_from
+        (st:StateToTree'.t)
+        (t:Transition.t)
+        (ss:State.t list)
+      : (int * A.Term.t) option =
+      let subs =
+        List.map
+          ~f:(fun s -> StateToTree'.lookup st s)
+          ss
+      in
+      Option.map
+        ~f:(fun iss ->
+            let (ints,ss) = List.unzip iss in
+            let size = List.fold ~f:(+) ~init:1 ints in
+            (size,A.Term (t,ss)))
+        (distribute_option subs)
+    in
+    let rec min_tree_internal
+        (st:StateToTree'.t)
+        (pq:ProductionPQ.t)
+      : A.Term.t =
+      begin match ProductionPQ.pop pq with
+        | Some ((i,t,s),_,pq) ->
+          if A.is_final_state c.a s then
+            t
+          else if StateToTree'.member st s then
+            min_tree_internal st pq
+          else
+            let st = StateToTree'.insert st s (i,t) in
+
+            let triggered_transitions = A.transitions_from c.a s in
+            let produced =
+              List.filter_map
+                ~f:(fun (t,ss,s) ->
+                    Option.map
+                      ~f:(fun (i,t) -> (i,t,s))
+                      (get_produced_from st t ss))
+                triggered_transitions
+            in
+            let pq = ProductionPQ.push_all pq produced in
+            min_tree_internal st pq
+        | None ->
+          failwith "no tree"
+      end
+    in
+    let initial_terms =
+      List.filter_map
+        ~f:(fun (t,ss,s) ->
+            Option.map
+              ~f:(fun (i,t) -> (i,t,s))
+              (get_produced_from StateToTree'.empty t ss))
+        (A.transitions c.a)
+    in
+    min_tree_internal
+      StateToTree'.empty
+      (ProductionPQ.from_list initial_terms)
+
+  let min_tree
+      (c:t)
+    : A.term =
+    let update_sts
+        (st:StateToTree.t)
+        ((i,ss,t):Transition.t * State.t list * State.t)
+        ((acc_st,acc_new_trans):min_tree_acc)
+      : (min_tree_acc,A.Term.t) either =
+      if StateToTree.member st t then
+        Left (acc_st,acc_new_trans)
+      else
+        let subs =
+          List.map
+            ~f:(fun s -> StateToTree.lookup st s)
+            ss
+        in
+        begin match distribute_option subs with
+          | None -> Left (acc_st,acc_new_trans)
+          | Some sts ->
+            let term = A.Term (i,sts) in
+            if A.is_final_state c.a t then
+              Right term
+            else
+              let acc_st =
+                StateToTree.insert_or_combine
+                  ~combiner:(fun v1 v2 -> if term_size v1 < term_size v2 then v1 else v2)
+                  acc_st
+                  t
+                  term
+              in
+              let acc_new_trans = acc_new_trans@(A.transitions_from c.a t) in
+              Left (acc_st,acc_new_trans)
+        end
+    in
+    let process_boundary
+        (st:StateToTree.t)
+        (boundary:(Transition.t * State.t list * State.t) list)
+      : (StateToTree.t * (Transition.t * State.t list * State.t) list,A.Term.t) either =
+      let rec process_boundary_internal
+          (st:StateToTree.t)
+          (boundary:(Transition.t * State.t list * State.t) list)
+          (acc:min_tree_acc)
+        : (min_tree_acc,A.Term.t) either =
+        begin match boundary with
+          | [] -> Left acc
+          | h::t ->
+            begin match update_sts st h acc with
+              | Left acc -> process_boundary_internal st t acc
+              | Right t1 as racc ->
+                let remaining_smallest = process_boundary_internal st t acc in
+                begin match remaining_smallest with
+                  | Left _ -> racc
+                  | Right t2 -> if term_size t1 < term_size t2 then Right t1 else Right t2
+                end
+            end
+        end
+      in
+      process_boundary_internal st boundary (st,[])
+    in
+    fold_until_completion
+      ~f:(fun (st,boundary) ->
+          begin match boundary with
+            | [] -> failwith "no boundary"
+            | _ -> process_boundary st boundary
+          end)
+      (StateToTree.empty,A.transitions c.a)
 end

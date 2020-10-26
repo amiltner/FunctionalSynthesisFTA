@@ -221,11 +221,10 @@ module Create(B : Automata.AutomatonBuilder) = struct
     print_endline "here";
     let cs = C.replace_single_recursions c in
     List.iter
-      ~f:(fun c -> let e = term_to_exp (A.pick_term c.a) in
+      ~f:(fun c -> let e = term_to_exp (C.min_tree' c) in
            print_endline (Expr.show e))
     cs;
     ()
-
 
   let other_alg
       ~(problem:Problem.t)
@@ -457,7 +456,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
       ~f:(fun c -> let e = term_to_exp (A.pick_term c.a) in
            print_endline (Expr.show e))
       cs;*)
-    let e = term_to_exp (A.pick_term c.a) in
+    let e = term_to_exp (C.min_tree' c) in
     print_endline (Expr.show e);
     ()
 end

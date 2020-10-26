@@ -1496,23 +1496,28 @@ let rec insert_into_correct_list
   | [] -> [(k,[v])]
   end
 
-let rec append_into_correct_list ((k,v):'a * 'b list) (l:('a * 'b list) list)
+let rec append_into_correct_list
+  ~(equal:'a -> 'a -> bool)
+    ((k,v):'a * 'b list) (l:('a * 'b list) list)
     : ('a * 'b list) list =
   begin match l with
   | ((k',vlist)::kvplist) ->
-      if k = k' then
+      if equal k k then
         (k',v@vlist)::kvplist
       else
-        (k',vlist)::(append_into_correct_list (k,v) kvplist)
+        (k',vlist)::(append_into_correct_list ~equal (k,v) kvplist)
   | [] -> failwith "bad lisat"
   end
 
 let group_by_values
-    (l:('a list * 'b) list) : ('a list * 'b) list =
+    (type a)
+    (type b)
+    ~(equal:b -> b -> bool)
+    (l:(a list * b) list) : (a list * b) list =
   let empty_value_list = List.dedup_and_sort ~compare:default_compare (List.map ~f:(fun v -> (snd v,[])) l) in
   let l' = List.fold_left
   ~f:(fun acc (k,v) ->
-    append_into_correct_list (v,k) acc)
+    append_into_correct_list ~equal (v,k) acc)
   ~init:empty_value_list
   l
   in
@@ -1527,6 +1532,18 @@ let group_by_keys
         insert_into_correct_list ~is_eq:is_eq acc k v)
     ~init:[]
     kvl
+
+let group_by
+    (type a)
+    (type b)
+    ~(key : a -> b)
+    ~(equal: b -> b -> bool)
+    (l:a list)
+  : a list list =
+  let kvl = List.map ~f:(fun v -> (key v,v)) l in
+  List.map
+    ~f:(fun (k,vs) -> vs)
+    (group_by_keys ~is_eq:equal kvl)
 
 
 module Operators = struct 

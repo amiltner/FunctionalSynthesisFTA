@@ -17,7 +17,10 @@ sig
   module Symbol : Symbol
   module State : State
 
-  type term = Term of Symbol.t * (term list)
+  type term =  Term of Symbol.t * (term list)
+  module Term : sig
+    include Data with type t = term
+  end
 
   type t
   val show : t shower
@@ -31,13 +34,17 @@ sig
   val remove_transition : t -> Symbol.t -> State.t list -> State.t -> t
   val states : t -> State.t list
   val final_states : t -> State.t list
+  val is_final_state : t -> State.t -> bool
   val add_final_state : t -> State.t -> t
   val is_empty : t -> bool
-  val pick_term : t -> term
+  val pick_term : t -> Term.t
+  val accepts_term : t -> Term.t -> bool
   val transitions_from
     : t
     -> State.t
     -> (Symbol.t * (State.t list) * State.t) list
+  val transitions_to : t -> State.t -> (Symbol.t * (State.t list)) list
+  val transitions : t -> (Symbol.t * (State.t list) * State.t) list
   val minimize : t -> t
 end
 
@@ -89,6 +96,12 @@ module TimbukBuilder : AutomatonBuilder =
     module State = State
 
     type term = Term of Symbol.t * (term list)
+    [@@deriving hash, eq, ord, show]
+
+    module Term = struct
+      type t = term
+      [@@deriving hash, eq, ord, show]
+    end
 
     let empty = A.empty
 
@@ -122,6 +135,11 @@ module TimbukBuilder : AutomatonBuilder =
 
     let final_states a =
       A.StateSet.elements
+        (A.final_states a)
+
+    let is_final_state a s =
+      A.StateSet.mem
+        s
         (A.final_states a)
 
     let add_final_state a f =
@@ -178,5 +196,68 @@ module TimbukBuilder : AutomatonBuilder =
             List.map ~f:(fun (s,_) -> (i,vs,s)) ss)
         cs
 
+    let transitions_to
+        a
+        s
+      : (Symbol.t * (State.t list)) list =
+      let configs =
+        A.configurations_for_state
+          s
+          a
+      in
+      List.map
+        ~f:(fun (c,_) ->
+            begin match c with
+              | A.Configuration.Cons (i,ps) ->
+                (i,
+                 List.map
+                   ~f:(fun p ->
+                       begin match p with
+                         | A.Configuration.Var s -> s
+                         | _ -> failwith "shouldnt happen"
+                       end)
+                   ps)
+              | _ -> failwith "shouldnt happen"
+            end)
+        (A.LabeledConfigurationSet.elements configs)
+
+    let transitions
+        (c:t)
+      : (Symbol.t * (State.t list) * State.t) list =
+      let sm = A.configurations_for_states c in
+      let ts =
+        A.StateMap.fold
+          (fun s cs ts ->
+             A.LabeledConfigurationSet.fold
+               (fun (c,_) ts ->
+                  begin match c with
+                    | A.Configuration.Cons (i,ps) ->
+                      (i
+                      ,List.map
+                          ~f:(fun p ->
+                             begin match p with
+                               | A.Configuration.Var s -> s
+                               | _ -> failwith "shouldnt happen"
+                             end)
+                          ps
+                      ,s)::ts
+                    | _ -> failwith "shouldnt happen"
+                  end)
+               cs
+               ts)
+          sm
+          []
+      in
+      ts
+
     let minimize = A.prune_useless
+
+    let accepts_term a t =
+      let rec term_to_aterm t : Symbol.t Timbuk.Term.term =
+        begin match t with
+          | Term (i,ts) ->
+            Term (i,List.map ~f:term_to_aterm ts)
+        end
+      in
+      A.recognizes (term_to_aterm t) a
   end
