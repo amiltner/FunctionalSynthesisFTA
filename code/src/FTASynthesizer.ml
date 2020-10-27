@@ -4,8 +4,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
   module A = B(FTAConstructor.Transition)(FTAConstructor.State)
   module C = FTAConstructor.Make(A)
 
-  let intersection_cache = DictOf(ListOf(Value))(C)
-
   let rec term_to_exp
       (Term ((s,_),ts):A.term)
     : Expr.t =
