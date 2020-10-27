@@ -13,6 +13,7 @@ type t = {
   tc           : Context.Types.t          ;
   vc           : Context.Variants.t       ;
   examples     : (Value.t * Value.t) list ;
+  i     : (Value.t * Value.t) list ;
   eval_context : (Id.t * Expr.t) list     ;
   unprocessed  : t_unprocessed            ;
 }

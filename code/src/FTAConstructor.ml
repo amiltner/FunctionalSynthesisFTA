@@ -97,6 +97,12 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       all_types        : Type.t list                ;
       up_to_date       : bool                       ;
     }
+  [@@deriving show]
+
+  let equal _ _ = failwith "not implemented"
+  let hash_fold_t _ _ = failwith "not implemented"
+  let hash _ = failwith "not implemented"
+  let compare _ _ = failwith "not implemented"
 
   let get_type_rep
       (c:t)
@@ -115,6 +121,18 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (TypeDS.find_representative
          c.ds
          t)
+
+  let get_final_values
+      (c:t)
+    : Value.t list =
+    let final_states = A.final_states c.a in
+    List.map
+      ~f:(fun s ->
+          begin match s with
+            | Vals ([(_,vo)],_) -> vo
+            | _ -> failwith "invalid final values"
+          end)
+      final_states
 
   let get_states_singleton
       (c:t)
@@ -155,14 +173,22 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     : t =
     let t = get_type_rep c t in
     let vins = List.map ~f:fst vinsvouts in
+    let s = val_state c vinsvouts t in
     let d =
       InputsAndTypeToStates.insert_or_combine
         ~combiner:(StateSet.union)
         c.d
         (vins,t)
-        (StateSet.singleton (val_state c vinsvouts t))
+        (StateSet.singleton s)
     in
     let _ = InputsAndTypeToStates.lookup_exn d (vins,t) in
+    let c =
+      if List.for_all ~f:(uncurry c.final_candidates) vinsvouts then
+        let a = A.add_final_state c.a s in
+        {c with a}
+      else
+        c
+    in
     {c with d}
 
   let update_tset
@@ -217,10 +243,10 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   let evaluate
       (c:t)
       (input:Value.t list)
-      (f:Value.t list -> Value.t option)
+      (f:Value.t list -> Value.t list)
       (args:State.t list)
       (t:Type.t)
-    : State.t option =
+    : State.t list =
     let vs = List.map ~f:State.destruct_vals_exn args in
     let vs = List.map ~f:(List.map ~f:snd % fst) vs in
     let args =
@@ -230,12 +256,12 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       end
     in
     let outos = List.map ~f args in
-    let outso = distribute_option outos in
-    Option.map
+    let outsl = List.transpose_exn outos in
+    List.map
       ~f:(fun outs ->
           let in_outs = List.zip_exn input outs in
           val_state c in_outs t)
-      outso
+      outsl
     (*let args =
       List.map
         ~f:(List.map
@@ -254,7 +280,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   let update_from_conversions
       (c:t)
       (conversions:(Transition.id
-                    * (Value.t list -> Value.t option)
+                    * (Value.t list -> Value.t list)
                     * (Type.t list) * Type.t) list)
     : t =
     let ids_ins_outs =
@@ -271,12 +297,12 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                     combinations
                       args_choices
                   in
-                  List.filter_map
+                  List.concat_map
                     ~f:(fun ins ->
-                        let outso = evaluate c input e ins tout in
-                        Option.map
+                        let outs = evaluate c input e ins tout in
+                        List.map
                           ~f:(fun out -> (i,ins,out))
-                          outso)
+                          outs)
                     args_list)
               c.inputs)
         conversions

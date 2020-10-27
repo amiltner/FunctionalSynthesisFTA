@@ -33,7 +33,10 @@ let destruct_ctor : t -> (Id.t * t) option =
   apply_ctor ~f:(fun i v -> (i,v))
 
 let destruct_ctor_exn (v:t) : Id.t * t =
-  Option.value_exn (destruct_ctor v)
+  begin match (destruct_ctor v) with
+    | Some v -> v
+    | None -> failwith (show v)
+  end
 
 let mk_tuple (vs:t list) : t =
   begin match vs with

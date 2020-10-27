@@ -175,12 +175,11 @@ module Create(B : Automata.AutomatonBuilder) = struct
             let e = Expr.replace_holes ~i_e:(problem.eval_context) e in
             let evaluation vs =
               let es = List.map ~f:Value.to_exp vs in
-              Some
-                (Eval.evaluate
+              [Eval.evaluate
                    (List.fold
                       ~f:Expr.mk_app
                       ~init:e
-                      es))
+                      es)]
             in
             (FTAConstructor.Transition.FunctionApp i,evaluation,ins,out))
         problem.eval_context
@@ -212,13 +211,11 @@ module Create(B : Automata.AutomatonBuilder) = struct
             C.minimize c)
         problem.examples
     in
-    print_endline "hereyaya";
     let c =
       fold_on_head_exn
-        ~f:(fun x y -> print_endline "int"; C.minimize (C.intersect x y))
+        ~f:(fun x y -> C.minimize (C.intersect x y))
         cs
     in
-    print_endline "here";
     let cs = C.replace_single_recursions c in
     List.iter
       ~f:(fun c -> let e = term_to_exp (C.min_tree' c) in
@@ -226,10 +223,13 @@ module Create(B : Automata.AutomatonBuilder) = struct
     cs;
     ()
 
-  let other_alg
+  module ValueToC = DictOf(Value)(C)
+
+  let construct_initial_fta
       ~(problem:Problem.t)
-    : unit =
-    let (args_t,res_t) = problem.synth_type in
+      (inmap:ValueToC.t)
+      (i:Value.t)
+    : C.t =
     let checker =
       fun v1 v2 ->
         begin match List.Assoc.find ~equal:Value.equal problem.examples v1 with
@@ -237,6 +237,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
           | None -> true
         end
     in
+    let (args_t,res_t) = problem.synth_type in
     let context_conversions =
       List.map
         ~f:(fun (i,e) ->
@@ -245,102 +246,89 @@ module Create(B : Automata.AutomatonBuilder) = struct
             let e = Expr.replace_holes ~i_e:(problem.eval_context) e in
             let evaluation vs =
               let es = List.map ~f:Value.to_exp vs in
-              Some
-                (Eval.evaluate
-                   (List.fold
-                      ~f:Expr.mk_app
-                      ~init:e
-                      es))
+              [Eval.evaluate
+                 (List.fold
+                    ~f:Expr.mk_app
+                    ~init:e
+                    es)]
             in
             (FTAConstructor.Transition.FunctionApp i,evaluation,ins,out))
         problem.eval_context
     in
-    let cs =
-      List.map
-        ~f:(fun (i,o) ->
-            let variant_conversions =
-              (* Ana, fill this in *)
-              []
-            in
-            let tuple_conversions =
-              (* Fill this in too, though currently there's no test for them *)
-              []
-            in
-            let rec_call_conversions =
-              let evaluation vs =
-                begin match vs with
-                  | [v1] ->
-                    if Value.strict_subvalue v1 i then
-                      List.Assoc.find ~equal:Value.equal problem.examples v1
-                    else
-                      None
-
-                  | _ -> failwith "invalid"
-                end
-              in
-              [(FTAConstructor.Transition.Rec,evaluation,[args_t],res_t)]
-            in
-            let conversions = context_conversions@variant_conversions@tuple_conversions@rec_call_conversions in
-            let c =
-              C.initialize
-                ~problem
-                ([res_t;args_t]
-                 @(List.map ~f:Type.mk_named (Context.keys problem.tc))
-                 @(Context.data problem.ec))
-                [i]
-                (fst problem.synth_type)
-                checker
-            in
-            let subcall_sites =
-              List.filter_map
-                ~f:(fun (i',_) ->
-                    if Value.strict_subvalue i' i then
-                      Some ([(i,i')],args_t)
-                    else
-                      None)
-                problem.examples
-            in
-            let c = C.add_states c subcall_sites in
-            let c = C.update_from_conversions c rec_call_conversions in
-            let c = C.update_from_conversions c conversions in
-            let c = C.update_from_conversions c conversions in
-            let c = C.add_destructors c in
-            let c = C.add_let_ins c in
-            let c = C.add_final_state c (C.val_state c [(i,o)] res_t) in
-            let c = C.minimize c in
-            c
-          )
-        problem.examples
+    let variant_conversions =
+      (* Ana, fill this in *)
+      []
     in
-    (*let vs =
-      List.concat_map
-        ~f:(fun (vs,v) ->
-            List.map2_exn
-              ~f:(ValueTCIntegration.tc_val problem.tc)
-              ([vs])
-              ([args_t]))
-        problem.examples
-      in*)
-    (*let sub_vs =
-      List.dedup_and_sort
-        ~compare:ValueTCIntegration.Derivation.compare
-        (List.concat_map
-           ~f:ValueTCIntegration.Derivation.sub_derivations
-           vs)
-      in*)
-    (*let vs_ts =
+    let tuple_conversions =
+      (* Fill this in too, though currently there's no test for them *)
+      []
+    in
+    let rec_call_conversions =
+      let evaluation vs =
+        begin match vs with
+          | [v1] ->
+            if Value.strict_subvalue v1 i then
+              C.get_final_values
+                (ValueToC.lookup_exn
+                   inmap
+                   v1)
+            else
+              []
+
+          | _ -> failwith "invalid"
+        end
+      in
+      [(FTAConstructor.Transition.Rec
+       ,evaluation
+       ,[args_t]
+       ,res_t)]
+    in
+    let conversions = context_conversions@variant_conversions@tuple_conversions@rec_call_conversions in
+    let c =
+      C.initialize
+        ~problem
+        ([res_t;args_t]
+         @(List.map ~f:Type.mk_named (Context.keys problem.tc))
+         @(Context.data problem.ec))
+        [i]
+        (fst problem.synth_type)
+        checker
+    in
+    let subcall_sites =
       List.filter_map
-        ~f:(fun d ->
-            let recursive =
-              C.is_recursive_type
-                c
-                (ValueTCIntegration.Derivation.get_type d)
-            in
-            if recursive then
-              Some (ValueTCIntegration.Derivation.get_value d
-                   ,ValueTCIntegration.Derivation.get_type d)
+        ~f:(fun (i',_) ->
+            if Value.strict_subvalue i' i then
+              Some ([(i,i')],args_t)
             else
               None)
+        problem.examples
+    in
+    let c = C.add_states c subcall_sites in
+    (*let c = C.update_from_conversions c rec_call_conversions in*)
+    let c = C.update_from_conversions c conversions in
+    let c = C.update_from_conversions c conversions in
+    let c = C.add_destructors c in
+    (*let c = C.add_let_ins c in*)
+    (*let c = C.add_final_state c (C.val_state c [(i,o)] res_t) in*)
+    let c = C.minimize c in
+    c
+
+  let get_all_subvalues_of_same_type
+      ~(problem:Problem.t)
+      (args_t:Type.t)
+      (v:Value.t)
+    : Value.t list =
+    let vtc = ValueTCIntegration.tc_val (problem.tc) v args_t in
+    let sub_vs =
+      List.dedup_and_sort
+        ~compare:ValueTCIntegration.Derivation.compare
+        (ValueTCIntegration.Derivation.sub_derivations vtc)
+    in
+    let vs_ts =
+      List.map
+        ~f:(fun d ->
+            (ValueTCIntegration.Derivation.get_value d
+            ,ValueTCIntegration.Derivation.get_type d))
         sub_vs
     in
     let relevant_ins =
@@ -357,93 +345,55 @@ module Create(B : Automata.AutomatonBuilder) = struct
             else
               None)
         vs_ts
-      in
-    let c =
-      C.initialize
-        ~problem
-        ([res_t;args_t]
-         @(List.map ~f:Type.mk_named (Context.keys problem.tc))
-         @(Context.data problem.ec))
-        relevant_ins
-        (fst problem.synth_type)
-        checker
-    in*)
-    (*let vs =
-      List.concat_map
-        ~f:(fun (vs,v) ->
-            List.map2_exn
-              ~f:(ValueTCIntegration.tc_val problem.tc)
-              ([v;vs])
-              ([res_t;args_t]))
-        problem.examples
     in
-    let sub_vs =
+    relevant_ins
+
+  let other_alg
+      ~(problem:Problem.t)
+    : unit =
+    let chosen_inputs = List.map ~f:fst problem.examples in
+    let all_inputs =
       List.dedup_and_sort
-        ~compare:ValueTCIntegration.Derivation.compare
+        ~compare:Value.compare
         (List.concat_map
-           ~f:ValueTCIntegration.Derivation.sub_derivations
-           vs)
+           ~f:(get_all_subvalues_of_same_type ~problem (fst problem.synth_type))
+           chosen_inputs)
     in
-    let vs_ts =
-      List.filter_map
-        ~f:(fun d ->
-            let recursive =
-              C.is_recursive_type
-                c
-                (ValueTCIntegration.Derivation.get_type d)
-            in
-            if recursive then
-              Some (ValueTCIntegration.Derivation.get_value d
-                   ,ValueTCIntegration.Derivation.get_type d)
+    (*This guarantees that, if v1 < v2, in terms of subvalue partial ordering,
+     then v1 comes before v2 in terms of generating their FTAs. This is
+     necessrary for ensuring that recursion is appropriately added *)
+    let sorted_inputs =
+      List.dedup_and_sort
+        ~compare:(fun v1 v2 ->
+            if Value.strict_subvalue v1 v2 then
+              -1
+            else if Value.strict_subvalue v2 v1 then
+              -1
             else
-              None)
-        sub_vs
-      in*)
-    (*let states_ts =
-      List.concat_map
-        ~f:(fun (v,t) ->
-            List.map
-              ~f:(fun inp -> ([(inp,v)],t))
-              relevant_ins)
-        vs_ts
+              Value.compare v1 v2)
+        all_inputs
     in
-    let c =
-      C.add_states
-        c
-        states_ts
-      in*)
-  (*let c =  in
-    let c = C.update_from_conversions c conversions in*)
-    (*let c = C.update_from_conversions c conversions in*)
-    (*let c = C.update_from_conversions c conversions in*)
-    (*let cs =
-      List.map
-        ~f:(fun (ins,out) ->
-            let inp = ins in
-            let c =
-              (C.add_final_state
-                 c
-                 (C.val_state c [(inp,out)] res_t))
+    let inmap =
+      List.fold
+        ~f:(fun inmap v ->
+            let res =
+              construct_initial_fta
+                ~problem
+                inmap
+                v
             in
-            C.minimize c)
-        problem.examples
+            ValueToC.insert
+              inmap
+              v
+              res)
+        ~init:ValueToC.empty
+        sorted_inputs
     in
     let cs =
       List.map
-        ~f:C.replace_all_recursions
-        cs
+        ~f:(ValueToC.lookup_exn inmap)
+        chosen_inputs
     in
-    let cs =
-      List.map
-        ~f:C.minimize
-        cs
-      in*)
-    (*List.iter
-      ~f:(fun c ->
-          print_endline "\n\nSTART";
-          print_endline (A.show c.a);
-          print_endline "\n\n")
-      cs;*)
     let c =
       fold_on_head_exn
         ~f:(fun x y ->
@@ -451,11 +401,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
             C.minimize inted)
         cs
     in
-    (*let cs = C.replace_single_recursions c in*)
-    (*List.iter
-      ~f:(fun c -> let e = term_to_exp (A.pick_term c.a) in
-           print_endline (Expr.show e))
-      cs;*)
     let e = term_to_exp (C.min_tree' c) in
     print_endline (Expr.show e);
     ()
