@@ -185,7 +185,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
             (FTAConstructor.Transition.FunctionApp i,evaluation,ins,out))
         problem.eval_context
     in
-    let variant_conversions =
       (*** Ana, fill this in
         * nat_succ pseudocode:
         (Transition.FunctionApp "S", fun [v] -> Value.mk_ctor ("S", v), [nat], nat)
@@ -196,7 +195,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
         * bool_f pseudocode:
         (Transition.FunctionApp "False", fun [v] -> Value.mk_ctor ("False", v), [bool], bool)
       ***)
-      [(FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "S"),
+      (*[(FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "S"),
         (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "S") (List.hd_exn vs))),
         [Type.mk_named (MyStdLib.Id.Id "nat")], Type.mk_named (MyStdLib.Id.Id "nat"));
        (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "O"),
@@ -208,7 +207,25 @@ module Create(B : Automata.AutomatonBuilder) = struct
        (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "False"),
         (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "False") (List.hd_exn vs))),
         [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"))
-      ]
+        ]*)
+      let make_conversion_with i t =
+        (FTAConstructor.Transition.VariantConstruct i,
+         (fun vs -> Some (Value.mk_ctor i (List.hd_exn vs))),
+         [t], t)
+      in
+      let variant_conversions =
+        List.concat_map
+          ~f:(fun t ->
+              match t with
+              | Type.Tuple _ -> []
+              | Type.Named _ -> []
+              | Type.Arrow _ -> []
+              | Type.Mu _ -> []
+              | Type.Variant l ->
+                List.map
+                  ~f:(fun (i,t) -> make_conversion_with i t)
+                  l)
+          (C.get_all_types c)
     in
     let tuple_conversions =
       (* Fill this in too, though currently there's no test for them *)
@@ -305,19 +322,24 @@ module Create(B : Automata.AutomatonBuilder) = struct
                 problem.examples
             in
             let c = C.add_states c subcall_sites in
-
+            let make_conversion_with i t =
+              (FTAConstructor.Transition.VariantConstruct i,
+                (fun vs -> Some (Value.mk_ctor i (List.hd_exn vs))),
+                [t], t)
+            in
             let variant_conversions =
               List.concat_map
                 ~f:(fun t ->
-                    (*
-                     match with
-                     | nonvariant -> []
-                     | variant l ->
-                    List.map
-                      ~f:(fun (i,t) -> make_conversion_with i t)
-                      l*)
-                    failwith "TODO"(*your code here!*))
-                (C.get_all_types c)
+                     match t with
+                       | Type.Tuple _ -> []
+                       | Type.Named _ -> []
+                       | Type.Arrow _ -> []
+                       | Type.Mu _ -> []
+                       | Type.Variant l ->
+                         List.map
+                           ~f:(fun (i,t) -> make_conversion_with i t)
+                           l)
+                    (C.get_all_types c)
             in
               (*[(FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "S"),
                 (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "S") (List.hd_exn vs))),
