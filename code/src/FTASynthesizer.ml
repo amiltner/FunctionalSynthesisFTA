@@ -23,7 +23,10 @@ module Create(B : Automata.AutomatonBuilder) = struct
           | _ -> failwith "incorrect"
         end
       | TupleConstruct ->
-        failwith "ah"
+        Expr.mk_tuple
+          (List.map
+             ~f:term_to_exp
+             ts)
       | Var ->
         Expr.mk_var (Id.create "x")
       | LetIn ->
@@ -343,7 +346,9 @@ module Create(B : Automata.AutomatonBuilder) = struct
             in
             let tuple_conversions =
               (* Fill this in too, though currently there's no test for them *)
-              []
+              [FTAConstructor.Transition.TupleConstruct,
+               (fun _ -> Some (Value.mk_tuple [])),
+               [], Type.mk_tuple []]
             in
             let rec_call_conversions =
               let evaluation vs =
