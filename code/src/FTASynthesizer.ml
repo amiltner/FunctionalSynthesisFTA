@@ -341,20 +341,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
                            l)
                     (C.get_all_types c)
             in
-              (*[(FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "S"),
-                (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "S") (List.hd_exn vs))),
-                [Type.mk_named (MyStdLib.Id.Id "nat")], Type.mk_named (MyStdLib.Id.Id "nat"));
-               (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "O"),
-                (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "O") (List.hd_exn vs))),
-                [Type.mk_named (MyStdLib.Id.Id "unit")], Type.mk_named (MyStdLib.Id.Id "nat"));
-               (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "True"),
-                (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "True") (List.hd_exn vs))),
-                [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"));
-               (FTAConstructor.Transition.VariantConstruct (MyStdLib.Id.Id "False"),
-                (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "False") (List.hd_exn vs))),
-                [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"))
-              ]
-                in*)
             let tuple_conversions =
               (* Fill this in too, though currently there's no test for them *)
               []
@@ -383,7 +369,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
             let c = C.minimize c in
             c
           )
-        [List.hd_exn problem.examples]
+        problem.examples
     in
     (*let vs =
       List.concat_map
