@@ -211,10 +211,10 @@ module Create(B : Automata.AutomatonBuilder) = struct
         (fun vs -> Some (Value.mk_ctor (MyStdLib.Id.Id "False") (List.hd_exn vs))),
         [Type.mk_named (MyStdLib.Id.Id "bool")], Type.mk_named (MyStdLib.Id.Id "bool"))
         ]*)
-      let make_conversion_with i t =
+      let make_conversion_with i j t =
         (FTAConstructor.Transition.VariantConstruct i,
          (fun vs -> Some (Value.mk_ctor i (List.hd_exn vs))),
-         [t], t)
+         [j], t)
       in
       let variant_conversions =
         List.concat_map
@@ -226,7 +226,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
               | Type.Mu _ -> []
               | Type.Variant l ->
                 List.map
-                  ~f:(fun (i,t) -> make_conversion_with i t)
+                  ~f:(fun (i,j) -> make_conversion_with i j t)
                   l)
           (C.get_all_types c)
     in
@@ -325,25 +325,25 @@ module Create(B : Automata.AutomatonBuilder) = struct
                 problem.examples
             in
             let c = C.add_states c subcall_sites in
-            let make_conversion_with i t =
+            let make_conversion_with i j t =
               (FTAConstructor.Transition.VariantConstruct i,
-                (fun vs -> Some (Value.mk_ctor i (List.hd_exn vs))),
-                [t], t)
+               (fun vs -> Some (Value.mk_ctor i (List.hd_exn vs))),
+               [j], t)
             in
             let variant_conversions =
               List.concat_map
                 ~f:(fun t ->
-                     match t with
-                       | Type.Tuple _ -> []
-                       | Type.Named _ -> []
-                       | Type.Arrow _ -> []
-                       | Type.Mu _ -> []
-                       | Type.Variant l ->
-                         List.map
-                           ~f:(fun (i,t) -> make_conversion_with i t)
-                           l)
-                    (C.get_all_types c)
-            in
+                    match t with
+                    | Type.Tuple _ -> []
+                    | Type.Named _ -> []
+                    | Type.Arrow _ -> []
+                    | Type.Mu _ -> []
+                    | Type.Variant l ->
+                      List.map
+                        ~f:(fun (i,j) -> make_conversion_with i j t)
+                        l)
+                (C.get_all_types c)
+          in
             let tuple_conversions =
               (* Fill this in too, though currently there's no test for them *)
               [FTAConstructor.Transition.TupleConstruct,
