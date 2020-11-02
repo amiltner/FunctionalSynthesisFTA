@@ -118,6 +118,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
                 (ValToC.lookup_exn
                    inmap
                    v1)
+                v1
             else
               []
 
@@ -164,7 +165,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
       (all_ins:Value.t list)
       (required_vs:ValueSet.t)
       (v_to_spec:ValToSpec.t)
-    : C.t =
+    : (C.t * ValToC.t) =
     let inmap =
       List.fold
         ~f:(fun inmap v ->
@@ -195,7 +196,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
             C.minimize inted)
         cs
     in
-    c
+    (c,inmap)
 
   let extract_recursive_requirements
       (sin:FTAConstructor.State.t)
@@ -245,12 +246,17 @@ module Create(B : Automata.AutomatonBuilder) = struct
     in
     relevant_ins
 
+  type vs_or_c =
+    | VS of (ValueSet.t * ValToSpec.t)
+    | C of (ValueSet.t * C.t)
+
   let safely_restricts_outputs
       (c:C.t)
+      (inchoice:Value.t)
       (restriction:Value.t)
     : bool option =
     (*None means unsafe restriction, Some true means restricts outputs, false means no restricts outputs*)
-    let vouts = C.get_final_values c in
+    let vouts = C.get_final_values c inchoice in
     if List.mem ~equal:Value.equal vouts restriction then
       Some (List.length vouts = 1)
     else
@@ -321,30 +327,32 @@ module Create(B : Automata.AutomatonBuilder) = struct
             tss
       end
     in
-    let rec find_it_out
-        (specs:(ValueSet.t * ValToSpec.t) list)
-      : unit =
-      begin match specs with
-        | [] -> failwith "no valid specs"
-        | (vs,vts)::_ ->
-          let c =
-            construct_full
-              ~problem
-              sorted_inputs
-              vs
-              vts
-          in
-          let ts = C.min_term_state c in
+    let do_thing c ins =
+      let tso = C.min_term_state c in
+      begin match tso with
+        | None -> Right []
+        | Some ts ->
           let rcs =
             List.dedup_and_sort
               ~compare:(pair_compare FTAConstructor.State.compare FTAConstructor.State.compare)
               (extract_recursive_calls ts)
+          in
+          let added_not_using =
+            List.map
+              ~f:(fun (s1,s2) ->
+                  C.remove_transition
+                    c
+                    FTAConstructor.Transition.rec_
+                    [s1]
+                    s2)
+              rcs
           in
           let rrs =
             List.concat_map
               ~f:(uncurry extract_recursive_requirements)
               rcs
           in
+          print_endline (Expr.show @$ term_to_exp (C.TermState.to_term ts));
           List.iter
             ~f:(fun (s1,s2) ->
                 print_endline "input:";
@@ -353,12 +361,79 @@ module Create(B : Automata.AutomatonBuilder) = struct
                 print_endline (Value.show s2);
                 print_endline "\n")
             rrs;
-          let e = term_to_exp (C.TermState.to_term ts) in
-          print_endline (Expr.show e);
-          ()
+          let approvals =
+            List.map
+              ~f:(fun (v1,v2) ->
+                  Option.map
+                    ~f:(fun ro -> (ro,(v1,v2)))
+                    (safely_restricts_outputs c v1 v2))
+              rrs
+          in
+          let possible =
+            distribute_option
+              approvals
+          in
+          begin match possible with
+            | Some bs ->
+              let new_constraints =
+                List.filter_map
+                  ~f:(fun (b,nc) ->
+                      if b then
+                        None
+                      else
+                        Some nc)
+                  bs
+              in
+              if List.length new_constraints = 0 then
+                let e = term_to_exp (C.TermState.to_term ts) in
+                print_endline (Expr.show e);
+                print_endline (string_of_int (List.length new_constraints));
+                Left e
+              else
+                (*List.iter
+                  ~f:(fun (s1,s2) ->
+                      print_endline "input:";
+                      print_endline (Value.show s1);
+                      print_endline "output:";
+                      print_endline (Value.show s2);
+                      print_endline "\n")
+                  rrs;*)
+                failwith "ah"
+            | None ->
+              Right (List.map ~f:(fun c -> C (ins,c)) added_not_using)
+          end
+      end
+    in
+    let rec find_it_out
+        (specs:vs_or_c list)
+      : unit =
+      begin match specs with
+        | [] -> failwith "no valid specs"
+        | (VS (vs,vts))::t ->
+          print_endline "started this";
+          let (c,inmap) =
+            construct_full
+              ~problem
+              sorted_inputs
+              vs
+              vts
+          in
+          begin match do_thing c vs with
+            | Left e -> print_endline (Expr.show e)
+            | Right more ->
+              find_it_out (t@more)
+          end
+        | (C (ins,c))::t ->
+          print_endline "started this other";
+          begin match do_thing c ins with
+            | Left e ->
+              print_endline (Expr.show e)
+            | Right more ->
+              find_it_out (t@more)
+          end
       end
     in
     find_it_out
-      [(ValueSet.from_list chosen_inputs
+      [VS (ValueSet.from_list chosen_inputs
        ,ValToSpec.empty)]
 end

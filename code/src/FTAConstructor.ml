@@ -54,6 +54,8 @@ struct
 
   let print a b = pp b a
 
+  let rec_ = (Rec,1)
+
   let arity = snd
 end
 
@@ -124,12 +126,20 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let get_final_values
       (c:t)
+      (vin:Value.t)
     : Value.t list =
     let final_states = A.final_states c.a in
-    List.map
+    List.concat_map
       ~f:(fun s ->
           begin match s with
-            | Vals ([(_,vo)],_) -> vo
+            | Vals ((vinsvouts),_) ->
+              List.filter_map
+                ~f:(fun (vin',vout) ->
+                    if Value.equal vin vin' then
+                      Some vout
+                    else
+                      None)
+                vinsvouts
             | _ -> failwith "invalid final values"
           end)
       final_states
@@ -687,7 +697,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let min_term_state
       (c:t)
-    : TermState.t =
+    : TermState.t option =
     let get_produced_from
         (st:StateToTS.t)
         (t:Transition.t)
@@ -709,11 +719,11 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let rec min_tree_internal
         (st:StateToTS.t)
         (pq:TSPQ.t)
-      : TermState.t =
+      : TermState.t option =
       begin match TSPQ.pop pq with
         | Some ((i,t,s),_,pq) ->
           if A.is_final_state c.a s then
-            t
+            Some t
           else if StateToTS.member st s then
             min_tree_internal st pq
           else
@@ -730,8 +740,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             in
             let pq = TSPQ.push_all pq produced in
             min_tree_internal st pq
-        | None ->
-          failwith "no tree"
+        | None -> None
       end
     in
     let initial_terms =

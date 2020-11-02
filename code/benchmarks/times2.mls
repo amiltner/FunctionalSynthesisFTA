@@ -22,6 +22,5 @@ synth nat -> nat
 
 satisfying
 
-[O] -> O,
 [S O] -> S (S O),
 [S (S O)] -> S (S (S (S O)))
