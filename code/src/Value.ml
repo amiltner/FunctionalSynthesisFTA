@@ -114,8 +114,8 @@ let size : t -> int =
     ~ctor_f:(fun _ i -> i+1)
     ~tuple_f:(fun is -> List.fold ~f:(+) ~init:1 is)
 
-let true_val = Ctor (Id.create "True",Tuple [])
-let false_val = Ctor (Id.create "False",Tuple [])
+let true_ = Ctor (Id.create "True",Tuple [])
+let false_ = Ctor (Id.create "False",Tuple [])
 let rec num_val n =
   if n = 0 then
     Ctor (Id.create "O",Tuple [])

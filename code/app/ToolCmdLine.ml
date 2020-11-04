@@ -138,7 +138,6 @@ let synthesize_solution
          (Prelude.prelude_string ^ (SimpleFile.read_from_file ~fname)))
   in
   let problem = Problem.process p_unprocessed in
-  FTAS.other_alg ~problem;
   let e =
     if use_myth then
       MythSynthesisCaller.myth_synthesize
@@ -147,9 +146,7 @@ let synthesize_solution
       MythSynthesisCaller.myth_synthesize_print ~problem
         (* then we can call l2 *)
     else
-      begin
-        Expr.Tuple []
-      end
+      FTAS.synth ~problem
   in
   print_endline (Expr.show e)
 

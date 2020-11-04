@@ -98,6 +98,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       final_candidates : Value.t -> Value.t -> bool ;
       all_types        : Type.t list                ;
       up_to_date       : bool                       ;
+      input_type       : Type.t                     ;
+      output_type      : Type.t                     ;
     }
   [@@deriving show]
 
@@ -193,7 +195,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     in
     let _ = InputsAndTypeToStates.lookup_exn d (vins,t) in
     let c =
-      if List.for_all ~f:(uncurry c.final_candidates) vinsvouts then
+      if List.for_all ~f:(uncurry c.final_candidates) vinsvouts
+      && Type.equal t c.output_type then
         let a = A.add_final_state c.a s in
         {c with a}
       else
@@ -331,7 +334,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       ~(problem:Problem.t)
       (ts:Type.t list)
       (inputs:Value.t list)
-      (input_type:Type.t)
+      ((input_type,output_type):Type.t * Type.t)
       (final_candidates:Value.t -> Value.t -> bool)
     : t =
     let all_types =
@@ -353,6 +356,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let input_vals = inputs in
     let inputs = List.map ~f:(fun i -> [i]) inputs in
     let tset = TransitionSet.empty in
+    let (input_type,_) = TypeDS.find_representative ds input_type in
+    let (output_type,_) = TypeDS.find_representative ds output_type in
     let c =
       {
         a                 ;
@@ -363,6 +368,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         final_candidates  ;
         all_types         ;
         up_to_date = true ;
+        input_type        ;
+        output_type       ;
       }
     in
     List.fold
@@ -428,7 +435,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                 add_transition
                   c
                   IfThenElse
-                  [(val_state c [(i,Value.true_val)] Type._bool)
+                  [(val_state c [(i,Value.true_)] Type._bool)
                   ;s
                   ;State.top]
                   s
@@ -437,7 +444,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                 add_transition
                   c
                   IfThenElse
-                  [(val_state c [(i,Value.false_val)] Type._bool)
+                  [(val_state c [(i,Value.false_)] Type._bool)
                   ;State.top
                   ;s]
                   s

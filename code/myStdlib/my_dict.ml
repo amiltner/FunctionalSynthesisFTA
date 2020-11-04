@@ -16,7 +16,10 @@ struct
     | Leaf
     | Two of t * pair * t
     | Three of t * pair * t * pair * t
-  [@@deriving show, hash]
+  [@@deriving hash]
+
+  type kvp_list = (K.t * V.t) list
+  [@@deriving show]
 
   (* A dictionary entry is a (key,value) pair. We compare two (key,value)
    * pairs with the provided key-comparison function D.compare. For example,
@@ -733,6 +736,10 @@ struct
       ~f:(f:key -> value -> bool)
     : t -> bool =
     not % (exists ~f:(not %% f))
+
+  let pp f d = pp_kvp_list f (as_kvp_list d)
+
+  let show = show_kvp_list % as_kvp_list
 end
 
 

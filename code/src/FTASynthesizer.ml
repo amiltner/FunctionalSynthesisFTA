@@ -138,7 +138,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
          @(List.map ~f:Type.mk_named (Context.keys problem.tc))
          @(Context.data problem.ec))
         [i]
-        (fst problem.synth_type)
+        problem.synth_type
         checker
     in
     let subcall_sites =
@@ -151,12 +151,10 @@ module Create(B : Automata.AutomatonBuilder) = struct
         problem.examples
     in
     let c = C.add_states c subcall_sites in
-    (*let c = C.update_from_conversions c rec_call_conversions in*)
+    let c = C.update_from_conversions c conversions in
     let c = C.update_from_conversions c conversions in
     let c = C.update_from_conversions c conversions in
     let c = C.add_destructors c in
-    (*let c = C.add_let_ins c in*)
-    (*let c = C.add_final_state c (C.val_state c [(i,o)] res_t) in*)
     let c = C.minimize c in
     c
 
@@ -262,9 +260,9 @@ module Create(B : Automata.AutomatonBuilder) = struct
     else
       None
 
-  let other_alg
+  let synth
       ~(problem:Problem.t)
-    : unit =
+    : Expr.t =
     let chosen_inputs = List.map ~f:fst problem.examples in
     let all_inputs =
       List.dedup_and_sort
@@ -287,34 +285,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
               Value.compare v1 v2)
         all_inputs
     in
-    (*let inmap =
-      List.fold
-        ~f:(fun inmap v ->
-            let res =
-              construct_initial_fta
-                ~problem
-                inmap
-                (Spec.standard_constraint v)
-            in
-            SpecToC.insert
-              inmap
-              (Spec.standard_constraint v)
-              res)
-        ~init:SpecToC.empty
-        sorted_inputs
-    in
-    let cs =
-      List.map
-        ~f:(SpecToC.lookup_exn inmap)
-        (List.map ~f:Spec.standard_constraint chosen_inputs)
-    in
-    let _ =
-      fold_on_head_exn
-        ~f:(fun x y ->
-            let inted = (C.intersect x y) in
-            C.minimize inted)
-        cs
-      in*)
     let rec extract_recursive_calls
         (ts:C.TermState.t)
       : (FTAConstructor.State.t * FTAConstructor.State.t) list =
@@ -352,7 +322,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
               ~f:(uncurry extract_recursive_requirements)
               rcs
           in
-          print_endline (Expr.show @$ term_to_exp (C.TermState.to_term ts));
           List.iter
             ~f:(fun (s1,s2) ->
                 print_endline "input:";
@@ -386,8 +355,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
               in
               if List.length new_constraints = 0 then
                 let e = term_to_exp (C.TermState.to_term ts) in
-                print_endline (Expr.show e);
-                print_endline (string_of_int (List.length new_constraints));
                 Left e
               else
                 (*List.iter
@@ -406,11 +373,10 @@ module Create(B : Automata.AutomatonBuilder) = struct
     in
     let rec find_it_out
         (specs:vs_or_c list)
-      : unit =
+      : Expr.t =
       begin match specs with
         | [] -> failwith "no valid specs"
         | (VS (vs,vts))::t ->
-          print_endline "started this";
           let (c,inmap) =
             construct_full
               ~problem
@@ -419,15 +385,14 @@ module Create(B : Automata.AutomatonBuilder) = struct
               vts
           in
           begin match do_thing c vs with
-            | Left e -> print_endline (Expr.show e)
+            | Left e -> e
             | Right more ->
               find_it_out (t@more)
           end
         | (C (ins,c))::t ->
-          print_endline "started this other";
           begin match do_thing c ins with
             | Left e ->
-              print_endline (Expr.show e)
+              e
             | Right more ->
               find_it_out (t@more)
           end
