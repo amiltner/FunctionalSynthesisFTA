@@ -15,5 +15,6 @@ synth nat -> nat
 
 satisfying
 
-[S (S O)] -> S (S (S (S O))),
-[S (S (S O))] -> S (S (S (S (S (S O)))))
+[O] -> O,
+[S O] -> O,
+[S (S O)] -> O

@@ -33,7 +33,10 @@ module Create(B : Automata.AutomatonBuilder) = struct
           | _ -> failwith "incorrect"
         end
       | TupleConstruct ->
-        failwith "ah"
+        Expr.mk_tuple
+          (List.map
+             ~f:term_to_exp
+             ts)
       | Var ->
         Expr.mk_var (Id.create "x")
       | LetIn ->
@@ -55,9 +58,48 @@ module Create(B : Automata.AutomatonBuilder) = struct
           ts
     end
 
-  module ValToSpec = DictOf(Value)(Spec)
+  module Constraints =
+  struct
+    include DictOf(Value)(Spec)
+
+    let lookup_default = lookup_default ~default:Spec.StandardConstraint
+
+    let merge_single
+        (c:t)
+        (vin:Value.t)
+        (vout:Value.t)
+      : t option =
+      begin match lookup_default c vin with
+        | Spec.StandardConstraint ->
+          Some
+            (insert
+               c
+               vin
+               (Spec.AddedConstraint vout))
+        | Spec.AddedConstraint vout' ->
+          if Value.equal vout vout' then
+            Some c
+          else
+            None
+      end
+
+    let merge
+        (c:t)
+        (vinvouts:(Value.t * Value.t) list)
+      : t option =
+      List.fold
+        ~f:(fun acco (vin,vout) ->
+            begin match acco with
+              | None -> None
+              | Some acc ->
+                merge_single acc vin vout
+            end)
+        ~init:(Some c)
+        vinvouts
+  end
   module ValToC = DictOf(Value)(C)
   module ValueSet = SetOf(Value)
+  module StatePairSet = SetOf(PairOf(FTAConstructor.State)(FTAConstructor.State))
 
   let construct_initial_fta
       ~(problem:Problem.t)
@@ -84,6 +126,16 @@ module Create(B : Automata.AutomatonBuilder) = struct
       end
     in
     let (args_t,res_t) = problem.synth_type in
+    let c =
+      C.initialize
+        ~problem
+        ([res_t;args_t]
+         @(List.map ~f:Type.mk_named (Context.keys problem.tc))
+         @(Context.data problem.ec))
+        [i]
+        problem.synth_type
+        checker
+    in
     let context_conversions =
       List.map
         ~f:(fun (i,e) ->
@@ -101,13 +153,26 @@ module Create(B : Automata.AutomatonBuilder) = struct
             (FTAConstructor.Transition.FunctionApp i,evaluation,ins,out))
         problem.eval_context
     in
-    let variant_conversions =
-      (* Ana, fill this in *)
-      []
+      let make_conversion_with i t t' =
+        (FTAConstructor.Transition.VariantConstruct i,
+         (fun vs -> [Value.mk_ctor i (List.hd_exn vs)]),
+         [t'], t)
+      in
+      let variant_conversions =
+        List.concat_map
+          ~f:(fun t ->
+              match t with
+              | Type.Variant l ->
+                List.map
+                  ~f:(fun (i,t') -> make_conversion_with i t t')
+                  l
+              | _ -> [])
+          (C.get_all_types c)
     in
     let tuple_conversions =
-      (* Fill this in too, though currently there's no test for them *)
-      []
+      [FTAConstructor.Transition.TupleConstruct,
+       (fun _ -> [Value.mk_tuple []]),
+       [], Type.mk_tuple []]
     in
     let rec_call_conversions =
       let evaluation vs =
@@ -131,16 +196,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
        ,res_t)]
     in
     let conversions = context_conversions@variant_conversions@tuple_conversions@rec_call_conversions in
-    let c =
-      C.initialize
-        ~problem
-        ([res_t;args_t]
-         @(List.map ~f:Type.mk_named (Context.keys problem.tc))
-         @(Context.data problem.ec))
-        [i]
-        problem.synth_type
-        checker
-    in
     let subcall_sites =
       List.filter_map
         ~f:(fun (i',_) ->
@@ -162,12 +217,12 @@ module Create(B : Automata.AutomatonBuilder) = struct
       ~(problem:Problem.t)
       (all_ins:Value.t list)
       (required_vs:ValueSet.t)
-      (v_to_spec:ValToSpec.t)
+      (constraints:Constraints.t)
     : (C.t * ValToC.t) =
     let inmap =
       List.fold
         ~f:(fun inmap v ->
-            let s = ValToSpec.lookup_default ~default:Spec.StandardConstraint v_to_spec v in
+            let s = Constraints.lookup_default constraints v in
             let res =
               construct_initial_fta
                 ~problem
@@ -244,11 +299,79 @@ module Create(B : Automata.AutomatonBuilder) = struct
     in
     relevant_ins
 
-  type vs_or_c =
-    | VS of (ValueSet.t * ValToSpec.t)
-    | C of (ValueSet.t * C.t)
+  module PQE = struct
+    module Priority = IntModule
 
-  let safely_restricts_outputs
+    type t =
+      {
+        inputs       : ValueSet.t     ;
+        c            : C.t            ;
+        constraints  : Constraints.t  ;
+        nonpermitted : StatePairSet.t ;
+        rep          : C.TermState.t  ;
+        v_to_c       : ValToC.t       ;
+      }
+    [@@deriving eq, hash, ord, show]
+
+    let make
+        ~(inputs:ValueSet.t)
+        ~(c:C.t)
+        ~(constraints:Constraints.t)
+        ~(nonpermitted:StatePairSet.t)
+        ~(v_to_c:ValToC.t)
+      : t option =
+      let rep_o = C.min_term_state c in
+      Option.map
+        ~f:(fun rep ->
+            {
+              inputs       ;
+              c            ;
+              constraints  ;
+              nonpermitted ;
+              rep          ;
+              v_to_c       ;
+            })
+        rep_o
+
+    let update_nonpermitted
+        (qe:t)
+        ((s1,s2) as t:FTAConstructor.State.t * FTAConstructor.State.t)
+      : t option =
+      let c =
+        C.remove_transition
+          qe.c
+          FTAConstructor.Transition.rec_
+          [s1]
+          s2
+      in
+      let nonpermitted =
+        StatePairSet.insert
+          t
+          qe.nonpermitted
+      in
+      make
+        ~inputs:qe.inputs
+        ~c
+        ~constraints:qe.constraints
+        ~nonpermitted
+        ~v_to_c:qe.v_to_c
+
+    let priority
+        (qe:t)
+      : int =
+      Expr.size (term_to_exp (C.TermState.to_term qe.rep))
+
+    let to_string_legible
+        (qe:t)
+      : string =
+      let es = Expr.show (term_to_exp (C.TermState.to_term qe.rep)) in
+      let cs = Constraints.show qe.constraints in
+      "term: " ^ es ^ "\nconstraints: " ^ cs
+  end
+
+  module PQ = PriorityQueueOf(PQE)
+
+  let safely_restricts_in_c
       (c:C.t)
       (inchoice:Value.t)
       (restriction:Value.t)
@@ -258,7 +381,23 @@ module Create(B : Automata.AutomatonBuilder) = struct
     if List.mem ~equal:Value.equal vouts restriction then
       Some (List.length vouts = 1)
     else
-      None
+      (None)
+
+  let safely_restricts_outputs
+        (int_c:C.t)
+        (inset:ValueSet.t)
+        (vtoc:ValToC.t)
+        (inchoice:Value.t)
+        (restriction:Value.t)
+    : bool option =
+    if ValueSet.member inset inchoice then
+      safely_restricts_in_c int_c inchoice restriction
+    else
+      safely_restricts_in_c
+        (ValToC.lookup_exn vtoc inchoice)
+        inchoice
+        restriction
+
 
   let synth
       ~(problem:Problem.t)
@@ -297,108 +436,127 @@ module Create(B : Automata.AutomatonBuilder) = struct
             tss
       end
     in
-    let do_thing c ins =
-      let tso = C.min_term_state c in
-      begin match tso with
-        | None -> Right []
-        | Some ts ->
-          let rcs =
-            List.dedup_and_sort
-              ~compare:(pair_compare FTAConstructor.State.compare FTAConstructor.State.compare)
-              (extract_recursive_calls ts)
+    let process_queue_element
+        (pqe:PQE.t)
+      : (PQE.t list , Expr.t) either =
+      Consts.log (fun _ -> "\n\nPopped:");
+      Consts.log (fun _ -> PQE.to_string_legible pqe);
+      let c = pqe.c in
+      let ts = pqe.rep in
+      let rcs =
+        List.dedup_and_sort
+          ~compare:(pair_compare FTAConstructor.State.compare FTAConstructor.State.compare)
+          (extract_recursive_calls ts)
+      in
+      let rrs =
+        List.concat_map
+          ~f:(uncurry extract_recursive_requirements)
+          rcs
+      in
+      let approvals =
+        List.map
+          ~f:(fun (v1,v2) ->
+              Option.map
+                ~f:(fun ro -> (ro,(v1,v2)))
+                (safely_restricts_outputs c pqe.inputs pqe.v_to_c v1 v2))
+          rrs
+      in
+      let possible =
+        distribute_option
+          approvals
+      in
+      begin match possible with
+        | Some bs ->
+          let new_constraints =
+            List.filter_map
+              ~f:(fun (b,nc) ->
+                  if b then
+                    None
+                  else
+                    Some nc)
+              bs
           in
-          let added_not_using =
-            List.map
-              ~f:(fun (s1,s2) ->
-                  C.remove_transition
-                    c
-                    FTAConstructor.Transition.rec_
-                    [s1]
-                    s2)
-              rcs
-          in
-          let rrs =
-            List.concat_map
-              ~f:(uncurry extract_recursive_requirements)
-              rcs
-          in
-          List.iter
-            ~f:(fun (s1,s2) ->
-                print_endline "input:";
-                print_endline (Value.show s1);
-                print_endline "output:";
-                print_endline (Value.show s2);
-                print_endline "\n")
-            rrs;
-          let approvals =
-            List.map
-              ~f:(fun (v1,v2) ->
-                  Option.map
-                    ~f:(fun ro -> (ro,(v1,v2)))
-                    (safely_restricts_outputs c v1 v2))
-              rrs
-          in
-          let possible =
-            distribute_option
-              approvals
-          in
-          begin match possible with
-            | Some bs ->
-              let new_constraints =
-                List.filter_map
-                  ~f:(fun (b,nc) ->
-                      if b then
-                        None
-                      else
-                        Some nc)
-                  bs
-              in
-              if List.length new_constraints = 0 then
-                let e = term_to_exp (C.TermState.to_term ts) in
-                Left e
-              else
-                (*List.iter
-                  ~f:(fun (s1,s2) ->
-                      print_endline "input:";
-                      print_endline (Value.show s1);
-                      print_endline "output:";
-                      print_endline (Value.show s2);
-                      print_endline "\n")
-                  rrs;*)
-                failwith "ah"
-            | None ->
-              Right (List.map ~f:(fun c -> C (ins,c)) added_not_using)
-          end
+          if List.length new_constraints = 0 then
+            let e = term_to_exp (C.TermState.to_term ts) in
+            Right e
+          else
+            let merged_constraints_o =
+              Constraints.merge
+                pqe.constraints
+                new_constraints
+            in
+            begin match merged_constraints_o with
+              | None ->
+                Left []
+              | Some merged_constraints ->
+                Consts.log (fun _ -> "constraints were merged");
+                Consts.log (fun _ -> "new constraints: ");
+                Consts.log
+                  (fun _ ->
+                     List.to_string
+                       ~f:(string_of_pair Value.show Value.show)
+                       new_constraints);
+                let inputs =
+                  ValueSet.insert_all
+                    pqe.inputs
+                    (List.map ~f:fst new_constraints)
+                in
+                let (c,v_to_c) =
+                  construct_full
+                    ~problem
+                    sorted_inputs
+                    inputs
+                    merged_constraints
+                in
+                let qe =
+                  PQE.make
+                    ~inputs:pqe.inputs
+                    ~c
+                    ~constraints:merged_constraints
+                    ~nonpermitted:StatePairSet.empty
+                    ~v_to_c
+                in
+                Left (Option.to_list qe)
+            end
+        | None ->
+          Consts.log (fun _ -> "popped value was found impossible");
+          Left
+            (List.filter_map
+               ~f:(fun r ->
+                   PQE.update_nonpermitted
+                     pqe
+                     r)
+               rcs)
       end
     in
     let rec find_it_out
-        (specs:vs_or_c list)
+        (specs:PQ.t)
       : Expr.t =
-      begin match specs with
-        | [] -> failwith "no valid specs"
-        | (VS (vs,vts))::t ->
-          let (c,inmap) =
-            construct_full
-              ~problem
-              sorted_inputs
-              vs
-              vts
-          in
-          begin match do_thing c vs with
-            | Left e -> e
-            | Right more ->
-              find_it_out (t@more)
+      begin match PQ.pop specs with
+        | Some (pqe,_,specs) ->
+          begin match process_queue_element pqe with
+            | Left new_qes ->
+              find_it_out (PQ.push_all specs new_qes)
+            | Right e -> e
           end
-        | (C (ins,c))::t ->
-          begin match do_thing c ins with
-            | Left e ->
-              e
-            | Right more ->
-              find_it_out (t@more)
-          end
+        | None -> failwith "no satisfying found"
       end
     in
-    find_it_out
-      [VS (ValueSet.from_list chosen_inputs
-       ,ValToSpec.empty)]
+    let inputs = ValueSet.from_list chosen_inputs in
+    let (c,v_to_c) =
+      construct_full
+        ~problem
+        sorted_inputs
+        inputs
+        Constraints.empty
+    in
+    let qe =
+      PQE.make
+        ~inputs
+        ~c
+        ~constraints:Constraints.empty
+        ~nonpermitted:StatePairSet.empty
+        ~v_to_c
+    in
+    find_it_out (PQ.from_list (Option.to_list qe))
 end
