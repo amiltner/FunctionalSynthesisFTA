@@ -43,11 +43,12 @@ struct
   type id =
     | FunctionApp of Id.t
     | VariantConstruct of Id.t
+    | UnsafeVariantDestruct of Id.t
     | TupleConstruct
     | Var
     | LetIn
     | Rec
-    | IfThenElse (* TODO change to destructor-switch *)
+    | IfThenElse (* TODO change to variant-switch *)
   [@@deriving eq, hash, ord, show]
   type t = (id * int)
   [@@deriving eq, hash, ord, show]
