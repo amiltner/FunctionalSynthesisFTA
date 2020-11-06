@@ -153,21 +153,21 @@ module Create(B : Automata.AutomatonBuilder) = struct
             (FTAConstructor.Transition.FunctionApp i,evaluation,ins,out))
         problem.eval_context
     in
-      let make_conversion_with i t t' =
-        (FTAConstructor.Transition.VariantConstruct i,
-         (fun vs -> [Value.mk_ctor i (List.hd_exn vs)]),
-         [t'], t)
-      in
-      let variant_conversions =
-        List.concat_map
-          ~f:(fun t ->
-              match t with
-              | Type.Variant l ->
-                List.map
-                  ~f:(fun (i,t') -> make_conversion_with i t t')
-                  l
-              | _ -> [])
-          (C.get_all_types c)
+    let make_conversion_with i t t' =
+      (FTAConstructor.Transition.VariantConstruct i,
+       (fun vs -> [Value.mk_ctor i (List.hd_exn vs)]),
+       [t'], t)
+    in
+    let variant_conversions =
+      List.concat_map
+        ~f:(fun t ->
+            match t with
+            | Type.Variant l ->
+              List.map
+                ~f:(fun (i,t') -> make_conversion_with i t t')
+                l
+            | _ -> [])
+        (C.get_all_types c)
     in
     let tuple_conversions =
       [FTAConstructor.Transition.TupleConstruct,
