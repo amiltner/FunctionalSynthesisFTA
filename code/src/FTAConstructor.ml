@@ -49,6 +49,7 @@ struct
     | LetIn
     | Rec
     | IfThenElse (* TODO change to variant-switch *)
+    | VariantSwitch of Id.t list (* TODO remove *)
   [@@deriving eq, hash, ord, show]
   type t = (id * int)
   [@@deriving eq, hash, ord, show]
@@ -424,7 +425,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let a = A.minimize c.a in
     { c with a ; up_to_date=false }
 
-  let add_destructors
+  let add_ite
       (c:t)
     : t =
     List.fold
@@ -455,6 +456,35 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
           end)
       ~init:c
       (A.states c.a)
+
+  let add_destructors
+      (c:t)
+    : t =
+    (*
+       Pseudocode,
+       new_transitions = []
+       for each (s1,s2) in states * states:
+         match (s1,s2) with
+         | (Vals (v1,t1),Vals (v2,t2)) ->
+           if t1 is not variant:
+             skip
+           else if it is variant, with branches [(i1,t1);...;(in,tn)]
+             let (i,v1') = v1 in
+             let k be such that i = ik
+             transition = ((VariantSwitch [i1...in])
+                , [s1, Top ... , Top , s2 , Top .... Top ]   <- where there are k-1 Tops, before s2, then there are tops for the remaining branches
+                , s2)
+             new_transitions = transition::new_transitions
+         | -> skip
+
+       fold over new transitions, adding each to the old c with add_transition
+
+
+       For the "for each (s1,s2) in states * states", it may be easiest to
+       do a cartesian_filter_map. This takes in two lsits, cartesian products
+       them, then filter_maps over that cartesian product, so in cases where it "skips" return None, and in cases where it doesn't "skip", it returns Some t
+    *)
+    c
 
   let add_states
       (c:t)

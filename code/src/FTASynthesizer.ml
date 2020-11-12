@@ -64,6 +64,15 @@ module Create(B : Automata.AutomatonBuilder) = struct
                 (term_to_exp bt))
           ~init:(Expr.mk_var (Id.create "ifthenelse"))
           ts
+      | VariantSwitch _ ->
+        (* TODO, make destructors *)
+        List.fold
+          ~f:(fun acc bt ->
+              Expr.mk_app
+                acc
+                (term_to_exp bt))
+          ~init:(Expr.mk_var (Id.create "ifthenelse"))
+          ts
     end
 
   module Constraints =
@@ -196,44 +205,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
                 l
             | _ -> [])
         (C.get_all_types c)
-      (*This should be very similar to the construct conversions.
-
-        In construct conversions, you iterated through all of the types.
-        Then, you matched on the types: if it was not a  type,
-        you did nothing.
-        If it was a variant type, you created a conversion for each of the
-        branches in the variant type.
-        This conversion corresponded to constructing a value of the desired type
-        from a value of the input type of the branch.
-        As an example, nat has two variants, ("O",unit) and ("S",nat).
-        For ("O",unit) you created a conversion, you took in an input value of
-        type unit, v, and produced the value Value.mk_ctor ("O",v).
-        For ("S",nat) you created a conversion, you took in an input value of
-        type nat, v, and produced the value Value.mk_ctor ("S",v).
-
-        Now, you should do the opposite, given a value of type "nat," you want
-        to create the input that generated it.
-
-        So, if you are given a value of type nat, you want to be able to
-        destruct it, and get either a unit, or a nat.
-
-        Doing so requires a similar process as before, where you create a
-        conversion from each of the branches. However, these conversions should
-        be partial functions.
-
-        As an example, consider nats again. You want to build two functions, one
-        that destructs O, and one that destructs S. The variant "O" should take
-        in a nat, and produce a unit, and the variant "S" should take in a nat,
-        and produce a nat (note that this is the opposite as before, what was
-        once the input type is now the output type, and vice-versa).
-
-        So, given a value, you should match on it, and see if it is a constructor
-        If it is not, throw an error. If it is, see that the identifier of the
-        constructor is the same as the variant identifier. If it is, return a
-        list containing exactly the sub-value obtained during the match. If it is
-        not, then just return [] -- a different destructor will destruct the
-        value.
-      *)
     in
     let tuple_conversions =
       [FTAConstructor.Transition.TupleConstruct,
@@ -278,10 +249,11 @@ module Create(B : Automata.AutomatonBuilder) = struct
         problem.examples
     in
     let c = C.add_states c subcall_sites in
-    let c = C.update_from_conversions c rec_call_conversions in
+    let c = C.update_from_conversions c conversions in
     let c = C.update_from_conversions c conversions in
     let c = C.update_from_conversions c conversions in
     let c = C.add_destructors c in
+    let c = C.add_ite c in
     let c = C.minimize c in
     c
 
