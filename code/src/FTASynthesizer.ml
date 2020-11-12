@@ -177,11 +177,29 @@ module Create(B : Automata.AutomatonBuilder) = struct
             | _ -> [])
         (C.get_all_types c)
     in
+    let make_destruct_conversion_with i t t' =
+      (FTAConstructor.Transition.UnsafeVariantDestruct i,
+       (fun vs ->
+          match Value.destruct_ctor (List.hd_exn vs) with
+          | Some (i',v) ->
+            if Id.equal i i' then [v] else []
+          | _ -> []),
+       [t], t')
+    in
     let variant_unsafe_destruct_conversions =
+      List.concat_map
+        ~f:(fun t ->
+            match t with
+            | Type.Variant l ->
+              List.map
+                ~f:(fun (i,t') -> make_destruct_conversion_with i t t')
+                l
+            | _ -> [])
+        (C.get_all_types c)
       (*This should be very similar to the construct conversions.
 
         In construct conversions, you iterated through all of the types.
-        Then, you matched on the types: if it was not a variant type,
+        Then, you matched on the types: if it was not a  type,
         you did nothing.
         If it was a variant type, you created a conversion for each of the
         branches in the variant type.
@@ -216,7 +234,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
         not, then just return [] -- a different destructor will destruct the
         value.
       *)
-      []
     in
     let tuple_conversions =
       [FTAConstructor.Transition.TupleConstruct,
