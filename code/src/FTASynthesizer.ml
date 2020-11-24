@@ -40,7 +40,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
               (term_to_exp t)
           | _ -> failwith "incorrect setup"
         end
-      | TupleConstruct ->
+      | TupleConstruct _ ->
         Expr.mk_tuple
           (List.map
              ~f:term_to_exp
@@ -71,8 +71,10 @@ module Create(B : Automata.AutomatonBuilder) = struct
               Expr.mk_app
                 acc
                 (term_to_exp bt))
-          ~init:(Expr.mk_var (Id.create "ifthenelse"))
+          ~init:(Expr.mk_var (Id.create "vmatch"))
           ts
+      | TupleDestruct (_,i) ->
+        Expr.mk_proj i (term_to_exp (List.hd_exn ts))
     end
 
   module Constraints =
@@ -206,10 +208,34 @@ module Create(B : Automata.AutomatonBuilder) = struct
             | _ -> [])
         (C.get_all_types c)
     in
-    let tuple_conversions =
-      [FTAConstructor.Transition.TupleConstruct,
-       (fun _ -> [Value.mk_tuple []]),
-       [], Type.mk_tuple []]
+    let tuple_constructors =
+      List.filter_map
+        ~f:(fun t ->
+            match t with
+            | Type.Tuple ts ->
+              Some (FTAConstructor.Transition.TupleConstruct t
+                   ,(fun vs -> [Value.mk_tuple vs])
+                   ,ts
+                   ,t)
+            | _ -> None)
+        (C.get_all_types c)
+    in
+    let tuple_destructors =
+      List.concat_map
+        ~f:(fun t ->
+            begin match t with
+              | Type.Tuple ts ->
+                List.mapi
+                  ~f:(fun i tout ->
+                      (FTAConstructor.Transition.TupleDestruct (t,i)
+                      ,(fun vs ->
+                         [List.nth_exn (Value.destruct_tuple_exn (List.hd_exn vs)) i])
+                      ,[t]
+                      ,tout))
+                  ts
+              | _ -> []
+            end)
+        (C.get_all_types c)
     in
     let rec_call_conversions =
       let evaluation vs =
@@ -235,7 +261,8 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let conversions =
       context_conversions
       @ variant_construct_conversions
-      @ tuple_conversions
+      @ tuple_constructors
+      @ tuple_destructors
       @ rec_call_conversions
       @ variant_unsafe_destruct_conversions
     in
@@ -252,8 +279,9 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let c = C.update_from_conversions c conversions in
     let c = C.update_from_conversions c conversions in
     let c = C.update_from_conversions c conversions in
+    let c = C.update_from_conversions c conversions in
+    let c = C.update_from_conversions c conversions in
     let c = C.add_destructors c in
-    let c = C.add_ite c in
     let c = C.minimize c in
     c
 
@@ -456,14 +484,14 @@ module Create(B : Automata.AutomatonBuilder) = struct
     in
     (*This guarantees that, if v1 < v2, in terms of subvalue partial ordering,
      then v1 comes before v2 in terms of generating their FTAs. This is
-     necessrary for ensuring that recursion is appropriately added *)
+      necessrary for ensuring that recursion is appropriately added *)
     let sorted_inputs =
       List.dedup_and_sort
         ~compare:(fun v1 v2 ->
             if Value.strict_subvalue v1 v2 then
               -1
             else if Value.strict_subvalue v2 v1 then
-              -1
+              1
             else
               Value.compare v1 v2)
         all_inputs

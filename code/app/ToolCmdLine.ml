@@ -126,11 +126,35 @@ let () =
 
 module FTAS = FTASynthesizer.Create(Automata.TimbukBuilder)
 
+let mk_aut
+  ()
+  : unit =
+  let autid = "A" in
+  let myaut = TimbukSpec.Spec.Aut.create () in
+  let myaut =
+    TimbukSpec.Spec.Aut.add_transition
+      (TimbukSpec.Spec.Aut.Configuration.Cons (Sym (Timbuk.StringSymbol.create "a" 0),[]))
+      ()
+      (PolyBase (TimbukSpec.UserState.of_string "c"))
+      myaut
+  in
+  let a =
+    TimbukSpec.Spec.Automata.add
+      autid
+      (Codemap.Span.located Codemap.Span.default myaut)
+      TimbukSpec.Spec.Automata.empty
+  in
+  SimpleFile.write_to_file ~fname:"a.out" ~contents:(to_string_of_printer TimbukSpec.Spec.Automata.print a)
+
 let synthesize_solution
     (fname:string)
     (use_myth:bool)
     (use_l2:bool)
+    (log:bool)
   : unit =
+  print_endline "test1";
+  (*mk_aut ();*)
+  Consts.logging := log;
   let p_unprocessed =
     Parser.unprocessed_problem
       Lexer.token
@@ -156,6 +180,7 @@ let param =
     [%map_open
       let input_spec  = anon ("input_spec" %: string)
       and use_myth   = flag "use-myth" no_arg ~doc:"Solve using the myth synthesis engine"
+      and log   = flag "log" no_arg ~doc:"log process"
       and use_l2   = flag "use-l2" no_arg ~doc:"Solve using the l2 synthesis engine"
       (*and no_grammar_output   = flag "no-grammar-output" no_arg ~doc:"do not output the discovered grammar"
       and log_progress   = flag "log-progress" no_arg ~doc:"output the progress log"
@@ -171,6 +196,7 @@ let param =
           input_spec
           use_myth
           use_l2
+          log
     ]
 
 let () =

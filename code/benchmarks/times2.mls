@@ -1,19 +1,7 @@
-let nat_pred =
-  fun (x1 : nat) ->
-    match x1 binding x2 with
-    | O -> O
-    | S -> x2
-;;
-
-let bool_t = True
-;;
-
-let bool_f = False
-;;
-
 synth nat -> nat
 
 satisfying
 
-[S (S O)] -> S (S (S (S O))),
-[S (S (S O))] -> S (S (S (S (S (S O)))))
+[O] -> O,
+[S O] -> S (S O),
+[S (S O)] -> S (S (S (S O)))

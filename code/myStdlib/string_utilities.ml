@@ -133,3 +133,10 @@ let string_of_char_list_list : char list list -> string =
 
 let string_of_ref (location_to_string:'a -> string) (r:'a ref) : string =
   (location_to_string !r) ^ " ref"
+
+let to_string_of_printer
+    (printer:'a -> Format.formatter -> unit)
+    (x:'a)
+  : string =
+  printer x Format.str_formatter;
+  Format.flush_str_formatter ()

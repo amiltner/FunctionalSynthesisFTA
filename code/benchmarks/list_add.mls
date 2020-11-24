@@ -8,4 +8,4 @@ satisfying
 
 [Nil] -> Nil,
 [Cons (O, Nil)] -> Cons (S O, Nil),
-[Cons (O, Cons (S O, Nil))] -> Cons (S O, Cons (S (S O), Nil))
+[Cons (S O, Cons (O, Nil))] -> Cons (S (S O), Cons (S O, Nil))
