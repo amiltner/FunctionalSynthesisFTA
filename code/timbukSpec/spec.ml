@@ -152,7 +152,7 @@ module Automata = struct
 
   let print t out =
     let print_automaton id (aut, _) =
-      Format.fprintf out "Automaton %t\n%t" (print_id id) (Aut.print aut)
+      Format.fprintf out "Automaton %t\n\n%t" (print_id id) (Aut.print aut)
     in
     iter print_automaton t
 end

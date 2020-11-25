@@ -55,6 +55,16 @@ struct
   type t = (id * int)
   [@@deriving eq, hash, ord, show]
 
+  let print_id id =
+    match id with
+    | FunctionApp x -> MyStdLib.Id.to_string x
+    | VariantConstruct x -> MyStdLib.Id.to_string x
+    | TupleConstruct -> "TupleConstruct"
+    | Var -> "Var"
+    | LetIn -> "LetIn"
+    | Rec -> "Rec"
+    | IfThenElse -> "IfThenElse"
+  let pp b (a:t) = Format.fprintf b "%s:%d " (print_id (fst a)) (snd a)
   let print a b = pp b a
 
   let rec_ = (Rec,1)
