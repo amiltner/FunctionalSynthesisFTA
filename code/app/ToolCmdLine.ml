@@ -1,6 +1,4 @@
 open Tool
-open MyStdLib
-open Core
 
 module FTAS = FTASynthesizer.Create(Automata.TimbukBuilder)
 
@@ -24,7 +22,7 @@ let mk_aut
       (Codemap.Span.located Codemap.Span.default myaut)
       TimbukSpec.Spec.Automata.empty
   in
-  SimpleFile.write_to_file ~fname:"a.out" ~contents:(to_string_of_printer TimbukSpec.Spec.Automata.print a)
+  MyStdLib.SimpleFile.write_to_file ~fname:"a.out" ~contents:(MyStdLib.to_string_of_printer TimbukSpec.Spec.Automata.print a)
 
 type error =
   | Parse of TimbukSpec.Parse.error * Codemap.Span.t
@@ -79,7 +77,7 @@ let rd_aut
       | None ->
         let res =
           try
-            let c = In_channel.input_char input in
+            let c = input_char input in
             Seq.Cons (c, next (ref None))
           with
           | End_of_file -> Seq.Nil
@@ -89,9 +87,9 @@ let rd_aut
     in
     next (ref None)
   in
-  let f = In_channel.create "a.out" in
+  let f = open_in "a.out" in
   let inp = seq_of_channel f in
-  let utf8_input = Unicode.Encoding.utf8_decode (Seq.filter_map ident inp) in
+  let utf8_input = Unicode.Encoding.utf8_decode inp in
   begin try
       begin try
           print_endline "before";
@@ -99,7 +97,7 @@ let rd_aut
   let ast = TimbukSpec.Parse.specification lexer in
   print_endline "after";
   let spec = TimbukSpec.Build.specification ast in
-  print_endline (print_to_string TimbukSpec.Spec.print spec)
+  print_endline (MyStdLib.print_to_string TimbukSpec.Spec.print spec)
     with
     | TimbukSpec.Parse.Error (e, span) -> raise (Error (Parse (e, span)))
   end
@@ -122,7 +120,7 @@ let synthesize_solution
     Parser.unprocessed_problem
       Lexer.token
       (Lexing.from_string
-         (Prelude.prelude_string ^ (SimpleFile.read_from_file ~fname)))
+         (Prelude.prelude_string ^ (MyStdLib.SimpleFile.read_from_file ~fname)))
   in
   let problem = Problem.process p_unprocessed in
   let e =
@@ -137,9 +135,9 @@ let synthesize_solution
   in
   print_endline (Expr.show e)
 
-open Command.Let_syntax
+open MyStdLib.Command.Let_syntax
 let param =
-  Command.basic ~summary:"..."
+  MyStdLib.Command.basic ~summary:"..."
     [%map_open
       let input_spec  = anon ("input_spec" %: string)
       and use_myth   = flag "use-myth" no_arg ~doc:"Solve using the myth synthesis engine"
@@ -163,5 +161,5 @@ let param =
     ]
 
 let () =
-  Command.run
+  Core.Command.run
     param
