@@ -6,4 +6,4 @@ let log thunk =
   else
     ()
 
-let path_to_vata = ref "../libvata/build/cli/vata"
+let path_to_vata = ref "../../libvata/build/cli/vata"
