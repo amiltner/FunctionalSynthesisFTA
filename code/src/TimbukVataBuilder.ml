@@ -6,42 +6,7 @@ module Make : AutomatonBuilder =
   functor (Symbol : Symbol) ->
   functor (State : State) ->
   struct
-    (* A is the timbuk automaton module *)
-    module A =
-    struct
-      module Symb =
-      struct
-        include Symbol
-
-        let print a b = pp b a
-      end
-
-      module St =
-      struct
-        include State
-
-        let print a b = pp b a
-      end
-
-      module Lb = struct
-        include UnitModule
-
-        let print a b = pp b a
-
-        let product _ _ = Some ()
-      end
-
-      include Timbuk.Automaton.Make(Symb)(St)(Lb)
-
-      let equal a1 a2 = is_equal (compare a1 a2)
-      let pp a b = print b a
-    end
-
-    type t = A.t
-    [@@deriving eq, ord, show]
-
-    module Symbol = Symbol
-    module State = State
+    module TimbukAut = TimbukBuilder(Symbol)(State)
 
     type term = Term of Symbol.t * (term list)
     [@@deriving hash, eq, ord, show]
@@ -51,162 +16,210 @@ module Make : AutomatonBuilder =
       [@@deriving hash, eq, ord, show]
     end
 
-    let empty = A.empty
+    let rec to_timbuk_term
+        (x:term)
+      : TimbukAut.term =
+      begin match x with
+        | Term (s,ts) -> TimbukAut.Term (s,List.map ~f:to_timbuk_term ts)
+      end
 
-    let intersect a1 a2 =
-      A.inter (fun _ _ -> ()) a1 a2
+    type t =
+      {
+        mutable aut   : TimbukAut.t option ;
+        mutable fname : string      option ;
+      }
+    [@@deriving eq, ord, show]
 
-    let add_transition a s sts st =
-      A.add_transition
-        (A.Configuration.Cons
-           (s
-           ,List.map
-               ~f:(fun st -> A.Configuration.Var st)
-               sts))
-        ()
-        st
-        a
+    let create_from_timbuk
+        (x:TimbukAut.t)
+      : t =
+      {
+        aut   = Some x ;
+        fname = None   ;
+      }
 
-    let remove_transition a s sts st =
-      A.remove_transition
-        (A.Configuration.Cons
-           (s
-           ,List.map
-               ~f:(fun st -> A.Configuration.Var st)
-               sts))
-        ()
-        st
-        a
+    let create_from_fname
+        (f:string)
+      : t =
+      {
+        aut   = None   ;
+        fname = Some f ;
+      }
 
-    let states a =
-      A.StateSet.elements
-        (A.states a)
+    let empty = create_from_timbuk TimbukAut.empty
 
-    let final_states a =
-      A.StateSet.elements
-        (A.final_states a)
+    let get_aut
+        (x:t)
+      : TimbukAut.t =
+      begin match x.aut with
+        | Some aut -> aut
+        | None ->
+          let fname = Option.value_exn x.fname in
+          let str = SimpleFile.read_from_file ~fname in
+          let _ = TimbukSpec.FullParse.full_parse str in
+          let aut = failwith "ah" in
+          x.aut <- Some aut;
+          aut
+      end
 
-    let is_final_state a s =
-      A.StateSet.mem
-        s
-        (A.final_states a)
-
-    let add_final_state a f =
-      A.add_final_state f a
-
-    let is_empty a =
-      Option.is_some
-        (A.pick_term_opt
-           a)
-
-    let pick_term a =
-      let bt =
-        Option.value_exn
-          (A.pick_term_opt
-             a)
+    let add_transition
+        (x:t)
+        (sym:Symbol.t)
+        (ss:State.t list)
+        (s:State.t)
+      : t =
+      let aut =
+        TimbukAut.add_transition
+          (get_aut x)
+          sym
+          ss
+          s
       in
-      let rec c_bt
-          ((bt,_):A.BoundTerm.t)
-        : term =
-        begin match bt with
-          | A.BoundTerm.Term (s,bts) ->
-            let ts = List.map ~f:c_bt bts in
-            Term (s,ts)
-          | _ -> failwith "ah"
-        end
-      in
-      c_bt bt
+      create_from_timbuk aut
 
-    let transitions_from a s =
-      let ps = A.state_parents s a in
-      let cs = A.ConfigurationSet.elements ps in
-      List.concat_map
-        ~f:(fun c ->
-            let ss =
-              A.LabeledStateSet.elements
-                (A.states_for_configuration c a)
-            in
-            let (i,vs) =
-              begin match c with
-                | A.Configuration.Cons (i,ps) ->
-                  (i
-                  ,List.map
-                      ~f:(fun p ->
-                          begin match p with
-                            | A.Configuration.Var s ->
-                              s
-                            | _ -> failwith "ah"
-                          end)
-                      ps)
-                | _ ->
-                  failwith "ah"
-              end
-            in
-            List.map ~f:(fun (s,_) -> (i,vs,s)) ss)
-        cs
+    let remove_transition
+        (x:t)
+        (sym:Symbol.t)
+        (ss:State.t list)
+        (s:State.t)
+      : t =
+      let aut =
+        TimbukAut.remove_transition
+          (get_aut x)
+          sym
+          ss
+          s
+      in
+      create_from_timbuk aut
+
+    let states
+        (x:t)
+      : State.t list =
+      TimbukAut.states (get_aut x)
+
+    let final_states
+        (x:t)
+      : State.t list =
+      TimbukAut.final_states (get_aut x)
+
+    let is_final_state
+        (x:t)
+        (s:State.t)
+      : bool =
+      TimbukAut.is_final_state (get_aut x) s
+
+    let add_final_state
+        (x:t)
+        (s:State.t)
+      : t =
+      create_from_timbuk
+        (TimbukAut.add_final_state (get_aut x) s)
+
+    let is_empty
+        (x:t)
+      : bool =
+      TimbukAut.is_empty (get_aut x)
+
+    let accepts_term
+        (x:t)
+        (term)
+      : bool =
+      TimbukAut.accepts_term (get_aut x) (to_timbuk_term term)
+
+    let transitions_from
+        (x:t)
+        (s:State.t)
+      : (Symbol.t * State.t list * State.t) list =
+      TimbukAut.transitions_from (get_aut x) s
 
     let transitions_to
-        a
-        s
-      : (Symbol.t * (State.t list)) list =
-      let configs =
-        A.configurations_for_state
-          s
-          a
-      in
-      List.map
-        ~f:(fun (c,_) ->
-            begin match c with
-              | A.Configuration.Cons (i,ps) ->
-                (i,
-                 List.map
-                   ~f:(fun p ->
-                       begin match p with
-                         | A.Configuration.Var s -> s
-                         | _ -> failwith "shouldnt happen"
-                       end)
-                   ps)
-              | _ -> failwith "shouldnt happen"
-            end)
-        (A.LabeledConfigurationSet.elements configs)
+        (x:t)
+        (s:State.t)
+      : (Symbol.t * State.t list) list =
+      TimbukAut.transitions_to (get_aut x) s
 
     let transitions
-        (c:t)
-      : (Symbol.t * (State.t list) * State.t) list =
-      let sm = A.configurations_for_states c in
-      let ts =
-        A.StateMap.fold
-          (fun s cs ts ->
-             A.LabeledConfigurationSet.fold
-               (fun (c,_) ts ->
-                  begin match c with
-                    | A.Configuration.Cons (i,ps) ->
-                      (i
-                      ,List.map
-                          ~f:(fun p ->
-                             begin match p with
-                               | A.Configuration.Var s -> s
-                               | _ -> failwith "shouldnt happen"
-                             end)
-                          ps
-                      ,s)::ts
-                    | _ -> failwith "shouldnt happen"
-                  end)
-               cs
-               ts)
-          sm
-          []
-      in
-      ts
+        (x:t)
+      : (Symbol.t * State.t list * State.t) list  =
+      TimbukAut.transitions
+        (get_aut x)
 
-    let minimize = A.prune_useless
+    let minimize
+        (x:t)
+      : t =
+      create_from_timbuk
+        (TimbukAut.minimize (get_aut x))
 
-    let accepts_term a t =
-      let rec term_to_aterm t : Symbol.t Timbuk.Term.term =
-        begin match t with
-          | Term (i,ts) ->
-            Term (i,List.map ~f:term_to_aterm ts)
-        end
+    module SB = IdentifierBijection.Make(State)(struct
+        let num = ref 0
+        let fresh _ =
+          let n = !num in
+          incr num;
+          Id.create ("s" ^ (string_of_int n))
+      end)
+    module TB = IdentifierBijection.Make(Symbol)(struct
+        let num = ref 0
+        let fresh _ =
+          let n = !num in
+          incr num;
+          Id.create ("t" ^ (string_of_int n))
+      end)
+
+    let print_of_pp x =
+      fun a b -> x b a
+
+    let to_vata_string
+        a =
+      let show_state s = (Id.to_string (SB.get_id s)) in
+      (*let _ = A.StateSet.iter prints s1; print_endline "\n" in*)
+      (*let _ = A.SymSet.iter printa alpha1; print_endline (Format.flush_str_formatter ()); print_endline "\n" in*)
+      (*let aa1 = A.pp Format.std_formatter a1; print_endline "\n" in*)
+      let show_symbol sy = (Id.to_string (TB.get_id sy)) in
+      let show_transition
+          ((t,ss,s):Symbol.t * State.t list * State.t)
+        : string =
+        let t_s = show_symbol t in
+        let in_s =
+          String.concat
+            ~sep:","
+            (List.map ~f:show_state ss)
+        in
+        let out_s = show_state s in
+        t_s ^ "(" ^ in_s ^ ") -> " ^ out_s
       in
-      A.recognizes (term_to_aterm t) a
+      "Ops\nAutomaton anonymous\nStates\nFinal States\n" ^
+      (String.concat ~sep:" " (List.map ~f:show_state (final_states a))) ^
+      "Transitions\n" ^
+      (String.concat ~sep:"\n" (List.map ~f:show_transition (transitions a))) ^ "\n"
+
+    let num = ref 0
+
+    let next_fname
+        ()
+      : string =
+      Core.Unix.mkdir_p "auts";
+      let fname = "auts/aut" ^ (string_of_int !num) in
+      incr num;
+      fname
+
+
+    let get_fname
+        (a:t)
+      : string =
+      begin match a.fname with
+        | None ->
+          let fname = next_fname () in
+          SimpleFile.write_to_file ~fname ~contents:(to_vata_string a);
+          a.fname <- Some fname;
+          fname
+        | Some fname -> fname
+      end
+
+    let intersect
+        (a1:t)
+        (a2:t)
+      : t =
+      let fname1 = get_fname a1 in
+      let fname2 = get_fname a2 in
+      create_from_timbuk (TimbukAut.intersect (get_aut a1) (get_aut a2))
   end

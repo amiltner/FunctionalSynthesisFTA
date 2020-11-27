@@ -37,7 +37,6 @@ sig
   val is_final_state : t -> State.t -> bool
   val add_final_state : t -> State.t -> t
   val is_empty : t -> bool
-  val pick_term : t -> Term.t
   val accepts_term : t -> Term.t -> bool
   val transitions_from
     : t
@@ -262,7 +261,7 @@ module TimbukBuilder : AutomatonBuilder =
       A.recognizes (term_to_aterm t) a
   end
 
-module VATABuilder : AutomatonBuilder =
+(*module VATABuilder : AutomatonBuilder =
   functor (Symbol : Symbol) ->
   functor (State : State) ->
   struct
@@ -517,3 +516,4 @@ module VATABuilder : AutomatonBuilder =
       in
       A.recognizes (term_to_aterm t) a
   end
+*)

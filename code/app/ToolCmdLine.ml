@@ -1,6 +1,6 @@
 open Tool
 
-module FTAS = FTASynthesizer.Create(Automata.TimbukBuilder)
+module FTAS = FTASynthesizer.Create(TimbukVataBuilder.Make)
 (* module FTAS = FTASynthesizer.Create(Automata.VATABuilder) *)
 
 let mk_aut
@@ -87,7 +87,7 @@ let rd_aut
     in
     next (ref None)
   in
-  let f = open_in "a.out" in
+  let f = open_in "../holder" in
   let inp = seq_of_channel f in
   let utf8_input = Unicode.Encoding.utf8_decode inp in
   begin try

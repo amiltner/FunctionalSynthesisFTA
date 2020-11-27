@@ -22,3 +22,5 @@ module Build = Build
 module Lexer = Lexer
 
 module Parse = Parse
+
+module FullParse = FullParse

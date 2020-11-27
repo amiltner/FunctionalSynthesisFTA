@@ -59,11 +59,12 @@ struct
     match id with
     | FunctionApp x -> MyStdLib.Id.to_string x
     | VariantConstruct x -> MyStdLib.Id.to_string x
-    | TupleConstruct -> "TupleConstruct"
+    | TupleConstruct _ -> "TupleConstruct"
     | Var -> "Var"
     | LetIn -> "LetIn"
     | Rec -> "Rec"
     | IfThenElse -> "IfThenElse"
+    | _ -> "other"
   let pp b (a:t) = Format.fprintf b "%s:%d " (print_id (fst a)) (snd a)
   let print a b = pp b a
 

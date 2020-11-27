@@ -23,6 +23,7 @@ starexec*
 # ocamlbuild working directory
 _build/
 App.exe
+auts/
 
 # ocamlbuild targets
 *.byte
