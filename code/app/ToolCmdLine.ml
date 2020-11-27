@@ -1,6 +1,7 @@
 open Tool
 
 module FTAS = FTASynthesizer.Create(TimbukVataBuilder.Make)
+module FTATCS = TraceCompleteFTASynthesizer.Create(TimbukVataBuilder.Make)
 (* module FTAS = FTASynthesizer.Create(Automata.VATABuilder) *)
 
 let mk_aut
@@ -114,6 +115,7 @@ let synthesize_solution
     (use_l2:bool)
     (log:bool)
     (print_times:bool)
+    (tc_synth:bool)
   : unit =
   (*rd_aut ();*)
   Consts.logging := log;
@@ -130,7 +132,9 @@ let synthesize_solution
         ~problem
     else if use_l2 then
       MythSynthesisCaller.myth_synthesize_print ~problem
-        (* then we can call l2 *)
+      (* then we can call l2 *)
+    else if tc_synth then
+      FTATCS.synth ~problem
     else
       FTAS.synth ~problem
   in
@@ -149,6 +153,7 @@ let param =
       and log   = flag "log" no_arg ~doc:"log process"
       and use_l2   = flag "use-l2" no_arg ~doc:"Solve using the l2 synthesis engine"
       and print_times   = flag "print-times" no_arg ~doc:"print the times to run various components"
+      and tc_synth   = flag "tc-synth" no_arg ~doc:"use the FTA synthesizer with trace complete examples"
       (*and no_grammar_output   = flag "no-grammar-output" no_arg ~doc:"do not output the discovered grammar"
       and log_progress   = flag "log-progress" no_arg ~doc:"output the progress log"
       and print_runtime_specs  = flag "print-runtime-specs" no_arg ~doc:"output the runtime specs"
@@ -165,6 +170,7 @@ let param =
           use_l2
           log
           print_times
+          tc_synth
     ]
 
 let () =
