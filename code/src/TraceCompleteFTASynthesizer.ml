@@ -240,13 +240,11 @@ module Create(B : Automata.AutomatonBuilder) = struct
         spec
     in
     let c =
-      Consts.time
-        Consts.isect_time
-        (fun _ -> fold_on_head_exn
-            ~f:(fun x y ->
-                let inted = (C.intersect x y) in
-                C.minimize inted)
-            cs)
+      fold_on_head_exn
+        ~f:(fun x y ->
+            let inted = (C.intersect x y) in
+            C.minimize inted)
+        cs
     in
     c
 
@@ -262,41 +260,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
         inouts
       | _ -> failwith "when would this happen?"
     end
-
-  let get_all_subvalues_of_same_type
-      ~(problem:Problem.t)
-      (args_t:Type.t)
-      (v:Value.t)
-    : Value.t list =
-    let vtc = ValueTCIntegration.tc_val (problem.tc) v args_t in
-    let sub_vs =
-      List.dedup_and_sort
-        ~compare:ValueTCIntegration.Derivation.compare
-        (ValueTCIntegration.Derivation.sub_derivations vtc)
-    in
-    let vs_ts =
-      List.map
-        ~f:(fun d ->
-            (ValueTCIntegration.Derivation.get_value d
-            ,ValueTCIntegration.Derivation.get_type d))
-        sub_vs
-    in
-    let relevant_ins =
-      List.filter_map
-        ~f:(fun (v,t) ->
-            let is_relevant =
-              Typecheck.type_equiv
-                problem.tc
-                t
-                args_t
-            in
-            if is_relevant then
-              Some v
-            else
-              None)
-        vs_ts
-    in
-    relevant_ins
 
   let synth
       ~(problem:Problem.t)

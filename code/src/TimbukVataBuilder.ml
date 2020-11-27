@@ -254,8 +254,14 @@ module Make : AutomatonBuilder =
     let minimize
         (x:t)
       : t =
+      let a = get_aut x in
+      let minned =
+        Consts.time
+          Consts.minify_time
+          (fun _ -> TimbukAut.minimize a)
+      in
       create_from_timbuk
-        (TimbukAut.minimize (get_aut x))
+        minned
 
     let print_of_pp x =
       fun a b -> x b a
@@ -311,13 +317,16 @@ module Make : AutomatonBuilder =
         (a1:t)
         (a2:t)
       : t =
-      let fname1 = get_fname a1 in
-      let fname2 = get_fname a2 in
-      let new_fname = next_fname () in
-      let ec_command = (!Consts.path_to_vata ^ " isect " ^ fname1 ^ " " ^ fname2 ^ " > " ^ new_fname) in
-      let ec = Sys.command ec_command in
-      if ec <> 0 then
-        failwith (ec_command ^ " failed")
-      else
-        create_from_fname new_fname
+      Consts.time
+        Consts.isect_time
+        (fun _ ->
+           let fname1 = get_fname a1 in
+           let fname2 = get_fname a2 in
+           let new_fname = next_fname () in
+           let ec_command = (!Consts.path_to_vata ^ " isect " ^ fname1 ^ " " ^ fname2 ^ " > " ^ new_fname) in
+           let ec = Sys.command ec_command in
+           if ec <> 0 then
+             failwith (ec_command ^ " failed")
+           else
+             create_from_fname new_fname)
   end
