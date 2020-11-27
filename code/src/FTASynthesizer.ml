@@ -380,7 +380,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
         c            : C.t            ;
         constraints  : Constraints.t  ;
         nonpermitted : StatePairSet.t ;
-        rep          : C.TermState.t  ;
+        rep          : A.TermState.t  ;
         v_to_c       : ValToC.t       ;
       }
     [@@deriving eq, hash, ord, show]
@@ -431,12 +431,12 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let priority
         (qe:t)
       : int =
-      Expr.size (term_to_exp (C.TermState.to_term qe.rep))
+      Expr.size (term_to_exp (A.TermState.to_term qe.rep))
 
     let to_string_legible
         (qe:t)
       : string =
-      let es = Expr.show (term_to_exp (C.TermState.to_term qe.rep)) in
+      let es = Expr.show (term_to_exp (A.TermState.to_term qe.rep)) in
       let cs = Constraints.show qe.constraints in
       "term: " ^ es ^ "\nconstraints: " ^ cs
   end
@@ -497,11 +497,11 @@ module Create(B : Automata.AutomatonBuilder) = struct
         all_inputs
     in
     let rec extract_recursive_calls
-        (ts:C.TermState.t)
+        (ts:A.TermState.t)
       : (FTAConstructor.State.t * FTAConstructor.State.t) list =
       begin match ts with
         | TS ((FTAConstructor.Transition.Rec,1),target,[source_ts]) ->
-          (C.TermState.get_state source_ts,target)::(extract_recursive_calls source_ts)
+          (A.TermState.get_state source_ts,target)::(extract_recursive_calls source_ts)
         | TS (_,_,tss) ->
           List.concat_map
             ~f:extract_recursive_calls
@@ -549,7 +549,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
               bs
           in
           if List.length new_constraints = 0 then
-            let e = term_to_exp (C.TermState.to_term ts) in
+            let e = term_to_exp (A.TermState.to_term ts) in
             Right e
           else
             let merged_constraints_o =

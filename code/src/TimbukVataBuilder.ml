@@ -282,9 +282,7 @@ module Make : AutomatonBuilder =
       : t =
       let a = get_aut x in
       let minned =
-        Consts.time
-          Consts.minify_time
-          (fun _ -> TimbukAut.minimize a)
+        TimbukAut.minimize a
       in
       create_from_timbuk
         minned
@@ -352,4 +350,11 @@ module Make : AutomatonBuilder =
         failwith (ec_command ^ " failed")
       else
         create_from_fname new_fname
+
+    let min_term_state
+        (x:t)
+      : term_state option =
+      let aut = get_aut x in
+      let tso = TimbukAut.min_term_state aut in
+      Option.map ~f:from_timbuk_termstate tso
   end

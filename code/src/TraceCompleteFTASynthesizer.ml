@@ -269,7 +269,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
         ~problem
     in
     let st = Option.value_exn (C.min_term_state c) in
-    let t = C.TermState.to_term st in
+    let t = A.TermState.to_term st in
     let e = term_to_exp t in
     e
 end
