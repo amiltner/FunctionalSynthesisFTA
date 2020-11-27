@@ -217,11 +217,13 @@ module Create(B : Automata.AutomatonBuilder) = struct
         problem.examples
     in
     let c = C.add_states c subcall_sites in
-    let c = C.update_from_conversions c conversions in
-    let c = C.update_from_conversions c conversions in
-    let c = C.update_from_conversions c conversions in
-    let c = C.update_from_conversions c conversions in
-    let c = C.update_from_conversions c conversions in
+    let c =
+      List.fold
+        ~f:(fun c _ ->
+            C.update_from_conversions c conversions)
+        ~init:c
+        (range 0 num_applications)
+    in
     let c = C.add_destructors c in
     let c = C.minimize c in
     c
