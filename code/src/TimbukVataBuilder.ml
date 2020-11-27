@@ -57,7 +57,7 @@ module Make : AutomatonBuilder =
           let fname = Option.value_exn x.fname in
           let str = SimpleFile.read_from_file ~fname in
           let _ = TimbukSpec.FullParse.full_parse str in
-          let aut = failwith "ah" in
+          let aut = failwith fname in
           x.aut <- Some aut;
           aut
       end
@@ -221,5 +221,11 @@ module Make : AutomatonBuilder =
       : t =
       let fname1 = get_fname a1 in
       let fname2 = get_fname a2 in
-      create_from_timbuk (TimbukAut.intersect (get_aut a1) (get_aut a2))
+      let new_fname = next_fname () in
+      let ec_command = (!Consts.path_to_vata ^ " isect " ^ fname1 ^ " " ^ fname2 ^ " > " ^ new_fname) in
+      let ec = Sys.command ec_command in
+      if ec <> 0 then
+        failwith (ec_command ^ " failed")
+      else
+        create_from_fname new_fname
   end

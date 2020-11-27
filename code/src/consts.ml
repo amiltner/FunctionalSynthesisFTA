@@ -5,3 +5,5 @@ let log thunk =
     print_endline (thunk ())
   else
     ()
+
+let path_to_vata = ref "../libvata/build/cli/vata"
