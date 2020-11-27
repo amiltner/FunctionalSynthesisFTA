@@ -173,10 +173,7 @@ end
 
 type t = {
   spec_alphabet : Alphabet.t;
-  spec_variables : Variables.t;
-  spec_trss : Trss.t;
   spec_automata : Automata.t;
-  spec_pattern_sets : PatternSets.t
 }
 
 (* let state_table = Hashtbl.create 8 *)
@@ -194,9 +191,6 @@ let state_of_string id =
   GenericTypes.PolyBase (UserState.of_string id)
 
 let print spec out =
-  Format.fprintf out "Ops\n%t\nVars\n%t\n%t%t%t\n"
+  Format.fprintf out "Ops\n%t\n%t\n"
     (Alphabet.print spec.spec_alphabet)
-    (Variables.print spec.spec_variables)
-    (Trss.print spec.spec_trss)
     (Automata.print spec.spec_automata)
-    (PatternSets.print spec.spec_pattern_sets)

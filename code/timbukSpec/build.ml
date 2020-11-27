@@ -116,28 +116,28 @@ let variables alphabet (ast, _) =
 
 module States = Dictionary.Make (Id) (State)
 
-let states alphabet (ast, _) =
+let state (ast, _) =
+  let id = fst ast.Ast.state_name in
+  GenericTypes.PolyBase (UserState.of_string id)
+
+let states (ast, _) =
   List.fold_left (
     fun states (q, span) ->
       let id = fst q.Ast.state_name in
       if id = "@" then raise (Error (ProtectedSymbol "@", span));
       let q = GenericTypes.PolyBase (UserState.of_string id) in
-      match Alphabet.find_opt id alphabet with
-      | Some (_, span') -> raise (Error (AlreadyDefined (id, Atom, span'), span))
-      | None ->
         begin try States.add id (q, span) states with
           | States.AlreadyDefined span' -> raise (Error (AlreadyDefined (id, Atom, span'), span))
         end
   ) States.empty ast
 
-let final_states states (ast, _) =
+let final_states (ast, _) =
   List.fold_left (
-    fun roots (q, span) ->
-      let id = fst q.Ast.state_name in
-      match States.find_opt id states with
-      | Some (q, _) -> Aut.StateSet.add q roots
-      | None ->
-        raise (Error (UndefinedState id, span))
+    fun roots ast ->
+      let s = state ast in
+      Aut.StateSet.add
+        s
+        roots
   ) Aut.StateSet.empty ast
 
 let rec pattern alphabet variables states (ast, span) =
@@ -194,50 +194,40 @@ let trss alphabet variables ast =
       | Trss.AlreadyDefined span' -> raise (Error (AlreadyDefined (id, Trs, span'), span))
   ) Trss.empty ast
 
-let rec configuration alphabet states (ast, span) =
+let config_state (ast,span) =
   let id, id_span = ast.Ast.term_cons in
-  if id = "@" then
-    let subs = List.map (configuration alphabet states) (fst ast.Ast.term_subs) in
-    Aut.Configuration.Cons (AppSymbol.App, subs)
-  else
-    match Alphabet.find_opt id alphabet with
-    | Some (f, f_def_span) ->
-      let arity = List.length (fst ast.Ast.term_subs) in
-      if arity <> Symbol.arity f then raise (Error (InvalidArity (arity, Symbol.arity f, f_def_span), span));
-      let subs = List.map (configuration alphabet states) (fst ast.Ast.term_subs) in
-      Aut.Configuration.Cons (f, subs)
-    | None ->
-      match States.find_opt id states with
-      | Some (q, q_def_span) ->
-        if fst ast.Ast.term_subs <> [] then raise (Error (StateSubterms (id, q_def_span), span));
-        Aut.Configuration.Var q
-      | None ->
-        raise (Error (UndefinedSymbolOrState id, id_span))
+  Aut.Configuration.Var (GenericTypes.PolyBase (UserState.of_string id))
 
-let transitions alphabet states (ast, span) =
+let configuration (ast,span) =
+  let id, id_span = ast.Ast.term_cons in
+  let arity = List.length (fst ast.Ast.term_subs) in
+  let subs = List.map (config_state) (fst ast.Ast.term_subs) in
+  let sym = AppSymbol.Sym (StringSymbol.create id arity) in
+  Aut.Configuration.Cons (sym,subs)
+
+let transitions (ast, span) =
   List.fold_left (
     fun rules (rule, span) ->
-      let lhs = configuration alphabet states rule.Ast.rule_left in
-      let q = match configuration alphabet states rule.Ast.rule_right with
+      let lhs = configuration rule.Ast.rule_left in
+      let q = match config_state rule.Ast.rule_right with
         | Aut.Configuration.Cons _ -> raise (Error (NotAState (snd rule.Ast.rule_right), span))
         | Aut.Configuration.Var q -> q
       in
       (lhs, q)::rules
   ) [] ast
 
-let automaton alphabet (ast, _) =
+let automaton (ast, _) =
   let (id, _) = ast.Ast.aut_name in
-  let states = states alphabet ast.Ast.aut_states in
-  let roots = final_states states ast.Ast.aut_roots in
-  let transitions = transitions alphabet states ast.Ast.aut_transitions in
+  let roots = final_states ast.Ast.aut_roots in
+  let transitions = transitions ast.Ast.aut_transitions in
   let aut = List.fold_left (fun aut (conf, q) -> Aut.add_transition conf () q aut) (Aut.create ()) transitions in
   let aut = Aut.add_final_states roots aut in
   id, aut
 
-let automata alphabet ast =
+let automata ast =
   List.fold_left (
     fun automata (ast, span) ->
-      let id, aut = automaton alphabet (ast, span) in
+      let id, aut = automaton (ast, span) in
       try Automata.add id (aut, span) automata with
       | Automata.AlreadyDefined span' -> raise (Error (AlreadyDefined (id, Automaton, span'), span))
   ) Automata.empty ast
@@ -286,14 +276,8 @@ let pattern_sets alphabet variables automata ast =
 
 let specification (ast, _) =
   let alphabet = alphabet ast.Ast.spec_alphabet in
-  let vars = variables alphabet ast.Ast.spec_variables in
-  let automata = automata alphabet ast.Ast.spec_automata in
-  let trss = trss alphabet vars ast.Ast.spec_trss in
-  let pattern_sets = pattern_sets alphabet vars automata ast.Ast.spec_pattern_sets in
+  let automata = automata ast.Ast.spec_automata in
   {
     spec_alphabet = alphabet;
-    spec_variables = vars;
-    spec_trss = trss;
     spec_automata = automata;
-    spec_pattern_sets = pattern_sets
   }

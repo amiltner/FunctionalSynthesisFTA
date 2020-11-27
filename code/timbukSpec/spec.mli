@@ -59,10 +59,7 @@ end
 (** A timbuk file specification. *)
 type t = {
   spec_alphabet : Alphabet.t;
-  spec_variables : Variables.t;
-  spec_trss : Trss.t;
   spec_automata : Automata.t;
-  spec_pattern_sets : PatternSets.t;
 }
 
 val state_of_string : string -> State.t

@@ -46,7 +46,115 @@ module Make : AutomatonBuilder =
         fname = Some f ;
       }
 
+    module SB = IdentifierBijection.Make(State)(struct
+        let num = ref 0
+        let fresh _ =
+          let n = !num in
+          incr num;
+          Id.create ("s" ^ (string_of_int n))
+      end)
+    module TB = IdentifierBijection.Make(Symbol)(struct
+        let num = ref 0
+        let fresh _ =
+          let n = !num in
+          incr num;
+          Id.create ("t" ^ (string_of_int n))
+      end)
+
     let empty = create_from_timbuk TimbukAut.empty
+
+    module ASTBuilder =
+    struct
+      module Ast =  TimbukSpec.Ast
+
+      let state_from_str
+          (id:string)
+        : State.t =
+        let stripped =
+          String.strip
+            ~drop:(fun c -> Char.equal '[' c || Char.equal ']' c)
+            id
+        in
+        let individual_components =
+          String.split
+            ~on:'|'
+            stripped
+        in
+        let cleaned_components =
+          List.map
+            ~f:(fun comp ->
+                Id.create
+                  (List.hd_exn
+                     (String.split
+                        ~on:'_'
+                        comp)))
+            individual_components
+        in
+        let components =
+          List.map
+            ~f:SB.get_d
+            cleaned_components
+        in
+        fold_on_head_exn
+          ~f:(fun s1 s2 -> Option.value_exn (State.product s1 s2))
+          components
+
+      let symbol_from_str
+          (id:string)
+        : Symbol.t =
+        let id = Id.create id in
+        TB.get_d id
+
+      let final_states (ast, _) =
+
+        let state (ast, _) =
+          state_from_str (fst ast.Ast.state_name)
+        in
+        List.map ~f:(
+          fun ast ->
+            let s = state ast in
+              s
+        )
+          ast
+
+      let config_state (ast,span) =
+        let id, _ = ast.Ast.term_cons in
+        state_from_str id
+
+      let configuration (ast,span) =
+        let id, id_span = ast.Ast.term_cons in
+        let subs = List.map ~f:(config_state) (fst ast.Ast.term_subs) in
+        let sym = symbol_from_str id in
+        (sym,subs)
+
+      let transitions (ast, span) =
+        List.fold_left
+          ~f:(fun rules (rule, span) ->
+              let (sym,subs) = configuration rule.Ast.rule_left in
+              let out = config_state rule.Ast.rule_right in
+              (sym,subs,out)::rules)
+          ~init:[]
+          ast
+
+      let automaton (ast, _) =
+        let roots = final_states ast.Ast.aut_roots in
+        let aut =
+          List.fold
+            ~f:TimbukAut.add_final_state
+            ~init:TimbukAut.empty
+            roots
+        in
+        let transitions = transitions ast.Ast.aut_transitions in
+        List.fold
+          ~f:(fun aut (sym,subs,out) ->
+              TimbukAut.add_transition
+                aut
+                sym
+                subs
+                out)
+          ~init:aut
+          transitions
+    end
 
     let get_aut
         (x:t)
@@ -55,9 +163,8 @@ module Make : AutomatonBuilder =
         | Some aut -> aut
         | None ->
           let fname = Option.value_exn x.fname in
-          let str = SimpleFile.read_from_file ~fname in
-          let _ = TimbukSpec.FullParse.full_parse str in
-          let aut = failwith fname in
+          let ast = TimbukSpec.FullParse.full_parse_to_ast fname in
+          let aut = ASTBuilder.automaton ast in
           x.aut <- Some aut;
           aut
       end
@@ -149,21 +256,6 @@ module Make : AutomatonBuilder =
       : t =
       create_from_timbuk
         (TimbukAut.minimize (get_aut x))
-
-    module SB = IdentifierBijection.Make(State)(struct
-        let num = ref 0
-        let fresh _ =
-          let n = !num in
-          incr num;
-          Id.create ("s" ^ (string_of_int n))
-      end)
-    module TB = IdentifierBijection.Make(Symbol)(struct
-        let num = ref 0
-        let fresh _ =
-          let n = !num in
-          incr num;
-          Id.create ("t" ^ (string_of_int n))
-      end)
 
     let print_of_pp x =
       fun a b -> x b a

@@ -50,8 +50,5 @@ type pattern_set = {
 
 type specification = {
   spec_alphabet : (symbol Span.located) list Span.located;
-  spec_variables : (variable Span.located) list Span.located;
-  spec_trss : (trs Span.located) list;
   spec_automata : (automaton Span.located) list;
-  spec_pattern_sets : (pattern_set Span.located) list;
 }

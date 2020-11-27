@@ -102,9 +102,7 @@ let vars_section lexer =
   end
 
 type section =
-  | TRS of Ast.trs
   | Automaton of Ast.automaton
-  | Patterns of Ast.pattern_set
 
 let rec term span lexer =
   begin match expect span lexer with
@@ -219,23 +217,6 @@ let states lexer =
 let opt_sections lexer =
   let rec next lexer () =
     begin match consume Span.default lexer with
-      | span, Seq.Cons ((Token.Keyword Keyword.TRS, _), lexer) ->
-        begin match expect span lexer with
-          | (span, (Token.Ident id, id_span), lexer) ->
-            let rules, lexer = SeqThen.fold_left (
-                fun (rules, span) (rule, rule_span) ->
-                  (rule, rule_span)::rules, (Span.union span rule_span)
-              ) ([], Span.next id_span) (rules lexer)
-            in
-            let trs = {
-              trs_name = Span.located id_span id;
-              trs_rules = rules
-            }
-            in
-            let span = Span.union id_span (snd rules) in
-            Seq.Cons ((TRS trs, span), next lexer)
-          | (_, token, _) -> unexpected token [TokenKind.Ident]
-        end
       | span, Seq.Cons ((Token.Keyword Keyword.Automaton, _), lexer) ->
         begin match expect span lexer with
           | (span, (Token.Ident id, id_span), lexer) ->
@@ -283,33 +264,6 @@ let opt_sections lexer =
             end
           | (_, token, _) -> unexpected token [TokenKind.Ident]
         end
-      | span, Seq.Cons ((Token.Keyword Keyword.Patterns, _), lexer) -> (* Patterns section *)
-        begin match expect span lexer with
-          | (span, (Token.Ident id, id_span), lexer) ->
-            let type_system, span, lexer = match consume span lexer with
-              | _, Seq.Cons ((Token.Punct p, _), lexer) when p = UChar.of_ascii ':' ->
-                begin match expect span lexer with
-                  | (span, (Token.Ident type_system, ts_span), lexer) ->
-                    Some (type_system, ts_span), span, lexer
-                  | (_, token, _) -> unexpected token [TokenKind.Ident]
-                end
-              | _ -> None, span, lexer
-            in
-            let patterns, lexer = SeqThen.fold_left (
-                fun (subs, span) (sub, sub_span) ->
-                  (sub, sub_span)::subs, (Span.union span sub_span)
-              ) ([], Span.next span) (source_patterns lexer)
-            in
-            let set = {
-              pset_name = Span.located id_span id;
-              pset_patterns = patterns;
-              pset_type_system = type_system
-            }
-            in
-            let span = Span.union span (snd patterns) in
-            Seq.Cons ((Patterns set, span), next lexer)
-          | (_, token, _) -> unexpected token [TokenKind.Ident]
-        end
       | _, Seq.Cons (token, _) -> unexpected token [
           TokenKind.Keyword Keyword.TRS;
           TokenKind.Keyword Keyword.Automaton;
@@ -322,22 +276,16 @@ let opt_sections lexer =
 
 let specification lexer =
   let alphabet, lexer = ops_section lexer in
-  let variables, lexer = vars_section lexer in
   let spec = {
     spec_alphabet = rev alphabet;
-    spec_variables = rev variables;
-    spec_trss = [];
     spec_automata = [];
-    spec_pattern_sets = []
   }
   in
-  let span = Span.union (snd alphabet) (snd variables) in
+  let span = (snd alphabet) in
   let spec = Seq.fold_left (
       fun (spec, span) (section, section_span) ->
         let spec = match section with
-          | TRS trs -> { spec with spec_trss = (Span.located section_span trs) :: spec.spec_trss }
           | Automaton aut -> { spec with spec_automata = (Span.located section_span aut) :: spec.spec_automata }
-          | Patterns set -> { spec with spec_pattern_sets = (Span.located section_span set) :: spec.spec_pattern_sets }
         in
         spec, Span.union span section_span
     ) (spec, span) (opt_sections lexer)
