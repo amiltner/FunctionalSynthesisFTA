@@ -311,13 +311,15 @@ module Make : AutomatonBuilder =
         (a1:t)
         (a2:t)
       : t =
-      let fname1 = get_fname a1 in
-      let fname2 = get_fname a2 in
-      let new_fname = next_fname () in
-      let ec_command = (!Consts.path_to_vata ^ " isect " ^ fname1 ^ " " ^ fname2 ^ " > " ^ new_fname) in
-      let ec = Sys.command ec_command in
-      if ec <> 0 then
-        failwith (ec_command ^ " failed")
-      else
-        create_from_fname new_fname
+      Consts.time
+        Consts.isect_time
+        (fun _ -> let fname1 = get_fname a1 in
+          let fname2 = get_fname a2 in
+          let new_fname = next_fname () in
+          let ec_command = (!Consts.path_to_vata ^ " isect " ^ fname1 ^ " " ^ fname2 ^ " > " ^ new_fname) in
+          let ec = Sys.command ec_command in
+          if ec <> 0 then
+            failwith (ec_command ^ " failed")
+          else
+            create_from_fname new_fname)
   end

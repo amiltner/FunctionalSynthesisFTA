@@ -113,6 +113,7 @@ let synthesize_solution
     (use_myth:bool)
     (use_l2:bool)
     (log:bool)
+    (print_times:bool)
   : unit =
   (*rd_aut ();*)
   Consts.logging := log;
@@ -133,7 +134,11 @@ let synthesize_solution
     else
       FTAS.synth ~problem
   in
-  print_endline (Expr.show e)
+  print_endline (Expr.show e);
+  if print_times then
+    begin
+      print_endline ("Intersection Time: " ^ (Float.to_string !Consts.isect_time));
+    end
 
 open MyStdLib.Command.Let_syntax
 let param =
@@ -143,6 +148,7 @@ let param =
       and use_myth   = flag "use-myth" no_arg ~doc:"Solve using the myth synthesis engine"
       and log   = flag "log" no_arg ~doc:"log process"
       and use_l2   = flag "use-l2" no_arg ~doc:"Solve using the l2 synthesis engine"
+      and print_times   = flag "print-times" no_arg ~doc:"print the times to run various components"
       (*and no_grammar_output   = flag "no-grammar-output" no_arg ~doc:"do not output the discovered grammar"
       and log_progress   = flag "log-progress" no_arg ~doc:"output the progress log"
       and print_runtime_specs  = flag "print-runtime-specs" no_arg ~doc:"output the runtime specs"
@@ -158,6 +164,7 @@ let param =
           use_myth
           use_l2
           log
+          print_times
     ]
 
 let () =
