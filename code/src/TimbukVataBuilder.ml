@@ -351,9 +351,22 @@ module Make : AutomatonBuilder =
       else
         create_from_fname new_fname
 
+    let get_small_aut
+        (a:t)
+      : t =
+      let fname = get_fname a in
+      let new_fname = next_fname () in
+      let ec_command = (!Consts.path_to_vata ^ " witness " ^ fname ^ " > " ^ new_fname) in
+      let ec = Sys.command ec_command in
+      if ec <> 0 then
+        failwith (ec_command ^ " failed")
+      else
+        create_from_fname new_fname
+
     let min_term_state
         (x:t)
       : term_state option =
+      let x = get_small_aut x in
       let aut = get_aut x in
       let tso = TimbukAut.min_term_state aut in
       Option.map ~f:from_timbuk_termstate tso
