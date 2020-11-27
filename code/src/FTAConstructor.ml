@@ -589,40 +589,43 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (c1:t)
       (c2:t)
     : t =
-    let merge_tset
-        (c1:TransitionSet.t)
-        (c2:TransitionSet.t)
-      : TransitionSet.t =
-      let merged = TransitionSet.union c1 c2 in
-      let all_ts_by_id =
-        group_by
-          ~key:fst
-          ~equal:Transition.equal_id
-          (TransitionSet.as_list merged)
-      in
-      List.iter
-        ~f:(fun l -> assert (List.length l = 1))
-        all_ts_by_id;
-      merged
-    in
-    let ts =
-      TransitionSet.as_list
-        (merge_tset c1.tset c2.tset)
-    in
-    let c1 =
-      List.fold
-        ~f:update_tset
-        ~init:c1
-        ts
-    in
-    let c2 =
-      List.fold
-        ~f:update_tset
-        ~init:c2
-        ts
-    in
-    let a = A.intersect c1.a c2.a in
-    { c1 with a ; up_to_date = false ; }
+    Consts.time
+      Consts.isect_time
+      (fun () ->
+         let merge_tset
+             (c1:TransitionSet.t)
+             (c2:TransitionSet.t)
+           : TransitionSet.t =
+           let merged = TransitionSet.union c1 c2 in
+           let all_ts_by_id =
+             group_by
+               ~key:fst
+               ~equal:Transition.equal_id
+               (TransitionSet.as_list merged)
+           in
+           List.iter
+             ~f:(fun l -> assert (List.length l = 1))
+             all_ts_by_id;
+           merged
+         in
+         let ts =
+           TransitionSet.as_list
+             (merge_tset c1.tset c2.tset)
+         in
+         let c1 =
+           List.fold
+             ~f:update_tset
+             ~init:c1
+             ts
+         in
+         let c2 =
+           List.fold
+             ~f:update_tset
+             ~init:c2
+             ts
+         in
+         let a = A.intersect c1.a c2.a in
+         { c1 with a ; up_to_date = false ; })
 
   let rec replace_all_recursions
       (c:t)

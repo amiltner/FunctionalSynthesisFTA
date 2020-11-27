@@ -240,13 +240,11 @@ module Create(B : Automata.AutomatonBuilder) = struct
         spec
     in
     let c =
-      Consts.time
-        Consts.isect_time
-        (fun _ -> fold_on_head_exn
-            ~f:(fun x y ->
-                let inted = (C.intersect x y) in
-                C.minimize inted)
-            cs)
+      fold_on_head_exn
+        ~f:(fun x y ->
+            let inted = (C.intersect x y) in
+            C.minimize inted)
+        cs
     in
     c
 

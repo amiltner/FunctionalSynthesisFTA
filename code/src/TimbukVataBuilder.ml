@@ -23,6 +23,32 @@ module Make : AutomatonBuilder =
         | Term (s,ts) -> TimbukAut.Term (s,List.map ~f:to_timbuk_term ts)
       end
 
+    type term_state = TS of Symbol.t * State.t * term_state list
+    [@@deriving hash, eq, ord, show]
+
+    let rec from_timbuk_termstate
+        (x:TimbukAut.TermState.t)
+      : term_state =
+      begin match x with
+        | TS (sy,s,tss) -> TS (sy,s,List.map ~f:from_timbuk_termstate tss)
+      end
+
+    module TermState =
+    struct
+      type t = term_state
+      [@@deriving eq, hash, ord, show]
+
+      let rec to_term
+          (TS (t,_,tss):t)
+        : Term.t =
+        Term (t,List.map ~f:to_term tss)
+
+      let get_state
+          (TS (_,s,tss):t)
+        : State.t =
+        s
+    end
+
     type t =
       {
         mutable aut   : TimbukAut.t option ;
@@ -320,4 +346,11 @@ module Make : AutomatonBuilder =
         failwith (ec_command ^ " failed")
       else
         create_from_fname new_fname
+
+    let min_term_state
+        (a:t)
+      : term_state option =
+      let aut = get_aut a in
+      let ts = TimbukAut.min_term_state aut in
+      Option.map ~f:(fun mt -> from_timbuk_termstate mt) ts
   end

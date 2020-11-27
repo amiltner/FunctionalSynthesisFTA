@@ -22,6 +22,16 @@ sig
     include Data with type t = term
   end
 
+  type term_state = TS of Symbol.t * State.t * term_state list
+  module TermState :
+  sig
+    include Data with type t = term_state
+
+    val to_term : t -> term
+
+    val get_state : t -> State.t
+  end
+
   type t
   val show : t shower
   val pp : t pper
@@ -45,6 +55,7 @@ sig
   val transitions_to : t -> State.t -> (Symbol.t * (State.t list)) list
   val transitions : t -> (Symbol.t * (State.t list) * State.t) list
   val minimize : t -> t
+  val min_term_state : t -> term_state option
 end
 
 module type AutomatonBuilder =
@@ -100,6 +111,25 @@ module TimbukBuilder : AutomatonBuilder =
     module Term = struct
       type t = term
       [@@deriving hash, eq, ord, show]
+    end
+
+    type term_state = TS of Symbol.t * State.t * term_state list
+    [@@deriving hash, eq, ord, show]
+
+    module TermState =
+    struct
+      type t = term_state
+      [@@deriving eq, hash, ord, show]
+
+      let rec to_term
+          (TS (t,_,tss):t)
+        : Term.t =
+        Term (t,List.map ~f:to_term tss)
+
+      let get_state
+          (TS (_,s,tss):t)
+        : State.t =
+        s
     end
 
     let empty = A.empty
@@ -259,6 +289,73 @@ module TimbukBuilder : AutomatonBuilder =
         end
       in
       A.recognizes (term_to_aterm t) a
+
+    module StateToTS = DictOf(State)(PairOf(IntModule)(TermState))
+    module TSPQ = PriorityQueueOf(struct
+        module Priority = IntModule
+        type t = int * TermState.t * State.t
+        [@@deriving eq, hash, ord, show]
+        let priority = fst3
+      end)
+    let min_term_state
+        (a:t)
+      : TermState.t option =
+      let get_produced_from
+          (st:StateToTS.t)
+          (t:Symbol.t)
+          (s:State.t)
+          (ss:State.t list)
+        : (int * TermState.t) option =
+        let subs =
+          List.map
+            ~f:(fun s -> StateToTS.lookup st s)
+            ss
+        in
+        Option.map
+          ~f:(fun iss ->
+              let (ints,ss) = List.unzip iss in
+              let size = List.fold ~f:(+) ~init:1 ints in
+              (size,TS (t,s,ss)))
+          (distribute_option subs)
+      in
+      let rec min_tree_internal
+          (st:StateToTS.t)
+          (pq:TSPQ.t)
+        : TermState.t option =
+        begin match TSPQ.pop pq with
+          | Some ((i,t,s),_,pq) ->
+            if is_final_state a s then
+              Some t
+            else if StateToTS.member st s then
+              min_tree_internal st pq
+            else
+              let st = StateToTS.insert st s (i,t) in
+
+              let triggered_transitions = transitions_from a s in
+              let produced =
+                List.filter_map
+                  ~f:(fun (t,ss,s) ->
+                      Option.map
+                        ~f:(fun (i,t) -> (i,t,s))
+                        (get_produced_from st t s ss))
+                  triggered_transitions
+              in
+              let pq = TSPQ.push_all pq produced in
+              min_tree_internal st pq
+          | None -> None
+        end
+      in
+      let initial_terms =
+        List.filter_map
+          ~f:(fun (t,ss,s) ->
+              Option.map
+                ~f:(fun (i,t) -> (i,t,s))
+                (get_produced_from StateToTS.empty t s ss))
+          (transitions a)
+      in
+      min_tree_internal
+        StateToTS.empty
+        (TSPQ.from_list initial_terms)
   end
 
 (*module VATABuilder : AutomatonBuilder =
