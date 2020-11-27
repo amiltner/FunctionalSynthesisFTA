@@ -80,6 +80,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
       (inmap:(Value.t * Value.t) list)
       (i:Value.t)
       (vout:Value.t)
+      (num_applications:int)
     : C.t =
     let checker =
       fun v1 v2 ->
@@ -227,6 +228,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
 
   let construct_full
       ~(problem:Problem.t)
+      (num_applications:int)
     : C.t =
     let spec = problem.examples in
     let cs =
@@ -236,7 +238,8 @@ module Create(B : Automata.AutomatonBuilder) = struct
               ~problem
               spec
               vin
-              vout)
+              vout
+              num_applications)
         spec
     in
     let c =
@@ -261,15 +264,23 @@ module Create(B : Automata.AutomatonBuilder) = struct
       | _ -> failwith "when would this happen?"
     end
 
-  let synth
+  let rec synth_internal
       ~(problem:Problem.t)
+      (current:int)
     : Expr.t =
     let c =
       construct_full
         ~problem
+        current
     in
-    let st = Option.value_exn (C.min_term_state c) in
-    let t = A.TermState.to_term st in
-    let e = term_to_exp t in
-    e
+    let st = C.min_term_state c in
+    begin match st with
+      | None -> synth_internal ~problem (current+3)
+      | Some st -> term_to_exp (A.TermState.to_term st)
+    end
+
+  let synth
+      ~(problem:Problem.t)
+    : Expr.t =
+    synth_internal ~problem 5
 end
