@@ -1,7 +1,7 @@
 open Tool
 
 module FTAS = FTASynthesizer.Create(Automata.TimbukBuilder)
-
+(* module FTAS = FTASynthesizer.Create(Automata.VATABuilder) *)
 
 let mk_aut
   ()

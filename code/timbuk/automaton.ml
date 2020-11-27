@@ -1506,9 +1506,12 @@ module Extend (B: BASE) = struct
     and print_state q =
       Format.fprintf out "%t " (State.print q)
     in
-    StateMap.iter print_state_confs (configurations_for_states t);
-    Format.fprintf out "final states: ";
-    StateSet.iter print_state (final_states t)
+    Format.fprintf out "States ";
+    StateSet.iter print_state (states t);
+    Format.fprintf out "\n\nFinal States ";
+    StateSet.iter print_state (final_states t);
+    Format.fprintf out "\n\nTransitions\n";
+    StateMap.iter print_state_confs (configurations_for_states t)
 
   module Patterns (X : Pattern.VARIABLE) = struct
     module Pattern = Pattern.Make (Sym) (X)
