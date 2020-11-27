@@ -480,7 +480,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                 let branch_ids = List.map ~f:fst branches in
                 begin match s2 with
                   | Vals ([i2,_],_) ->
-                    if Value.equal i1 i2 then
+                    if Value.equal i1 i2 && A.is_final_state c.a s2 then
                       let ins =
                         s1::
                         List.map
@@ -766,62 +766,65 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   let min_term_state
       (c:t)
     : TermState.t option =
-    let get_produced_from
-        (st:StateToTS.t)
-        (t:Transition.t)
-        (s:State.t)
-        (ss:State.t list)
-      : (int * TermState.t) option =
-      let subs =
-        List.map
-          ~f:(fun s -> StateToTS.lookup st s)
-          ss
-      in
-      Option.map
-        ~f:(fun iss ->
-            let (ints,ss) = List.unzip iss in
-            let size = List.fold ~f:(+) ~init:1 ints in
-            (size,TermState.TS (t,s,ss)))
-        (distribute_option subs)
-    in
-    let rec min_tree_internal
-        (st:StateToTS.t)
-        (pq:TSPQ.t)
-      : TermState.t option =
-      begin match TSPQ.pop pq with
-        | Some ((i,t,s),_,pq) ->
-          if A.is_final_state c.a s then
-            Some t
-          else if StateToTS.member st s then
-            min_tree_internal st pq
-          else
-            let st = StateToTS.insert st s (i,t) in
+    Consts.time
+      Consts.min_elt_time
+      (fun _ -> 
+         let get_produced_from
+             (st:StateToTS.t)
+             (t:Transition.t)
+             (s:State.t)
+             (ss:State.t list)
+           : (int * TermState.t) option =
+           let subs =
+             List.map
+               ~f:(fun s -> StateToTS.lookup st s)
+               ss
+           in
+           Option.map
+             ~f:(fun iss ->
+                 let (ints,ss) = List.unzip iss in
+                 let size = List.fold ~f:(+) ~init:1 ints in
+                 (size,TermState.TS (t,s,ss)))
+             (distribute_option subs)
+         in
+         let rec min_tree_internal
+             (st:StateToTS.t)
+             (pq:TSPQ.t)
+           : TermState.t option =
+           begin match TSPQ.pop pq with
+             | Some ((i,t,s),_,pq) ->
+               if A.is_final_state c.a s then
+                 Some t
+               else if StateToTS.member st s then
+                 min_tree_internal st pq
+               else
+                 let st = StateToTS.insert st s (i,t) in
 
-            let triggered_transitions = A.transitions_from c.a s in
-            let produced =
-              List.filter_map
-                ~f:(fun (t,ss,s) ->
-                    Option.map
-                      ~f:(fun (i,t) -> (i,t,s))
-                      (get_produced_from st t s ss))
-                triggered_transitions
-            in
-            let pq = TSPQ.push_all pq produced in
-            min_tree_internal st pq
-        | None -> None
-      end
-    in
-    let initial_terms =
-      List.filter_map
-        ~f:(fun (t,ss,s) ->
-            Option.map
-              ~f:(fun (i,t) -> (i,t,s))
-              (get_produced_from StateToTS.empty t s ss))
-        (A.transitions c.a)
-    in
-    min_tree_internal
-      StateToTS.empty
-      (TSPQ.from_list initial_terms)
+                 let triggered_transitions = A.transitions_from c.a s in
+                 let produced =
+                   List.filter_map
+                     ~f:(fun (t,ss,s) ->
+                         Option.map
+                           ~f:(fun (i,t) -> (i,t,s))
+                           (get_produced_from st t s ss))
+                     triggered_transitions
+                 in
+                 let pq = TSPQ.push_all pq produced in
+                 min_tree_internal st pq
+             | None -> None
+           end
+         in
+         let initial_terms =
+           List.filter_map
+             ~f:(fun (t,ss,s) ->
+                 Option.map
+                   ~f:(fun (i,t) -> (i,t,s))
+                   (get_produced_from StateToTS.empty t s ss))
+             (A.transitions c.a)
+         in
+         min_tree_internal
+           StateToTS.empty
+           (TSPQ.from_list initial_terms))
 
   let min_tree
       (c:t)

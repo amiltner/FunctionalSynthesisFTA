@@ -142,6 +142,8 @@ let synthesize_solution
   if print_times then
     begin
       print_endline ("Intersection Time: " ^ (Float.to_string !Consts.isect_time));
+      print_endline ("Minify Time: " ^ (Float.to_string !Consts.minify_time));
+      print_endline ("Min-elt Time: " ^ (Float.to_string !Consts.min_elt_time));
     end
 
 open MyStdLib.Command.Let_syntax
