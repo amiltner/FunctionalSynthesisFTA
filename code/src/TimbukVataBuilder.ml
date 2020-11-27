@@ -189,7 +189,7 @@ module Make : AutomatonBuilder =
       in
       "Ops\nAutomaton anonymous\nStates\nFinal States\n" ^
       (String.concat ~sep:" " (List.map ~f:show_state (final_states a))) ^
-      "Transitions\n" ^
+      "\nTransitions\n" ^
       (String.concat ~sep:"\n" (List.map ~f:show_transition (transitions a))) ^ "\n"
 
     let num = ref 0
