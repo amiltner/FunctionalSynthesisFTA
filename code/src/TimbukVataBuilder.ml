@@ -187,7 +187,7 @@ module Make : AutomatonBuilder =
         let out_s = show_state s in
         t_s ^ "(" ^ in_s ^ ") -> " ^ out_s
       in
-      "Ops\nAutomaton anonymous\nStates\nFinal States" ^
+      "Ops\nAutomaton anonymous\nStates\nFinal States " ^
       (String.concat ~sep:" " (List.map ~f:show_state (final_states a))) ^
       "\nTransitions\n" ^
       (String.concat ~sep:"\n" (List.map ~f:show_transition (transitions a))) ^ "\n"
