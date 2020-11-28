@@ -259,7 +259,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
               | None -> true
               | Some ts ->
                 let t = A.TermState.to_term ts in
-                C.accepts_term cand t
+                not (C.accepts_term cand t)
             end)
         cs
     in
