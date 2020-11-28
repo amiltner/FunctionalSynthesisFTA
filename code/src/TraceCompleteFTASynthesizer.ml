@@ -245,7 +245,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
         spec
     in
     let c =
-      merge_by_size_exn
+      merge_by_size_applies_exn
         ~compare:(fun c1 c2 ->
             let s1 = C.size c1 in
             let s2 = C.size c2 in
@@ -253,6 +253,14 @@ module Create(B : Automata.AutomatonBuilder) = struct
         ~merge:(fun x y ->
             let inted = C.intersect x y in
             C.minimize inted)
+        ~needs_merge:(fun max cand ->
+            let max_tso = C.min_term_state max in
+            begin match max_tso with
+              | None -> true
+              | Some ts ->
+                let t = A.TermState.to_term ts in
+                C.accepts_term cand t
+            end)
         cs
     in
     c

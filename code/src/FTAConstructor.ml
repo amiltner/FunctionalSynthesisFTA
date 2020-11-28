@@ -114,6 +114,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       up_to_date       : bool                       ;
       input_type       : Type.t                     ;
       output_type      : Type.t                     ;
+      mutable min_term_state   : A.TermState.t option option ;
     }
   [@@deriving show]
 
@@ -384,6 +385,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         up_to_date = true ;
         input_type        ;
         output_type       ;
+        min_term_state = None;
       }
     in
     List.fold
@@ -817,4 +819,21 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   let size (c:t)
     : int =
     A.size c.a
+
+  let min_term_state
+      (c:t)
+    : A.TermState.t option =
+    begin match c.min_term_state with
+      | Some ts -> ts
+      | None ->
+        let mts = A.min_term_state c.a in
+        c.min_term_state <- Some mts;
+        mts
+    end
+
+  let accepts_term
+      (c:t)
+      (t:A.Term.t)
+    : bool =
+    A.accepts_term c.a t
 end

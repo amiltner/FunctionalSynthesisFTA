@@ -1693,3 +1693,22 @@ let rec merge_by_size_exn
       let (max,elts) = extract_max_exn ~compare elts in
       merge_by_size_exn ~compare ~merge ((merge min max)::elts)
   end
+
+let rec merge_by_size_applies_exn
+    ~(compare:'a -> 'a -> int)
+    ~(merge:'a -> 'a -> 'a)
+    ~(needs_merge:'a -> 'a -> bool)
+    (elts:'a list)
+  : 'a =
+  begin match elts with
+    | [] -> failwith "not enough"
+    | [x] -> x
+    | _ ->
+      let (max,elts) = extract_max_exn ~compare elts in
+      let elts = List.filter ~f:(needs_merge max) elts in
+      if List.is_empty elts then
+        max
+      else
+        let (min,elts) = extract_min_exn ~compare elts in
+        merge_by_size_exn ~compare ~merge ((merge min max)::elts)
+  end
