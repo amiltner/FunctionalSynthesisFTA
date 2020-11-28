@@ -1,0 +1,12 @@
+type list = mu list .
+  | Nil
+  | Cons of nat * list
+
+synth list -> list
+
+satisfying
+
+[Nil] -> Nil,
+[Cons (O, Nil)] -> Nil,
+[Cons (S O, Nil)] -> Nil,
+[Cons (S (S O), Nil)] -> Nil
