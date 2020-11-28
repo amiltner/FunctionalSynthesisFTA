@@ -1653,3 +1653,43 @@ sig
   type t
   val value : t
 end
+
+let rec extract_min_exn
+    ~(compare:'a -> 'a -> int)
+    (l:'a list)
+  : 'a * 'a list =
+  begin match l with
+    | [] -> failwith "no min"
+    | [x] -> (x,[])
+    | h::t ->
+      let (tmin,tt) =
+        extract_min_exn
+          ~compare
+          t
+      in
+      if is_lt (compare h tmin) then
+        (h,tmin::tt)
+      else
+        (tmin,h::tt)
+  end
+
+let extract_max_exn
+    ~(compare:'a -> 'a -> int)
+    (l:'a list)
+  : 'a * 'a list =
+  let compare x y = (compare y x) in
+  extract_min_exn ~compare l
+
+let rec merge_by_size_exn
+    ~(compare:'a -> 'a -> int)
+    ~(merge:'a -> 'a -> 'a)
+    (elts:'a list)
+  : 'a =
+  begin match elts with
+    | [] -> failwith "not enough"
+    | [x] -> x
+    | _ ->
+      let (min,elts) = extract_min_exn ~compare elts in
+      let (max,elts) = extract_max_exn ~compare elts in
+      merge_by_size_exn ~compare ~merge ((merge min max)::elts)
+  end

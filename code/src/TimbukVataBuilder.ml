@@ -384,4 +384,10 @@ module Make : AutomatonBuilder =
       let aut = get_aut x in
       let tso = TimbukAut.min_term_state aut in
       Option.map ~f:from_timbuk_termstate tso
+
+    let size
+        (x:t)
+      : int =
+      let x = get_aut x in
+      TimbukAut.size x
   end

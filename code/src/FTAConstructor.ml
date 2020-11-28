@@ -813,4 +813,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             | _ -> process_boundary st boundary
           end)
       (StateToTree.empty,A.transitions c.a)
+
+  let size (c:t)
+    : int =
+    A.size c.a
 end

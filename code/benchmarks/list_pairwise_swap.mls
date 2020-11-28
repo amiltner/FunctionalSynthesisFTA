@@ -10,5 +10,8 @@ satisfying
 [Cons (O, Nil)] -> Nil,
 [Cons (S O, Nil)] -> Nil,
 [Cons (S (S O), Nil)] -> Nil,
-[Cons (S (S O), Cons (S (S O), Nil))] -> Cons (S (S O), Cons (S (S O), Nil))
-[Cons (O, Cons (S O, Nil))] -> Cons (S O, Cons (O, Nil))
+[Cons (S (S O), Cons (S (S O), Nil))] -> Cons (S (S O), Cons (S (S O), Nil)),
+[Cons (O, Cons (S O, Nil))] -> Cons (S O, Cons (O, Nil)),
+[Cons (S O, Cons (O, Nil))] -> Cons (O, Cons (S O, Nil)),
+[Cons (S O, Cons (S O, Cons (O, Nil)))] -> Nil,
+[Cons (O, Cons (S O, Cons (S O, Cons (O, Nil))))] -> Cons (S O, Cons (O, Cons (O, Cons (S O, Nil))))

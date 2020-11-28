@@ -245,9 +245,13 @@ module Create(B : Automata.AutomatonBuilder) = struct
         spec
     in
     let c =
-      fold_on_head_exn
-        ~f:(fun x y ->
-            let inted = (C.intersect x y) in
+      merge_by_size_exn
+        ~compare:(fun c1 c2 ->
+            let s1 = C.size c1 in
+            let s2 = C.size c2 in
+            Int.compare s1 s2)
+        ~merge:(fun x y ->
+            let inted = C.intersect x y in
             C.minimize inted)
         cs
     in
@@ -284,5 +288,5 @@ module Create(B : Automata.AutomatonBuilder) = struct
   let synth
       ~(problem:Problem.t)
     : Expr.t =
-    synth_internal ~problem 6
+    synth_internal ~problem 4
 end
