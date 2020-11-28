@@ -3,6 +3,6 @@ synth bool -> bool -> bool
 satisfying
 
 [True,True] -> True,
+[False,True] -> False,
 [True,False] -> False,
-[False,True] -> True,
 [False,False] -> False
