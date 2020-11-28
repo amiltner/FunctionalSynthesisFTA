@@ -72,13 +72,18 @@ module Make : AutomatonBuilder =
         fname = Some f ;
       }
 
-    module SB = IdentifierBijection.Make(State)(struct
-        let num = ref 0
-        let fresh _ =
-          let n = !num in
-          incr num;
-          Id.create ("s" ^ (string_of_int n))
-      end)
+    module SB = IdentifierBijection.Make(State)
+        (struct
+          let num = ref 0
+          let fresh _ =
+            let n = !num in
+            incr num;
+            Id.create ("s" ^ (string_of_int n))
+        end)
+        (struct
+          type t = string
+          let value = "auts/state_bijection.mapping"
+        end)
     module TB = IdentifierBijection.Make(Symbol)(struct
         let num = ref 0
         let fresh _ =
@@ -86,6 +91,10 @@ module Make : AutomatonBuilder =
           incr num;
           Id.create ("t" ^ (string_of_int n))
       end)
+        (struct
+          type t = string
+          let value = "auts/symbol_bijection.mapping"
+        end)
 
     let empty = create_from_timbuk TimbukAut.empty
 

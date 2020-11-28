@@ -1647,3 +1647,9 @@ struct
 
   let to_string (Id s) : string = s
 end
+
+module type Singleton =
+sig
+  type t
+  val value : t
+end
