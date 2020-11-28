@@ -1,4 +1,5 @@
 let logging = ref false
+let print_mapping = ref false
 
 let log thunk =
   if !logging then

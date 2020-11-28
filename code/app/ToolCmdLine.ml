@@ -12,9 +12,11 @@ let synthesize_solution
     (print_times:bool)
     (tc_synth:bool)
     (use_timbuk:bool)
+    (print_mapping:bool)
   : unit =
   (*rd_aut ();*)
   Consts.logging := log;
+  Consts.print_mapping := print_mapping;
   let p_unprocessed =
     Parser.unprocessed_problem
       Lexer.token
@@ -56,6 +58,7 @@ let param =
       and print_times   = flag "print-times" no_arg ~doc:"print the times to run various components"
       and tc_synth   = flag "tc-synth" no_arg ~doc:"use the FTA synthesizer with trace complete examples"
       and use_timbuk   = flag "use-timbuk" no_arg ~doc:"use the timbuk to synthesize"
+      and print_mapping   = flag "print-mapping" no_arg ~doc:"print timbuk to vata mapping"
       (*and no_grammar_output   = flag "no-grammar-output" no_arg ~doc:"do not output the discovered grammar"
       and log_progress   = flag "log-progress" no_arg ~doc:"output the progress log"
       and print_runtime_specs  = flag "print-runtime-specs" no_arg ~doc:"output the runtime specs"
@@ -74,6 +77,7 @@ let param =
           print_times
           tc_synth
           use_timbuk
+          print_mapping
     ]
 
 let () =
