@@ -122,7 +122,12 @@ module Make : AutomatonBuilder =
             cleaned_components
         in
         fold_on_head_exn
-          ~f:(fun s1 s2 -> Option.value_exn (State.product s1 s2))
+          ~f:(fun s1 s2 ->
+              begin match State.product s1 s2 with
+                | None ->
+                  failwith ("(" ^ State.show s1 ^ "," ^ State.show s2 ^ ")")
+                | Some s -> s
+              end)
           components
 
       let symbol_from_str
