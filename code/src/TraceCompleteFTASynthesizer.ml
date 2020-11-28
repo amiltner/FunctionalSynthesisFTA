@@ -277,12 +277,12 @@ module Create(B : Automata.AutomatonBuilder) = struct
     in
     let st = C.min_term_state c in
     begin match st with
-      | None -> synth_internal ~problem (current+3)
+      | None -> synth_internal ~problem (current+2)
       | Some st -> term_to_exp (A.TermState.to_term st)
     end
 
   let synth
       ~(problem:Problem.t)
     : Expr.t =
-    synth_internal ~problem 5
+    synth_internal ~problem 6
 end
