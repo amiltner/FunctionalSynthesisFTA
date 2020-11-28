@@ -9,4 +9,5 @@ satisfying
 [Nil] -> Nil,
 [Cons (O, Nil)] -> Nil,
 [Cons (S O, Nil)] -> Nil,
-[Cons (S (S O), Nil)] -> Nil
+[Cons (S (S O), Nil)] -> Nil,
+[Cons (S (S O), Cons (S (S O), Nil))] -> Cons (S (S O), Cons (S (S O), Nil))
