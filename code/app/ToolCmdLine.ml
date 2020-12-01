@@ -1,8 +1,5 @@
 open Tool
 
-module FTAS = FTASynthesizer.Create(TimbukVataBuilder.Make)
-module FTATCS = TraceCompleteFTASynthesizer.Create(TimbukVataBuilder.Make)
-module FTATCSTimbuk = TraceCompleteFTASynthesizer.Create(Automata.TimbukBuilder)
 
 let synthesize_solution
     (fname:string)
@@ -24,21 +21,27 @@ let synthesize_solution
          (Prelude.prelude_string ^ (MyStdLib.SimpleFile.read_from_file ~fname)))
   in
   let problem = Problem.process p_unprocessed in
-  let e =
+  let synth =
     if use_myth then
-      MythSynthesisCaller.myth_synthesize
-        ~problem
+      (module MythSynthesisCaller : Synthesizer.S)
     else if use_l2 then
-      MythSynthesisCaller.myth_synthesize_print ~problem
-      (* then we can call l2 *)
-    else if tc_synth then
-      if use_timbuk then
-        FTATCSTimbuk.synth ~problem
-      else
-        FTATCS.synth ~problem
+      (module L2SynthesisCaller : Synthesizer.S)
     else
-      FTAS.synth ~problem
+      let builder =
+        if use_timbuk then
+          (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
+        else
+          (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
+      in
+      if tc_synth then
+        (module (TraceCompleteFTASynthesizer.Create(val builder))
+          : Synthesizer.S)
+      else
+        (module (FTASynthesizer.Create(val builder))
+          : Synthesizer.S)
   in
+  let module Synthesizer = (val synth) in
+  let e = Synthesizer.synth ~problem in
   print_endline (Expr.show e);
   if print_times then
     begin

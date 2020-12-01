@@ -333,7 +333,7 @@ module MythToDS = struct
     fst (convert_expr 0 e)
 end
 
-let myth_synthesize
+let synth
     ~(problem:Problem.t)
   : Expr.t =
   let (decls,examples,t) = DSToMyth.convert_problem_examples_type_to_myth problem in
