@@ -481,25 +481,29 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       cartesian_filter_map
         ~f:(fun (s1:State.t) (s2:State.t) ->
             begin match s1 with
-              | Vals ([i1,Ctor (i,_)],Variant branches) ->
-                let branch_ids = List.map ~f:fst branches in
-                begin match s2 with
-                  | Vals ([i2,_],_) ->
-                    if Value.equal i1 i2 && A.is_final_state c.a s2 then
-                      let ins =
-                        s1::
-                        List.map
-                          ~f:(fun (id,_) ->
-                              if Id.equal id i then
-                                s2
-                              else
-                                State.top)
-                          branches
-                      in
-                      let tid = Transition.VariantSwitch branch_ids in
-                      Some (tid,ins,s2)
-                    else
-                      None
+              | Vals ([i1,v],Variant branches) ->
+                begin match Value.node v with
+                  | Ctor (i,_) ->
+                    let branch_ids = List.map ~f:fst branches in
+                    begin match s2 with
+                      | Vals ([i2,_],_) ->
+                        if Value.equal i1 i2 && A.is_final_state c.a s2 then
+                          let ins =
+                            s1::
+                            List.map
+                              ~f:(fun (id,_) ->
+                                  if Id.equal id i then
+                                    s2
+                                  else
+                                    State.top)
+                              branches
+                          in
+                          let tid = Transition.VariantSwitch branch_ids in
+                          Some (tid,ins,s2)
+                        else
+                          None
+                      | _ -> None
+                    end
                   | _ -> None
                 end
               | _ -> None
@@ -749,87 +753,9 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       Consts.min_elt_time
       (fun _ -> A.min_term_state c.a)
 
-  let min_tree
-      (c:t)
-    : A.term =
-    let update_sts
-        (st:StateToTree.t)
-        ((i,ss,t):Transition.t * State.t list * State.t)
-        ((acc_st,acc_new_trans):min_tree_acc)
-      : (min_tree_acc,A.Term.t) either =
-      if StateToTree.member st t then
-        Left (acc_st,acc_new_trans)
-      else
-        let subs =
-          List.map
-            ~f:(fun s -> StateToTree.lookup st s)
-            ss
-        in
-        begin match distribute_option subs with
-          | None -> Left (acc_st,acc_new_trans)
-          | Some sts ->
-            let term = A.Term (i,sts) in
-            if A.is_final_state c.a t then
-              Right term
-            else
-              let acc_st =
-                StateToTree.insert_or_combine
-                  ~combiner:(fun v1 v2 -> if term_size v1 < term_size v2 then v1 else v2)
-                  acc_st
-                  t
-                  term
-              in
-              let acc_new_trans = acc_new_trans@(A.transitions_from c.a t) in
-              Left (acc_st,acc_new_trans)
-        end
-    in
-    let process_boundary
-        (st:StateToTree.t)
-        (boundary:(Transition.t * State.t list * State.t) list)
-      : (StateToTree.t * (Transition.t * State.t list * State.t) list,A.Term.t) either =
-      let rec process_boundary_internal
-          (st:StateToTree.t)
-          (boundary:(Transition.t * State.t list * State.t) list)
-          (acc:min_tree_acc)
-        : (min_tree_acc,A.Term.t) either =
-        begin match boundary with
-          | [] -> Left acc
-          | h::t ->
-            begin match update_sts st h acc with
-              | Left acc -> process_boundary_internal st t acc
-              | Right t1 as racc ->
-                let remaining_smallest = process_boundary_internal st t acc in
-                begin match remaining_smallest with
-                  | Left _ -> racc
-                  | Right t2 -> if term_size t1 < term_size t2 then Right t1 else Right t2
-                end
-            end
-        end
-      in
-      process_boundary_internal st boundary (st,[])
-    in
-    fold_until_completion
-      ~f:(fun (st,boundary) ->
-          begin match boundary with
-            | [] -> failwith "no boundary"
-            | _ -> process_boundary st boundary
-          end)
-      (StateToTree.empty,A.transitions c.a)
-
   let size (c:t)
     : int =
     A.size c.a
-
-  let min_term_state
-      (c:t)
-    : A.TermState.t option =
-    begin match c.min_term_state with
-      | Some ts -> ts
-      | None ->
-        let mts = A.min_term_state c.a in
-        c.min_term_state <- Some mts;
-        mts
-    end
 
   let accepts_term
       (c:t)

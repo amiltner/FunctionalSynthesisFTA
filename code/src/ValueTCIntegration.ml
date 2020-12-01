@@ -63,7 +63,7 @@ let rec tc_val
       tc_val tc v t'
     | Arrow _ -> failwith "hofs not supported"
     | Tuple ts ->
-      begin match v with
+      begin match Value.node v with
         | Tuple vs ->
           let ds =
             List.map2_exn
@@ -79,7 +79,7 @@ let rec tc_val
         | _ -> failwith "ill typed"
       end
     | Variant branches ->
-      begin match v with
+      begin match Value.node v with
         | Ctor (i,v) ->
           let t =
             List.Assoc.find_exn

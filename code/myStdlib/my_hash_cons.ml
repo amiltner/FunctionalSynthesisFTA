@@ -24,11 +24,38 @@ module HashConsContainer = struct
   open Core
   type +'a hash_consed =
     {
-      hkey : int [@compare.ignore];
+      hkey : int;
       tag  : int;
-      node : 'a  [@compare.ignore];
+      node : 'a;
     }
-  [@@deriving ord, eq, show, hash]
+
+  let pp_hash_consed
+      (npper:'a pper)
+      (f:Format.formatter)
+      (x:'a hash_consed)
+    : unit =
+    npper f x.node
+
+  let hash_fold_hash_consed
+      (_:'a hash_folder)
+      (s:Base__Hash.state)
+      (x:'a hash_consed)
+    : Base__Hash.state =
+    Base__Hash.fold_int s x.tag
+
+  let equal_hash_consed
+      (_:'a -> 'a -> bool)
+      (x1:'a hash_consed)
+      (x2:'a hash_consed)
+    : bool =
+    x1.tag = x2.tag
+
+  let compare_hash_consed
+      (_:'a -> 'a -> int)
+      (x1:'a hash_consed)
+      (x2:'a hash_consed)
+    : int =
+    compare x1.tag x2.tag
 end
 include HashConsContainer
 

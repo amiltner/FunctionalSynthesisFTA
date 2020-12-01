@@ -1,16 +1,33 @@
 open MyStdLib
 
-type t =
+type t_node =
   | Func of Param.t * Expr.t
   | Ctor of Id.t * t
   | Tuple of t list
+and t = t_node hash_consed
 [@@deriving eq, hash, ord, show]
 
+let table = HashConsTable.create 10000
+
+let create
+    (node:t_node)
+  : t =
+  HashConsTable.hashcons
+    hash_t_node
+    compare_t_node
+    table
+    node
+
+let node
+    (v:t)
+  : t_node =
+  v.node
+
 let mk_func (a:Param.t) (e:Expr.t) : t =
-  Func (a,e)
+  create (Func (a,e))
 
 let apply_func (type a) ~(f:Param.t -> Expr.t -> a) (v:t) : a option =
-  begin match v with
+  begin match (node v) with
     | Func (a,e2) -> Some (f a e2)
     | _ -> None
   end
@@ -22,10 +39,10 @@ let destruct_func_exn (v:t) : Param.t * Expr.t =
   Option.value_exn (destruct_func v)
 
 let mk_ctor (i:Id.t) (v:t) : t =
-  Ctor (i,v)
+  create (Ctor (i,v))
 
 let apply_ctor (type a) ~(f:Id.t -> t -> a) (v:t) : a option =
-  match v with
+  match node v with
     | Ctor (i,v) -> Some (f i v)
     | _ -> None
 
@@ -41,11 +58,11 @@ let destruct_ctor_exn (v:t) : Id.t * t =
 let mk_tuple (vs:t list) : t =
   begin match vs with
     | [v] -> v
-    | _ -> Tuple vs
+    | _ -> create (Tuple vs)
   end
 
 let apply_tuple (type a) ~(f:t list -> a) (v:t) : a option =
-  begin match v with
+  begin match node v with
     | Tuple vs -> Some (f vs)
     | _ -> None
   end
@@ -66,7 +83,7 @@ let rec fold ~(func_f:Param.t -> Expr.t -> 'a)
             (v:t)
             : 'a =
   let fold_simple = fold ~func_f ~ctor_f ~tuple_f
-   in match v with
+   in match node v with
         | Func (a,e) -> func_f a e
         | Ctor (i,v) -> ctor_f i (fold_simple v)
         | Tuple vs -> tuple_f (List.map ~f:fold_simple vs)
@@ -95,7 +112,7 @@ let from_exp_exn (e:Expr.t) : t =
   Option.value_exn (from_exp e)
 
 let rec subvalues (v:t) : t list =
-  v :: begin match v with
+  v :: begin match node v with
          | Func _ -> []
          | Ctor (_,v) -> subvalues v
          | Tuple vs -> List.concat_map ~f:subvalues vs
@@ -114,10 +131,11 @@ let size : t -> int =
     ~ctor_f:(fun _ i -> i+1)
     ~tuple_f:(fun is -> List.fold ~f:(+) ~init:1 is)
 
-let true_ = Ctor (Id.create "True",Tuple [])
-let false_ = Ctor (Id.create "False",Tuple [])
+let unit_ = create (Tuple [])
+let true_ = create (Ctor (Id.create "True",unit_))
+let false_ = create (Ctor (Id.create "False",unit_))
 let rec num_val n =
   if n = 0 then
-    Ctor (Id.create "O",Tuple [])
+    create (Ctor (Id.create "O",unit_))
   else
-    Ctor (Id.create "S",num_val (n-1))
+    create (Ctor (Id.create "S",num_val (n-1)))
