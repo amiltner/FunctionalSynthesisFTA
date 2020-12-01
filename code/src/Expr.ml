@@ -1,6 +1,6 @@
 open MyStdLib
 
-type t =
+type t_node =
   | Var of Id.t
   | App of t * t
   | Func of Param.t * t
@@ -9,10 +9,27 @@ type t =
   | Fix  of Id.t * Type.t * t
   | Tuple of t list
   | Proj of int * t
+and t = t_node hash_consed
 [@@deriving eq, hash, ord, show]
 
+let table = HashConsTable.create 1000
+
+let create
+    (node:t_node)
+  : t =
+  HashConsTable.hashcons
+    hash_t_node
+    compare_t_node
+    table
+    node
+
+let node
+    (v:t)
+  : t_node =
+  v.node
+
 let mk_var (i:Id.t) : t =
-  Var i
+  create (Var i)
 
 let fold (type a)
          ~(var_f:Id.t -> a)
@@ -26,7 +43,7 @@ let fold (type a)
          (e:t)
          : a =
   let rec fold_internal (e:t) : a =
-    match e with
+    match node e with
       | Var v -> var_f v
       | App (e1,e2) -> app_f (fold_internal e1) (fold_internal e2)
       | Func (a,e) -> func_f a (fold_internal e)
@@ -43,14 +60,14 @@ let fold (type a)
   in fold_internal e
 
 let mk_app (e1:t) (e2:t) : t =
-  App (e1,e2)
+  create (App (e1,e2))
 
 let apply_app
     (type a)
     ~(f:t -> t -> a)
     (e:t)
   : a option =
-  begin match e with
+  begin match node e with
     | App (e1,e2) -> Some (f e1 e2)
     | _ -> None
   end
@@ -68,14 +85,14 @@ let mk_func
     (a:Param.t)
     (e:t)
   : t =
-  Func (a,e)
+  create (Func (a,e))
 
 let apply_func
     (type a)
     ~(f:Param.t -> t -> a)
     (e:t)
   : a option =
-  begin match e with
+  begin match node e with
     | Func (a,e2) -> Some (f a e2)
     | _ -> None
   end
@@ -93,14 +110,14 @@ let mk_ctor
     (i:Id.t)
     (e:t)
   : t =
-  Ctor (i,e)
+  create (Ctor (i,e))
 
 let apply_ctor
     (type a)
     ~(f:Id.t -> t -> a)
     (e:t)
   : a option =
-  begin match e with
+  begin match node e with
     | Ctor (i,e2) -> Some (f i e2)
     | _ -> None
   end
@@ -117,14 +134,14 @@ let destruct_ctor_exn
 let mk_tuple
     (es:t list)
   : t =
-  Tuple es
+  create (Tuple es)
 
 let apply_tuple
     (type a)
     ~(f:t list -> a)
     (e:t)
   : a option =
-  begin match e with
+  begin match node e with
     | Tuple es -> Some (f es)
     | _ -> None
   end
@@ -142,14 +159,14 @@ let mk_proj
     (i:int)
     (e:t)
   : t =
-  Proj (i,e)
+  create (Proj (i,e))
 
 let apply_proj
     (type a)
     ~(f:int -> t -> a)
     (e:t)
   : a option =
-  begin match e with
+  begin match node e with
     | Proj (i,e2) -> Some (f i e2)
     | _ -> None
   end
@@ -168,14 +185,14 @@ let mk_match
     (binder:Id.t)
     (branches:(Id.t * t) list)
   : t =
-  Match (e,binder,branches)
+  create (Match (e,binder,branches))
 
 let apply_match
     (type a)
     ~(f:t -> Id.t -> (Id.t * t) list -> a)
     (e:t)
   : a option =
-  begin match e with
+  begin match node e with
     | Match (e,i,branches) -> Some (f e i branches)
     | _ -> None
   end
@@ -194,14 +211,14 @@ let mk_fix
     (t:Type.t)
     (e:t)
   : t =
-  Fix (i,t,e)
+  create (Fix (i,t,e))
 
 let apply_fix
     (type a)
     ~(f:Id.t -> Type.t -> t -> a)
     (e:t)
   : a option =
-  begin match e with
+  begin match node e with
     | Fix (i,t,e) -> Some (f i t e)
     | _ -> None
   end
@@ -221,21 +238,21 @@ let rec replace
     (e:t)
   : t =
   let replace_simple = replace i e_with in
-  begin match e with
+  begin match node e with
     | Var i' ->
       if Id.equal i i' then
         e_with
       else
         e
     | App (e1,e2) ->
-      App (replace_simple e1, replace_simple e2)
+      mk_app (replace_simple e1) (replace_simple e2)
     | Func ((i',t),e') ->
       if Id.equal i i' then
         e
       else
-        Func ((i',t),replace_simple e')
+        mk_func (i',t) (replace_simple e')
     | Ctor (i,e) ->
-      Ctor (i, replace_simple e)
+      mk_ctor i (replace_simple e)
     | Match (e,i',branches) ->
       let branches =
         if Id.equal i i' then
@@ -245,17 +262,17 @@ let rec replace
             ~f:(fun (i,e) -> (i,replace_simple e))
             branches
       in
-      Match (replace_simple e, i', branches)
+      mk_match (replace_simple e) i' branches
     | Fix (i',t,e') ->
       if Id.equal i i' then
         e
       else
-        Fix (i',t,replace_simple e')
+        mk_fix i' t (replace_simple e')
     | Tuple es ->
-      Tuple
+      mk_tuple
         (List.map ~f:replace_simple es)
     | Proj (i,e) ->
-      Proj (i,replace_simple e)
+      mk_proj i (replace_simple e)
   end
 
 let replace_holes
@@ -305,7 +322,7 @@ let rec contains_var
     (e:t)
   : bool =
   let contains_var_simple = contains_var v in
-  begin match e with
+  begin match node e with
     | Var i -> Id.equal i v
     | App (e1,e2) -> contains_var_simple e1 || contains_var_simple e2
     | Func ((i,_),e) ->
@@ -334,7 +351,7 @@ let rec contains_var
 let rec simplify
     (e:t)
   : t =
-  begin match e with
+  begin match node e with
     | Var _ -> e
     | App (e1,e2) ->
       mk_app (simplify e1) (simplify e2)
@@ -367,7 +384,7 @@ let is_func
     ~(func_internals:t)
     (e:t)
   : bool =
-  begin match e with
+  begin match node e with
     | Func (_,e) -> equal e func_internals
     | _ -> false
   end

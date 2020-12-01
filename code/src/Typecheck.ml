@@ -94,7 +94,7 @@ let rec typecheck_exp
     (e:Expr.t)
   : Type.t =
   let typecheck_simple = typecheck_exp ec tc vc in
-  begin match e with
+  begin match Expr.node e with
     | Var v ->
       Context.find_exn ec v
     | App (e1,e2) ->
@@ -181,7 +181,7 @@ let rec align_types
     (t:Type.t)
     (e:Expr.t)
   : Expr.t =
-  begin match (t,e) with
+  begin match (t,Expr.node e) with
     | (_, Expr.Fix (i,_,e)) ->
       Expr.mk_fix i t (align_types t e)
     | (Type.Arrow (t1,t2), Expr.Func ((i,_),e)) ->

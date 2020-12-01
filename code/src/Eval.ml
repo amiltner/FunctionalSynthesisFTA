@@ -3,12 +3,12 @@ open MyStdLib
 let rec evaluate
     (e : Expr.t)
   : Value.t =
-  match e with
+  match Expr.node e with
   | Var i -> failwith ("unbound variable " ^ (Id.show i))
   | App (e1,e2) ->
     let (v1) = evaluate e1 in
     let e1 = Value.to_exp v1 in
-    begin match e1 with
+    begin match Expr.node e1 with
       | Expr.Func ((i,_),e1) ->
         let (v2) = evaluate e2 in
         let e2 = Value.to_exp v2 in
@@ -31,7 +31,7 @@ let rec evaluate
             ("constructor "
              ^ (Id.show choice)
              ^ " not matched: \n "
-             ^ (Expr.show match_expr))
+             ^ (Expr.show_t_node match_expr))
         | Some b -> b
       end
     in

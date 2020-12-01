@@ -7,7 +7,7 @@ type t_node =
 and t = t_node hash_consed
 [@@deriving eq, hash, ord, show]
 
-let table = HashConsTable.create 10000
+let table = HashConsTable.create 1000
 
 let create
     (node:t_node)
@@ -94,7 +94,7 @@ let to_exp : t -> Expr.t =
        ~tuple_f:Expr.mk_tuple
 
 let rec from_exp (e:Expr.t) : t option =
-  match e with
+  match Expr.node e with
     | Func (a,e)
       -> Some (mk_func a e)
     | Ctor (i,e)

@@ -23,4 +23,4 @@ let synth
     print_endline "    \"background\": []";
     print_endline "  }";
   print_endline "}" in
-  Expr.Tuple []
+  Expr.mk_tuple []
