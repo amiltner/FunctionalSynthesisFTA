@@ -1,4 +1,5 @@
 open MyStdLib
+open Lang
 
 module Create(B : Automata.AutomatonBuilder) = struct
   module A = B(FTAConstructor.Transition)(FTAConstructor.State)
@@ -13,69 +14,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
   end
 
   module IntersectionCache = DictOf(ListOf(Spec))(C)
-
-  let rec term_to_exp
-      (Term ((s,_),ts):A.term)
-    : Expr.t =
-    begin match s with
-      | FunctionApp i ->
-        List.fold
-          ~f:(fun acc bt ->
-              Expr.mk_app
-                acc
-                (term_to_exp bt))
-          ~init:(Expr.mk_var i)
-          ts
-      | VariantConstruct c ->
-        begin match ts with
-          | [t] ->
-            Expr.mk_ctor c (term_to_exp t)
-          | _ -> failwith "incorrect setup"
-        end
-      | UnsafeVariantDestruct c ->
-        begin match ts with
-          | [t] ->
-            Expr.mk_app
-              (Expr.mk_var (Id.create ("destruct" ^ Id.to_string c)))
-              (term_to_exp t)
-          | _ -> failwith "incorrect setup"
-        end
-      | TupleConstruct _ ->
-        Expr.mk_tuple
-          (List.map
-             ~f:term_to_exp
-             ts)
-      | Var ->
-        Expr.mk_var (Id.create "x")
-      | LetIn ->
-        failwith "not permitted"
-      | Rec ->
-        begin match ts with
-          | [t] ->
-            Expr.mk_app (Expr.mk_var (Id.create "f")) (term_to_exp t)
-          | _ -> failwith "incorrect"
-        end
-      | IfThenElse ->
-        (* TODO, make destructors *)
-        List.fold
-          ~f:(fun acc bt ->
-              Expr.mk_app
-                acc
-                (term_to_exp bt))
-          ~init:(Expr.mk_var (Id.create "ifthenelse"))
-          ts
-      | VariantSwitch _ ->
-        (* TODO, make destructors *)
-        List.fold
-          ~f:(fun acc bt ->
-              Expr.mk_app
-                acc
-                (term_to_exp bt))
-          ~init:(Expr.mk_var (Id.create "vmatch"))
-          ts
-      | TupleDestruct (_,i) ->
-        Expr.mk_proj i (term_to_exp (List.hd_exn ts))
-    end
 
   module Constraints =
   struct
@@ -431,12 +369,12 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let priority
         (qe:t)
       : int =
-      Expr.size (term_to_exp (A.TermState.to_term qe.rep))
+      Expr.size (C.term_to_exp (A.TermState.to_term qe.rep))
 
     let to_string_legible
         (qe:t)
       : string =
-      let es = Expr.show (term_to_exp (A.TermState.to_term qe.rep)) in
+      let es = Expr.show (C.term_to_exp (A.TermState.to_term qe.rep)) in
       let cs = Constraints.show qe.constraints in
       "term: " ^ es ^ "\nconstraints: " ^ cs
   end
@@ -549,7 +487,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
               bs
           in
           if List.length new_constraints = 0 then
-            let e = term_to_exp (A.TermState.to_term ts) in
+            let e = C.term_to_exp (A.TermState.to_term ts) in
             Right e
           else
             let merged_constraints_o =

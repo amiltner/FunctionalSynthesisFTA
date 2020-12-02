@@ -1,5 +1,6 @@
 %{
 open MyStdLib
+open Lang
 
 let rec appify (e:Expr.t) (es:Expr.t list) : Expr.t =
   match es with
@@ -234,9 +235,9 @@ exp_base:
   (*| LET f=LID xs=arg_list COLON t=typ EQ e1=exp IN e2=exp
     { ELet (f, false, List.rev xs, t, e1, e2) }
   | LET REC f=LID xs=arg_list COLON t=typ EQ e1=exp IN e2=exp
-    { ELet (f, true, List.rev xs, t, e1, e2) }
+    { ELet (f, true, List.rev xs, t, e1, e2) }*)
   | c=INT
-    { ctor_of_int c }*)
+    { Expr.from_int c }
   | c=UID
     { Expr.mk_ctor (Id.create c) Expr.mk_unit }
   | c=UID LPAREN e=exp RPAREN

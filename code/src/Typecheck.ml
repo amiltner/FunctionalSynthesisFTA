@@ -1,4 +1,5 @@
 open MyStdLib
+open Lang
 
 let type_equiv
     (tc:Context.Types.t)
@@ -182,9 +183,9 @@ let rec align_types
     (e:Expr.t)
   : Expr.t =
   begin match (t,Expr.node e) with
-    | (_, Expr.Fix (i,_,e)) ->
+    | (_, Fix (i,_,e)) ->
       Expr.mk_fix i t (align_types t e)
-    | (Type.Arrow (t1,t2), Expr.Func ((i,_),e)) ->
+    | (Type.Arrow (t1,t2), Func ((i,_),e)) ->
       Expr.mk_func (i,t1) (align_types t2 e)
     | _ -> e
   end

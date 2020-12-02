@@ -1,4 +1,5 @@
 open MyStdLib
+open Lang
 
 module Create(B : Automata.AutomatonBuilder) = struct
   module A = B(FTAConstructor.Transition)(FTAConstructor.State)
@@ -11,69 +12,6 @@ module Create(B : Automata.AutomatonBuilder) = struct
       | AddedConstraint of Value.t
     [@@deriving eq, hash, ord, show]
   end
-
-  let rec term_to_exp
-      (Term ((s,_),ts):A.term)
-    : Expr.t =
-    begin match s with
-      | FunctionApp i ->
-        List.fold
-          ~f:(fun acc bt ->
-              Expr.mk_app
-                acc
-                (term_to_exp bt))
-          ~init:(Expr.mk_var i)
-          ts
-      | VariantConstruct c ->
-        begin match ts with
-          | [t] ->
-            Expr.mk_ctor c (term_to_exp t)
-          | _ -> failwith "incorrect setup"
-        end
-      | UnsafeVariantDestruct c ->
-        begin match ts with
-          | [t] ->
-            Expr.mk_app
-              (Expr.mk_var (Id.create ("destruct" ^ Id.to_string c)))
-              (term_to_exp t)
-          | _ -> failwith "incorrect setup"
-        end
-      | TupleConstruct _ ->
-        Expr.mk_tuple
-          (List.map
-             ~f:term_to_exp
-             ts)
-      | Var ->
-        Expr.mk_var (Id.create "x")
-      | LetIn ->
-        failwith "not permitted"
-      | Rec ->
-        begin match ts with
-          | [t] ->
-            Expr.mk_app (Expr.mk_var (Id.create "f")) (term_to_exp t)
-          | _ -> failwith "incorrect"
-        end
-      | IfThenElse ->
-        (* TODO, make destructors *)
-        List.fold
-          ~f:(fun acc bt ->
-              Expr.mk_app
-                acc
-                (term_to_exp bt))
-          ~init:(Expr.mk_var (Id.create "ifthenelse"))
-          ts
-      | VariantSwitch _ ->
-        (* TODO, make destructors *)
-        List.fold
-          ~f:(fun acc bt ->
-              Expr.mk_app
-                acc
-                (term_to_exp bt))
-          ~init:(Expr.mk_var (Id.create "vmatch"))
-          ts
-      | TupleDestruct (_,i) ->
-        Expr.mk_proj i (term_to_exp (List.hd_exn ts))
-    end
 
   let construct_initial_fta
       ~(problem:Problem.t)
@@ -290,7 +228,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let st = C.min_term_state c in
     begin match st with
       | None -> synth_internal ~problem (current+2)
-      | Some st -> term_to_exp (A.TermState.to_term st)
+      | Some st -> C.term_to_exp (A.TermState.to_term st)
     end
 
   let synth

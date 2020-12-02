@@ -1,4 +1,5 @@
 open MyStdLib
+open Lang
 
 open Typecheck
 

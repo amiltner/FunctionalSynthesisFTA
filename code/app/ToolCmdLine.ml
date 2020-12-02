@@ -1,5 +1,5 @@
 open Tool
-
+open Lang
 
 let synthesize_solution
     (fname:string)

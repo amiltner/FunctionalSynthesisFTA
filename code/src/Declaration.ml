@@ -1,4 +1,5 @@
 open MyStdLib
+open Lang
 
 type t =
   | TypeDeclaration of Id.t * Type.t

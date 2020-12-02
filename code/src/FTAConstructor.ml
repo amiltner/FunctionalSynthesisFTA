@@ -1,4 +1,5 @@
 open MyStdLib
+open Lang
 
 module State =
 struct
@@ -49,8 +50,7 @@ struct
     | Var
     | LetIn
     | Rec
-    | IfThenElse (* TODO change to variant-switch *)
-    | VariantSwitch of Id.t list (* TODO remove *)
+    | VariantSwitch of Id.t list
   [@@deriving eq, hash, ord, show]
   type t = (id * int)
   [@@deriving eq, hash, ord, show]
@@ -63,7 +63,6 @@ struct
     | Var -> "Var"
     | LetIn -> "LetIn"
     | Rec -> "Rec"
-    | IfThenElse -> "IfThenElse"
     | _ -> "other"
   let pp b (a:t) = Format.fprintf b "%s:%d " (print_id (fst a)) (snd a)
   let print a b = pp b a
@@ -122,6 +121,60 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   let hash_fold_t _ _ = failwith "not implemented"
   let hash _ = failwith "not implemented"
   let compare _ _ = failwith "not implemented"
+
+  let rec term_to_exp
+      (Term ((s,_),ts):A.term)
+    : Expr.t =
+    begin match s with
+      | FunctionApp i ->
+        List.fold
+          ~f:(fun acc bt ->
+              Expr.mk_app
+                acc
+                (term_to_exp bt))
+          ~init:(Expr.mk_var i)
+          ts
+      | VariantConstruct c ->
+        begin match ts with
+          | [t] ->
+            Expr.mk_ctor c (term_to_exp t)
+          | _ -> failwith "incorrect setup"
+        end
+      | UnsafeVariantDestruct c ->
+        begin match ts with
+          | [t] ->
+            Expr.mk_app
+              (Expr.mk_var (Id.create ("un" ^ Id.to_string c)))
+              (term_to_exp t)
+          | _ -> failwith "incorrect setup"
+        end
+      | TupleConstruct _ ->
+        Expr.mk_tuple
+          (List.map
+             ~f:term_to_exp
+             ts)
+      | Var ->
+        Expr.mk_var (Id.create "x")
+      | Rec ->
+        begin match ts with
+          | [t] ->
+            Expr.mk_app (Expr.mk_var (Id.create "f")) (term_to_exp t)
+          | _ -> failwith "incorrect"
+        end
+      | VariantSwitch is ->
+        begin match ts with
+          | t::ts ->
+            (* TODO, make destructors *)
+            let e = term_to_exp t in
+            let its = List.zip_exn is ts in
+            let ies = List.map ~f:(fun (i,t) -> (i,term_to_exp t)) its in
+            Expr.mk_match e (Id.wildcard) ies
+          | [] -> failwith "cannot happen"
+        end
+      | TupleDestruct (_,i) ->
+        Expr.mk_proj i (term_to_exp (List.hd_exn ts))
+      | _ -> failwith "not permitted"
+    end
 
   let get_type_rep
       (c:t)
@@ -441,38 +494,6 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (fun _ -> 
          let a = A.minimize c.a in
          { c with a ; up_to_date=false })
-
-  let add_ite
-      (c:t)
-    : t =
-    List.fold
-      ~f:(fun c s ->
-          begin match s with
-            | Top -> c
-            | Vals ([(i,_)],_) ->
-              let c =
-                add_transition
-                  c
-                  IfThenElse
-                  [(val_state c [(i,Value.true_)] Type._bool)
-                  ;s
-                  ;State.top]
-                  s
-              in
-              let c =
-                add_transition
-                  c
-                  IfThenElse
-                  [(val_state c [(i,Value.false_)] Type._bool)
-                  ;State.top
-                  ;s]
-                  s
-              in
-              c
-            | _ -> failwith "invalid"
-          end)
-      ~init:c
-      (A.states c.a)
 
   let add_destructors
       (c:t)

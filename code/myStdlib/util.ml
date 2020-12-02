@@ -1646,6 +1646,15 @@ struct
   let destruct (Id x : t) : string = x
 
   let to_string (Id s) : string = s
+
+  let pp
+      (f:Format.formatter)
+      (Id s:t)
+    : unit =
+    Format.fprintf f "%s" s
+
+  let show (Id s) = s
+  let wildcard = create "_"
 end
 
 module type Singleton =

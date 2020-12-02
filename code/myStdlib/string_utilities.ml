@@ -140,3 +140,10 @@ let to_string_of_printer
   : string =
   printer x Format.str_formatter;
   Format.flush_str_formatter ()
+
+let show_of_pp
+    (pp:Format.formatter -> 'a -> unit)
+    (x:'a)
+  : string =
+  pp Format.str_formatter x;
+  Format.flush_str_formatter ()

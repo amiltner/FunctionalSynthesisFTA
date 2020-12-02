@@ -1,5 +1,6 @@
 open MyStdLib
 open Tool
+open Lang
 open MythSynthesisCaller
 
 let synth

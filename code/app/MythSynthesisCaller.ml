@@ -1,5 +1,6 @@
 open MyStdLib
 open Tool
+open Lang
 
 module DSToMyth = struct
   module IdSet = Set.Make(Id)
