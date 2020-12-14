@@ -52,6 +52,11 @@ let rec evaluate
         | Proj (i,e) ->
           let v = evaluate e in
           (List.nth_exn (Value.destruct_tuple_exn v) i)
+        | Unctor (i,e) ->
+          let v = evaluate e in
+          let (i',e) = Value.destruct_ctor_exn v in
+          assert (Id.equal i  i');
+          e
       in
       l.eval <- Some ans;
       ans
@@ -65,3 +70,11 @@ let evaluate_with_holes
   : Value.t =
   let e = Expr.replace_holes ~i_e e in
   evaluate e
+
+let rec safe_evaluate
+    (e:Expr.t)
+  : Value.t option =
+  try
+    Some (evaluate e)
+  with _ ->
+    None

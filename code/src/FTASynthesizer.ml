@@ -58,15 +58,203 @@ module Create(B : Automata.AutomatonBuilder) = struct
   module ValueSet = SetOf(Value)
   module StatePairSet = SetOf(PairOf(FTAConstructor.State)(FTAConstructor.State))
 
+  let subvalues_full_of_same_type
+      ~(problem:Problem.t)
+      ~(break:Value.t -> bool)
+      (v:Value.t)
+    : Value.t list =
+    let t = Typecheck.typecheck_value problem.ec problem.tc problem.vc v in
+    let subvalues_full = Value.functional_subvalues ~break v in
+    List.filter
+      ~f:(fun v ->
+          Typecheck.type_equiv
+            problem.tc
+            (Typecheck.typecheck_value problem.ec problem.tc problem.vc v)
+            t)
+      subvalues_full
+
+  let construct_single_fta
+      ~(problem:Problem.t)
+      (sub_calls:Value.t -> Value.t list)
+      (input:Value.t)
+      (valid_ios:Value.t -> Value.t -> bool)
+      (num_applications:int)
+    : C.t =
+    Consts.time
+      Consts.initial_creation_time
+      (fun _ -> 
+         let (args_t,res_t) = problem.synth_type in
+         let c =
+           C.initialize
+             ~problem
+             ([res_t;args_t]
+              @(List.map ~f:Type.mk_named (Context.keys problem.tc))
+              @(Context.data problem.ec)
+              @(List.map ~f:(Typecheck.typecheck_value problem.ec problem.tc problem.vc) (Value.subvalues input)))
+             [input]
+             problem.synth_type
+             valid_ios
+         in
+         let context_conversions =
+           List.map
+             ~f:(fun (i,e) ->
+                 let t = Context.find_exn problem.ec i in
+                 let (ins,out) = Type.split_to_arg_list_result t in
+                 let e = Expr.replace_holes ~i_e:(problem.eval_context) e in
+                 let evaluation vs =
+                   let es = List.map ~f:Value.to_exp vs in
+                   [Eval.evaluate
+                      (List.fold
+                         ~f:Expr.mk_app
+                         ~init:e
+                         es)]
+                 in
+                 (FTAConstructor.Transition.FunctionApp i,evaluation,ins,out))
+             problem.eval_context
+         in
+         let make_conversion_with i t t' =
+           (FTAConstructor.Transition.VariantConstruct i,
+            (fun vs -> [Value.mk_ctor i (List.hd_exn vs)]),
+            [t'], t)
+         in
+         let variant_construct_conversions =
+           List.concat_map
+             ~f:(fun t ->
+                 match Type.node t with
+                 | Type.Variant l ->
+                   List.map
+                     ~f:(fun (i,t') -> make_conversion_with i t t')
+                     l
+                 | _ -> [])
+             (C.get_all_types c)
+         in
+         let make_destruct_conversion_with i t t' =
+           (FTAConstructor.Transition.UnsafeVariantDestruct i,
+            (fun vs ->
+               match Value.destruct_ctor (List.hd_exn vs) with
+               | Some (i',v) ->
+                 if Id.equal i i' then [v] else []
+               | _ -> []),
+            [t], t')
+         in
+         let variant_unsafe_destruct_conversions =
+           List.concat_map
+             ~f:(fun t ->
+                 match Type.node t with
+                 | Type.Variant l ->
+                   List.map
+                     ~f:(fun (i,t') -> make_destruct_conversion_with i t t')
+                     l
+                 | _ -> [])
+             (C.get_all_types c)
+         in
+         let tuple_constructors =
+           List.filter_map
+             ~f:(fun t ->
+                 match Type.node t with
+                 | Type.Tuple ts ->
+                   Some (FTAConstructor.Transition.TupleConstruct t
+                        ,(fun vs -> [Value.mk_tuple vs])
+                        ,ts
+                        ,t)
+                 | _ -> None)
+             (C.get_all_types c)
+         in
+         let tuple_destructors =
+           List.concat_map
+             ~f:(fun t ->
+                 begin match Type.node t with
+                   | Type.Tuple ts ->
+                     List.mapi
+                       ~f:(fun i tout ->
+                           (FTAConstructor.Transition.TupleDestruct (t,i)
+                           ,(fun vs ->
+                              [List.nth_exn (Value.destruct_tuple_exn (List.hd_exn vs)) i])
+                           ,[t]
+                           ,tout))
+                       ts
+                   | _ -> []
+                 end)
+             (C.get_all_types c)
+         in
+         let rec_call_conversions =
+           let evaluation vs =
+             begin match vs with
+               | [v1] ->
+                 if Value.strict_subvalue v1 input then
+                   sub_calls v1
+                 else
+                   []
+
+               | _ -> failwith "invalid"
+             end
+           in
+           [(FTAConstructor.Transition.Rec
+            ,evaluation
+            ,[args_t]
+            ,res_t)]
+         in
+         let conversions =
+           context_conversions
+           @ variant_construct_conversions
+           @ tuple_constructors
+           @ tuple_destructors
+           @ rec_call_conversions
+           @ variant_unsafe_destruct_conversions
+         in
+         let subvalues =
+           subvalues_full_of_same_type
+             ~problem
+             ~break:(fun v ->
+                 let t =
+                   Typecheck.typecheck_value
+                     problem.ec
+                     problem.tc
+                     problem.vc
+                     v
+                 in
+                 C.is_recursive_type
+                   c
+                   t
+               )
+             input
+         in
+         let subcall_sites =
+           List.filter_map
+             ~f:(fun i' ->
+                 if Value.strict_subvalue i' input then
+                   Some ([(input,i')],args_t)
+                 else
+                   None)
+             subvalues
+         in
+         let c = C.add_states c subcall_sites in
+         let c =
+           List.fold
+             ~f:(fun c _ ->
+                 C.update_from_conversions c conversions)
+             ~init:c
+             (range 0 num_applications)
+         in
+         let c = C.add_destructors c in
+         let c = C.minimize c in
+         c)
+
   let construct_initial_fta
       ~(problem:Problem.t)
       (inmap:ValToC.t)
       (i:Value.t)
       (s:Spec.t)
     : C.t =
+    let examples =
+      begin match problem.spec with
+        | IOEs vs -> vs
+        | _ -> failwith "not ready yet"
+      end
+    in
     let standard_checker =
       fun v1 v2 ->
-        begin match List.Assoc.find ~equal:Value.equal problem.examples v1 with
+        begin match List.Assoc.find ~equal:Value.equal examples v1 with
           | Some v2' -> Value.equal v2 v2'
           | None -> true
         end
@@ -118,7 +306,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let variant_construct_conversions =
       List.concat_map
         ~f:(fun t ->
-            match t with
+            match Type.node t with
             | Type.Variant l ->
               List.map
                 ~f:(fun (i,t') -> make_conversion_with i t t')
@@ -138,7 +326,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let variant_unsafe_destruct_conversions =
       List.concat_map
         ~f:(fun t ->
-            match t with
+            match Type.node t with
             | Type.Variant l ->
               List.map
                 ~f:(fun (i,t') -> make_destruct_conversion_with i t t')
@@ -149,7 +337,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let tuple_constructors =
       List.filter_map
         ~f:(fun t ->
-            match t with
+            match Type.node t with
             | Type.Tuple ts ->
               Some (FTAConstructor.Transition.TupleConstruct t
                    ,(fun vs -> [Value.mk_tuple vs])
@@ -161,7 +349,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let tuple_destructors =
       List.concat_map
         ~f:(fun t ->
-            begin match t with
+            begin match Type.node t with
               | Type.Tuple ts ->
                 List.mapi
                   ~f:(fun i tout ->
@@ -211,7 +399,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
               Some ([(i,i')],args_t)
             else
               None)
-        problem.examples
+        examples
     in
     let c = C.add_states c subcall_sites in
     let c = C.update_from_conversions c conversions in
@@ -369,12 +557,12 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let priority
         (qe:t)
       : int =
-      Expr.size (C.term_to_exp (A.TermState.to_term qe.rep))
+      Expr.size (C.term_to_exp_internals (A.TermState.to_term qe.rep))
 
     let to_string_legible
         (qe:t)
       : string =
-      let es = Expr.show (C.term_to_exp (A.TermState.to_term qe.rep)) in
+      let es = Expr.show (C.term_to_exp_internals (A.TermState.to_term qe.rep)) in
       let cs = Constraints.show qe.constraints in
       "term: " ^ es ^ "\nconstraints: " ^ cs
   end
@@ -412,7 +600,13 @@ module Create(B : Automata.AutomatonBuilder) = struct
   let synth
       ~(problem:Problem.t)
     : Expr.t =
-    let chosen_inputs = List.map ~f:fst problem.examples in
+    let examples =
+      begin match problem.spec with
+        | IOEs vs -> vs
+        | _ -> failwith "not ready yet"
+      end
+    in
+    let chosen_inputs = List.map ~f:fst examples in
     let all_inputs =
       List.dedup_and_sort
         ~compare:Value.compare
@@ -438,8 +632,13 @@ module Create(B : Automata.AutomatonBuilder) = struct
         (ts:A.TermState.t)
       : (FTAConstructor.State.t * FTAConstructor.State.t) list =
       begin match ts with
-        | TS ((FTAConstructor.Transition.Rec,1),target,[source_ts]) ->
-          (A.TermState.get_state source_ts,target)::(extract_recursive_calls source_ts)
+        | TS (t,target,[source_ts]) ->
+          if FTAConstructor.Transition.equal t FTAConstructor.Transition.rec_ then
+            (A.TermState.get_state source_ts,target)::(extract_recursive_calls source_ts)
+          else
+            List.concat_map
+              ~f:extract_recursive_calls
+              [source_ts]
         | TS (_,_,tss) ->
           List.concat_map
             ~f:extract_recursive_calls
@@ -487,7 +686,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
               bs
           in
           if List.length new_constraints = 0 then
-            let e = C.term_to_exp (A.TermState.to_term ts) in
+            let e = C.term_to_exp_internals (A.TermState.to_term ts) in
             Right e
           else
             let merged_constraints_o =
@@ -526,7 +725,18 @@ module Create(B : Automata.AutomatonBuilder) = struct
                     ~nonpermitted:StatePairSet.empty
                     ~v_to_c
                 in
-                Left (Option.to_list qe)
+                begin match qe with
+                  | Some qe -> Left [qe]
+                  | None ->
+                    Consts.log (fun _ -> "popped value was found impossible");
+                    Left
+                      (List.filter_map
+                         ~f:(fun r ->
+                             PQE.update_nonpermitted
+                               pqe
+                               r)
+                         rcs)
+                end
             end
         | None ->
           Consts.log (fun _ -> "popped value was found impossible");

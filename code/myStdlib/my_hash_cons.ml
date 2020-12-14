@@ -56,6 +56,18 @@ module HashConsContainer = struct
       (x2:'a hash_consed)
     : int =
     compare x1.tag x2.tag
+
+  let hash_consed_of_sexp
+      (f:Ppx_sexp_conv_lib.Sexp.t -> 'a)
+      (x:Ppx_sexp_conv_lib.Sexp.t)
+    : 'a hash_consed =
+    failwith "reimplement using create"
+
+  let sexp_of_hash_consed
+      (f:'a -> Ppx_sexp_conv_lib.Sexp.t)
+      (x:'a hash_consed)
+    : Ppx_sexp_conv_lib.Sexp.t =
+    f x.node
 end
 include HashConsContainer
 

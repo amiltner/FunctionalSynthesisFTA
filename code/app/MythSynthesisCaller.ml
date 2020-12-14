@@ -27,7 +27,7 @@ module DSToMyth = struct
     begin match TypeMap.find tt t with
       | Some mt -> ([],mt,tt)
       | None ->
-        begin match t with
+        begin match Type.node t with
           | Named v ->
             if IdSet.mem real_vars v then
               ([],MythLang.TBase (Id.to_string v),tt)
@@ -64,7 +64,7 @@ module DSToMyth = struct
             in
             let tt = List.fold_left tts ~init:tt ~f:merge_tts in
             let bs = List.concat unflattened_bs in
-            let tt = TypeMap.set tt ~key:(Variant branches) ~data:(MythLang.TBase (Id.to_string i)) in
+            let tt = TypeMap.set tt ~key:(Type.mk_variant branches) ~data:(MythLang.TBase (Id.to_string i)) in
             ((Id.to_string i,its)::bs, MythLang.TBase (Id.to_string i),tt)
         end
     end
@@ -82,6 +82,7 @@ module DSToMyth = struct
     let to_myth_exp = to_myth_exp tt in
     (begin match Expr.node e with
        | Var i -> MythLang.EVar (Id.to_string i)
+       | Unctor _ -> failwith "no conversion"
        | App (e1,e2) -> MythLang.EApp (to_myth_exp e1, to_myth_exp e2)
        | Func ((i,t),e) ->
          let mt = to_myth_type_basic tt t in
@@ -147,7 +148,7 @@ module DSToMyth = struct
     (List.rev ds, tt)
 
   let to_myth_exp_with_problem ~(problem:Problem.t) (e:Expr.t) : MythLang.exp =
-    let (decls,_,_) = problem.unprocessed in
+    let (_,decls,_,_) = problem.unprocessed in
     let (_,tt) = convert_decl_list_to_myth problem.ec decls in
     to_myth_exp tt e
 
@@ -195,7 +196,13 @@ module DSToMyth = struct
     : MythLang.decl list
       * MythLang.exp list
       * MythLang.typ =
-    let (decls,desired_t,examples) = p.unprocessed in
+    let (_,decls,desired_t,examples) = p.unprocessed in
+    let examples =
+      begin match examples with
+        | UIOEs vs -> vs
+        | _ -> failwith "not ready yet"
+      end
+    in
     let (ds,tt) = convert_decl_list_to_myth p.ec decls in
     (*let ioes =
       List.map
@@ -233,9 +240,9 @@ module MythToDS = struct
 
   let rec convert_type : Myth.Lang.typ -> Type.t =
     function [@warning "-8"]
-    | TBase id          -> Type.Named (Id.create id)
-    | TArr (typ1, typ2) -> Type.Arrow ((convert_type typ1), (convert_type typ2))
-    | TTuple (typlist)  -> Type.Tuple (List.map ~f:convert_type typlist)
+    | TBase id          -> Type.mk_named (Id.create id)
+    | TArr (typ1, typ2) -> Type.mk_arrow (convert_type typ1) (convert_type typ2)
+    | TTuple (typlist)  -> Type.mk_tuple (List.map ~f:convert_type typlist)
     | TUnit             -> Type._unit
 
   let convert_arg ((id, typ) : Myth.Lang.arg) : Param.t =
@@ -293,7 +300,7 @@ module MythToDS = struct
                                  (List.fold
                                     arglist
                                     ~init:(convert_type typ)
-                                    ~f:(fun etyp (_, t) -> Type.Arrow (t, etyp)))
+                                    ~f:(fun etyp (_, t) -> Type.mk_arrow t etyp))
                                  (List.fold
                                     arglist
                                     ~init:(e)
@@ -379,3 +386,22 @@ let myth_synthesize_print
           print_endline "  }";
           print_endline "}" in
   Expr.mk_tuple []
+
+type t = Context.t * Type.t * Type.t
+
+let init
+    ~(context:Context.t)
+    ~(tin:Type.t)
+    ~(tout:Type.t)
+  : t =
+  (context,tin,tout)
+
+let context = fst3
+let tin = snd3
+let tout = trd3
+
+let synth
+    (a:t)
+    (ios:(Value.t * Value.t) list)
+  : t * Expr.t =
+  (a,failwith "TODO")

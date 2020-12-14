@@ -1,0 +1,17 @@
+include "nat.decls"
+
+type list = mu list .
+  | Nil
+  | Cons of nat * list
+
+synth list -> list
+
+satisfying
+
+equiv
+
+fix (list_inc : list -> list) =
+  fun (l1 : list) ->
+    match l1 binding l1p with
+    | Nil -> Nil
+    | Cons -> Cons(S (l1p.0), list_inc l1p.1)

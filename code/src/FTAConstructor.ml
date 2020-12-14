@@ -52,48 +52,97 @@ struct
     | Rec
     | VariantSwitch of Id.t list
   [@@deriving eq, hash, ord, show]
-  type t = (id * int)
+  type t_node = (id * int)
   [@@deriving eq, hash, ord, show]
+  type t = t_node hash_consed
+  [@@deriving eq, hash, ord, show]
+
+  let table = HashConsTable.create 1000
+
+  let create
+      (node:t_node)
+    : t =
+    HashConsTable.hashcons
+      hash_t_node
+      compare_t_node
+      table
+      node
+
+  let node
+      (v:t)
+    : t_node =
+    v.node
+
+  let id
+      (v:t)
+    : id =
+    fst (node v)
 
   let print_id id =
     match id with
     | FunctionApp x -> MyStdLib.Id.to_string x
-    | VariantConstruct x -> MyStdLib.Id.to_string x
-    | TupleConstruct _ -> "TupleConstruct"
+    | VariantConstruct x -> "Variant(" ^ MyStdLib.Id.to_string x ^ ")"
+    | TupleConstruct t -> "Tuple(" ^ (string_of_int (List.length (Type.destruct_tuple_exn t))) ^ ")"
     | Var -> "Var"
     | LetIn -> "LetIn"
     | Rec -> "Rec"
-    | _ -> "other"
-  let pp b (a:t) = Format.fprintf b "%s:%d " (print_id (fst a)) (snd a)
+    | UnsafeVariantDestruct t -> "VariantUnsafe(" ^ (Id.show t) ^ ")"
+    | TupleDestruct (t,i) ->
+      "TupleProj("
+      ^ (string_of_int (List.length (Type.destruct_tuple_exn t)))
+      ^ ","
+      ^ (string_of_int i)
+      ^ ")"
+    | VariantSwitch (bs) ->
+      "SwitchOn(" ^ (String.concat ~sep:"," (List.map ~f:Id.to_string bs)) ^ ")"
+  let pp b (a:t) = Format.fprintf b "%s:%d " (print_id (fst a.node)) (snd a.node)
   let print a b = pp b a
 
-  let rec_ = (Rec,1)
+  let rec_ = create (Rec,1)
 
-  let arity = snd
+  let arity = snd % node
 end
 
 module Make(A : Automata.Automaton with module Symbol := Transition and module State := State) = struct
-  module TypeDS =
-    DisjointSetWithSetDataOf
-      (struct
-        include Type
-        let preferred t1 t2 =
-          begin match t1 with
-            | Variant _
-            | Arrow _
-            | Tuple _ -> true
-            | _ -> false
-          end
-      end)
-      (BoolModule)
-      (struct
-        type t = Type.t -> bool
-        let v = (Option.is_some % Type.destruct_mu)
-      end)
-      (struct
-        type t = bool -> bool -> bool
-        let v = (||)
-      end)
+  module TypeDS = struct
+    include
+      DisjointSetWithSetDataOf
+        (struct
+          include Type
+          let preferred t1 t2 =
+            begin match (Type.node t1,Type.node t2) with
+              | (Variant _,Variant _)
+              | (Arrow _,Arrow _)
+              | (Tuple _,Tuple _) ->
+                Type.size t1 < Type.size t2
+              | _ ->
+                begin match Type.node t1 with
+                  | Variant _
+                  | Arrow _
+                  | Tuple _ -> true
+                  | _ -> false
+                end
+            end
+        end)
+        (BoolModule)
+        (struct
+          type t = Type.t -> bool
+          let v = (Option.is_some % Type.destruct_mu)
+        end)
+        (struct
+          type t = bool -> bool -> bool
+          let v = (||)
+        end)
+
+    let is_recursive_type
+        (x:t)
+        (t:Type.t)
+      : bool =
+      snd
+        (find_representative
+           x
+           t)
+  end
 
   module VSet = SetOf(Value)
   module StateSet = SetOf(State)
@@ -122,59 +171,73 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   let hash _ = failwith "not implemented"
   let compare _ _ = failwith "not implemented"
 
-  let rec term_to_exp
-      (Term ((s,_),ts):A.term)
+  let fid = Id.create "f"
+  let xid = Id.create "x"
+
+  let rec term_to_exp_internals
+      (Term (t,ts):A.term)
     : Expr.t =
-    begin match s with
+    begin match Transition.id t with
       | FunctionApp i ->
         List.fold
           ~f:(fun acc bt ->
               Expr.mk_app
                 acc
-                (term_to_exp bt))
+                (term_to_exp_internals bt))
           ~init:(Expr.mk_var i)
           ts
       | VariantConstruct c ->
         begin match ts with
           | [t] ->
-            Expr.mk_ctor c (term_to_exp t)
+            Expr.mk_ctor c (term_to_exp_internals t)
           | _ -> failwith "incorrect setup"
         end
       | UnsafeVariantDestruct c ->
         begin match ts with
           | [t] ->
-            Expr.mk_app
-              (Expr.mk_var (Id.create ("un" ^ Id.to_string c)))
-              (term_to_exp t)
+            Expr.mk_unctor
+              c
+              (term_to_exp_internals t)
           | _ -> failwith "incorrect setup"
         end
       | TupleConstruct _ ->
         Expr.mk_tuple
           (List.map
-             ~f:term_to_exp
+             ~f:term_to_exp_internals
              ts)
       | Var ->
-        Expr.mk_var (Id.create "x")
+        Expr.mk_var xid
       | Rec ->
         begin match ts with
           | [t] ->
-            Expr.mk_app (Expr.mk_var (Id.create "f")) (term_to_exp t)
+            Expr.mk_app (Expr.mk_var fid) (term_to_exp_internals t)
           | _ -> failwith "incorrect"
         end
       | VariantSwitch is ->
         begin match ts with
           | t::ts ->
             (* TODO, make destructors *)
-            let e = term_to_exp t in
+            let e = term_to_exp_internals t in
             let its = List.zip_exn is ts in
-            let ies = List.map ~f:(fun (i,t) -> (i,term_to_exp t)) its in
+            let ies = List.map ~f:(fun (i,t) -> (i,term_to_exp_internals t)) its in
             Expr.mk_match e (Id.wildcard) ies
           | [] -> failwith "cannot happen"
         end
       | TupleDestruct (_,i) ->
-        Expr.mk_proj i (term_to_exp (List.hd_exn ts))
+        Expr.mk_proj i (term_to_exp_internals (List.hd_exn ts))
       | _ -> failwith "not permitted"
     end
+
+  let term_to_exp
+      (tin:Type.t)
+      (tout:Type.t)
+      (t:A.Term.t)
+    : Expr.t =
+    let internal = term_to_exp_internals t in
+    Expr.mk_fix
+      fid
+      (Type.mk_arrow tin tout)
+      (Expr.mk_func (xid,tin) internal)
 
   let get_type_rep
       (c:t)
@@ -193,6 +256,11 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (TypeDS.find_representative
          c.ds
          t)
+
+  let invalidate_computations
+      (c:t)
+    : t =
+    {c with min_term_state = None}
 
   let get_final_values
       (c:t)
@@ -270,7 +338,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       else
         c
     in
-    {c with d}
+    invalidate_computations {c with d}
 
   let update_tset
       (c:t)
@@ -287,7 +355,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
           State.top
       in
       let tset = TransitionSet.insert trans c.tset in
-      { c with a ; tset ; }
+      invalidate_computations { c with a ; tset ; }
 
 
   let add_transition
@@ -299,7 +367,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let c =
       update_tset
         c
-        (trans_id,List.length sins)
+        (Transition.create (trans_id,List.length sins))
     in
     let c =
       begin match sout with
@@ -308,8 +376,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
           add_state c vinsvouts t
       end
     in
-    let a = A.add_transition c.a (trans_id,List.length sins) sins sout in
-    {c with a}
+    let a = A.add_transition c.a (Transition.create (trans_id,List.length sins)) sins sout in
+    invalidate_computations {c with a}
 
 
   let remove_transition
@@ -318,7 +386,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (sins:State.t list)
       (sout:State.t)
     : t =
-    {c with
+    invalidate_computations {c with
      a = A.remove_transition c.a trans sins sout }
 
   let evaluate
@@ -398,6 +466,89 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       ~init:c
       ids_ins_outs
 
+  let create_ds_from_t_list_context
+      ~(context:Context.t)
+      (ts:Type.t list)
+    : TypeDS.t =
+    let all_types =
+      List.dedup_and_sort ~compare:Type.compare
+        (List.filter
+           ~f:(Option.is_none % Type.destruct_arr)
+           (List.concat_map
+              ~f:(Typecheck.all_subtypes context.tc)
+              ts))
+
+    in
+    TypeDS.create_from_list
+      ~equiv:(Typecheck.type_equiv context.tc)
+      all_types
+
+  let create_ds_from_t_list
+      ~(problem:Problem.t)
+      (ts:Type.t list)
+    : TypeDS.t =
+    let all_types =
+      List.dedup_and_sort ~compare:Type.compare
+        (List.filter
+           ~f:(Option.is_none % Type.destruct_arr)
+           (List.concat_map
+              ~f:(Typecheck.all_subtypes problem.tc)
+              ts))
+
+    in
+    TypeDS.create_from_list
+      ~equiv:(Typecheck.type_equiv problem.tc)
+      all_types
+
+  let initialize_context
+      ~(context:Context.t)
+      (ts:Type.t list)
+      (inputs:Value.t list)
+      ((input_type,output_type):Type.t * Type.t)
+      (final_candidates:Value.t -> Value.t -> bool)
+    : t =
+    let all_types =
+      List.dedup_and_sort ~compare:Type.compare
+        (List.filter
+           ~f:(Option.is_none % Type.destruct_arr)
+           (List.concat_map
+              ~f:(Typecheck.all_subtypes context.tc)
+              ts))
+
+    in
+    let ds = create_ds_from_t_list_context ~context ts in
+    let a = A.empty in
+    let d = InputsAndTypeToStates.empty in
+    let input_vals = inputs in
+    let inputs = List.map ~f:(fun i -> [i]) inputs in
+    let tset = TransitionSet.empty in
+    let (input_type,_) = TypeDS.find_representative ds input_type in
+    let (output_type,_) = TypeDS.find_representative ds output_type in
+    let c =
+      {
+        a                 ;
+        d                 ;
+        ds                ;
+        inputs            ;
+        tset              ;
+        final_candidates  ;
+        all_types         ;
+        up_to_date = true ;
+        input_type        ;
+        output_type       ;
+        min_term_state = None;
+      }
+    in
+    List.fold
+      ~f:(fun c i ->
+          add_transition
+            c
+            Var
+            []
+            (val_state c [(i,i)] input_type))
+      ~init:c
+      input_vals
+
   let initialize
       ~(problem:Problem.t)
       (ts:Type.t list)
@@ -414,11 +565,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
               ts))
 
     in
-    let ds =
-      TypeDS.create_from_list
-        ~equiv:(Typecheck.type_equiv problem.tc)
-        all_types
-    in
+    let ds = create_ds_from_t_list ~problem ts in
     let a = A.empty in
     let d = InputsAndTypeToStates.empty in
     let input_vals = inputs in
@@ -484,7 +631,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (s:State.t)
     : t =
     let a = A.add_final_state c.a s in
-    { c with a }
+    invalidate_computations { c with a }
 
   let minimize
       (c:t)
@@ -502,27 +649,31 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       cartesian_filter_map
         ~f:(fun (s1:State.t) (s2:State.t) ->
             begin match s1 with
-              | Vals ([i1,v],Variant branches) ->
-                begin match Value.node v with
-                  | Ctor (i,_) ->
-                    let branch_ids = List.map ~f:fst branches in
-                    begin match s2 with
-                      | Vals ([i2,_],_) ->
-                        if Value.equal i1 i2 && A.is_final_state c.a s2 then
-                          let ins =
-                            s1::
-                            List.map
-                              ~f:(fun (id,_) ->
-                                  if Id.equal id i then
-                                    s2
-                                  else
-                                    State.top)
-                              branches
-                          in
-                          let tid = Transition.VariantSwitch branch_ids in
-                          Some (tid,ins,s2)
-                        else
-                          None
+              | Vals ([i1,v],t) ->
+                begin match Type.node t with
+                  | Variant branches ->
+                    begin match Value.node v with
+                      | Ctor (i,_) ->
+                        let branch_ids = List.map ~f:fst branches in
+                        begin match s2 with
+                          | Vals ([i2,_],_) ->
+                            if Value.equal i1 i2 && A.is_final_state c.a s2 then
+                              let ins =
+                                s1::
+                                List.map
+                                  ~f:(fun (id,_) ->
+                                      if Id.equal id i then
+                                        s2
+                                      else
+                                        State.top)
+                                  branches
+                              in
+                              let tid = Transition.VariantSwitch branch_ids in
+                              Some (tid,ins,s2)
+                            else
+                              None
+                          | _ -> None
+                        end
                       | _ -> None
                     end
                   | _ -> None
@@ -562,8 +713,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
           (not (State.equal s State.top)) &&
           List.exists
             ~f:(fun (t,ss,_) ->
-                begin match (t,ss) with
-                  | ((Transition.LetIn,_),[_;s2])
+                begin match (Transition.id t,ss) with
+                  | (Transition.LetIn,[_;s2])
                     (*when State.equal s2 s*) ->
                     true
                   | _ -> false
@@ -578,8 +729,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let transitions_to_prune_and_add =
       List.filter_map
         ~f:(fun tp ->
-            let ((t,_),ss,st) = tp in
-            begin match (t,ss) with
+            let (t,ss,st) = tp in
+            begin match (Transition.id t,ss) with
               | (Transition.LetIn,[s1;s2])
                 when State.equal s s2 ->
                 Some (tp,(s1,st))
@@ -629,7 +780,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
            let merged = TransitionSet.union c1 c2 in
            let all_ts_by_id =
              group_by
-               ~key:fst
+               ~key:(Transition.id)
                ~equal:Transition.equal_id
                (TransitionSet.as_list merged)
            in
@@ -655,7 +806,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
              ts
          in
          let a = A.intersect c1.a c2.a in
-         { c1 with a ; up_to_date = false ; })
+         invalidate_computations { c1 with a ; up_to_date = false ; })
 
   let rec replace_all_recursions
       (c:t)
@@ -739,7 +890,6 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             min_tree_internal st pq
           else
             let st = StateToTree'.insert st s (i,t) in
-
             let triggered_transitions = A.transitions_from c.a s in
             let produced =
               List.filter_map
@@ -770,9 +920,17 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   let min_term_state
       (c:t)
     : A.TermState.t option =
-    Consts.time
-      Consts.min_elt_time
-      (fun _ -> A.min_term_state c.a)
+    begin match c.min_term_state with
+      | Some mts -> mts
+      | None ->
+        let mts =
+          Consts.time
+            Consts.min_elt_time
+            (fun _ -> A.min_term_state c.a)
+        in
+        c.min_term_state <- Some mts;
+        mts
+    end
 
   let size (c:t)
     : int =
@@ -782,5 +940,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (c:t)
       (t:A.Term.t)
     : bool =
-    A.accepts_term c.a t
+    Consts.time
+      Consts.accepts_term_time
+      (fun _ -> A.accepts_term c.a t)
 end

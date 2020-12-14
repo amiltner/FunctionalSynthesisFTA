@@ -19,7 +19,7 @@ let type_equiv
       Context.find_exn tc v
     in
     let type_equiv_simple = type_equiv_internal tc1 tc2 in
-    begin match (t1,t2) with
+    begin match (Type.node t1,Type.node t2) with
       | (Named i1, Named i2) ->
         if Id.equal i1 i2 then
           true
@@ -79,7 +79,7 @@ let rec concretify
     (tc:Context.Types.t)
     (t:Type.t)
   : Type.t =
-  begin match t with
+  begin match Type.node t with
     | Named i ->
       concretify tc (Context.find_exn tc i)
     | Mu (i, t') ->
@@ -96,6 +96,7 @@ let rec typecheck_exp
   : Type.t =
   let typecheck_simple = typecheck_exp ec tc vc in
   begin match Expr.node e with
+    | Unctor _ -> failwith "not typeable"
     | Var v ->
       Context.find_exn ec v
     | App (e1,e2) ->
@@ -182,7 +183,7 @@ let rec align_types
     (t:Type.t)
     (e:Expr.t)
   : Expr.t =
-  begin match (t,Expr.node e) with
+  begin match (Type.node t,Expr.node e) with
     | (_, Fix (i,_,e)) ->
       Expr.mk_fix i t (align_types t e)
     | (Type.Arrow (t1,t2), Func ((i,_),e)) ->
@@ -202,7 +203,7 @@ let all_subtypes
       added
     else
       let added = t::added in
-      begin match t with
+      begin match Type.node t with
         | Named i ->
           all_subtypes
             (Context.find_exn tc i)
@@ -242,3 +243,32 @@ let all_subtypes
   all_subtypes
     t
     []
+
+let rec typecheck_value
+    (ec:Context.Exprs.t)
+    (tc:Context.Types.t)
+    (vc:Context.Variants.t)
+    (v:Value.t)
+  : Type.t =
+  let typecheck_simple = typecheck_value ec tc vc in
+  begin match Value.node v with
+    | Ctor (i,e) ->
+      let t = typecheck_simple e in
+      let its = Context.find_exn vc i in
+      let t_defined =
+        List.Assoc.find_exn ~equal:Id.equal its i
+      in
+      if type_equiv tc t_defined t then
+        Type.mk_variant its
+      else
+        failwith ("variant " ^ (Id.show i) ^ " expects different type: expected "
+                  ^ (Type.show t_defined) ^ " but got " ^ (Type.show t))
+    | Tuple es ->
+      Type.mk_tuple
+        (List.map
+           ~f:typecheck_simple
+           es)
+    | Func ((i,t),e) ->
+      let ec = Context.set ec ~key:i ~data:t
+      in Type.mk_arrow t (typecheck_exp ec tc vc e)
+  end

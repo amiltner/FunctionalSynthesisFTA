@@ -1703,21 +1703,27 @@ let rec merge_by_size_exn
       merge_by_size_exn ~compare ~merge ((merge min max)::elts)
   end
 
-let rec merge_by_size_applies_exn
-    ~(compare:'a -> 'a -> int)
-    ~(merge:'a -> 'a -> 'a)
-    ~(needs_merge:'a -> 'a -> bool)
-    (elts:'a list)
-  : 'a =
-  begin match elts with
-    | [] -> failwith "not enough"
-    | [x] -> x
-    | _ ->
-      let (max,elts) = extract_max_exn ~compare elts in
-      let elts = List.filter ~f:(needs_merge max) elts in
-      if List.is_empty elts then
-        max
-      else
-        let (min,elts) = extract_min_exn ~compare elts in
-        merge_by_size_exn ~compare ~merge ((merge min max)::elts)
-  end
+let merge_by_size_applies_exn
+    (type a)
+    ~(compare:a -> a -> int)
+    ~(merge:a -> a -> a)
+    ~(needs_merge:a -> a -> bool)
+    (elts:a list)
+  : a =
+  let rec merge_by_size_applies_internal
+      (acc:a)
+      (elts:a list)
+    : a =
+    let (elts,remainder) = split_by_condition ~f:(needs_merge acc) elts in
+    begin match elts with
+      | [] -> acc
+      | _ ->
+        if List.is_empty elts then
+          acc
+        else
+          let (min,elts) = extract_min_exn ~compare elts in
+          merge_by_size_applies_internal (merge min acc) (elts@remainder)
+    end
+  in
+  let (min,elts) = extract_min_exn ~compare elts in
+  merge_by_size_applies_internal min elts

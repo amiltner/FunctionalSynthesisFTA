@@ -38,16 +38,16 @@ let get_foldable_t (tc:Types.t) (fold_completion:Type.t) : Type.t =
       (i:Id.t)
       (t:Type.t)
     : Type.t =
-    begin match t with
+    begin match Type.node t with
       | Named i' ->
         if Id.equal i i' then
           fold_completion
         else
           t
       | Tuple ts ->
-        Tuple (List.map ~f:(type_to_folded_type_internal i) ts)
+        Type.mk_tuple (List.map ~f:(type_to_folded_type_internal i) ts)
       | Variant branches ->
-        Variant
+        Type.mk_variant
           (List.map
              ~f:(fun (b,t) ->
                  (Id.mk_prime b
@@ -76,7 +76,7 @@ let convert_foldable_to_full (tc : Types.t)
         (t:Type.t)
         (incoming_exp:Expr.t)
       : Expr.t =
-      begin match t with
+      begin match Type.node t with
         | Named i' ->
           if Id.equal i i' then
             Expr.mk_app
@@ -138,3 +138,10 @@ let convert_foldable_to_full (tc : Types.t)
                         t_internal
                         (Expr.mk_var (Id.create "x"))))))
 
+type t =
+  {
+    ec : Exprs.t ;
+    tc : Types.t ;
+    vc : Variants.t ;
+    evals : (Id.t * Expr.t) list
+  }

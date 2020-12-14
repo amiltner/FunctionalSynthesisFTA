@@ -25,3 +25,22 @@ let synth
     print_endline "  }";
   print_endline "}" in
   Expr.mk_tuple []
+
+type t = Context.t * Type.t * Type.t
+
+let init
+    ~(context:Context.t)
+    ~(tin:Type.t)
+    ~(tout:Type.t)
+  : t =
+  (context,tin,tout)
+
+let context = fst3
+let tin = snd3
+let tout = trd3
+
+let synth
+    (a:t)
+    (ios:(Value.t * Value.t) list)
+  : t * Expr.t =
+  (a,failwith "TODO")

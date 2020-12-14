@@ -3,22 +3,63 @@ open Lang
 
 open Typecheck
 
-type t_unprocessed = Declaration.t list
-                     * Type.t
-                     * (Expr.t list * Expr.t) list
+type unprocessed_spec =
+  | UIOEs of (Expr.t list * Expr.t) list
+  | UPost of Expr.t
+  | UEquiv of Expr.t
 [@@deriving eq, hash, ord, show]
+
+type spec =
+  | IOEs of (Value.t * Value.t) list
+  | Post of (Value.t -> Value.t -> bool)
+  | Equiv of (Value.t -> Value.t)
+[@@deriving show]
+
+type t_unprocessed = string list
+                     * Declaration.t list
+                     * Type.t
+                     * unprocessed_spec
+[@@deriving show]
+
+let update_import_base
+    (ss:string list)
+    (fname:string)
+  : string list =
+  let dir = Filename.dirname fname in
+  List.map ~f:((^) (dir ^ "/")) ss
+
+let update_all_import_bases
+    ((ss,ds,t,ios):t_unprocessed)
+    (fname:string)
+  : t_unprocessed =
+  let ss = update_import_base ss fname in
+  (ss,ds,t,ios)
+
+let extract_file
+    ((ss,ds,t,ios):t_unprocessed)
+  : (string * t_unprocessed) option =
+  begin match ss with
+    | [] -> None
+    | h::ss -> Some (h,(ss,ds,t,ios))
+  end
+
+let merge_unprocessed
+    ((ss,ds,t,ios):t_unprocessed)
+    ((imports,decls):string list * Declaration.t list)
+  : t_unprocessed =
+  (imports@ss,decls@ds,t,ios)
 
 type t = {
   synth_type   : Type.t * Type.t          ;
   ec           : Context.Exprs.t          ;
   tc           : Context.Types.t          ;
   vc           : Context.Variants.t       ;
-  examples     : (Value.t * Value.t) list ;
+  spec     : spec ;
   i     : (Value.t * Value.t) list ;
   eval_context : (Id.t * Expr.t) list     ;
   unprocessed  : t_unprocessed            ;
 }
-[@@deriving eq, hash, make, ord]
+[@@deriving make]
 
 
 let extract_variants
@@ -80,8 +121,100 @@ let process_decl_list
               ,(ec,tc,vc)))
        ds)
 
-let process (unprocessed : t_unprocessed) : t =
-  let (decs,synth_type,exs) = unprocessed in
+let st_to_pair
+    (synth_type:Type.t)
+  : Type.t * Type.t =
+  fold_until_completion
+    ~f:(fun (acc,t) ->
+        begin match Type.node t with
+          | Type.Arrow (t1,t2) -> Left (t1::acc,t2)
+          | _ -> Right (Type.mk_tuple (List.rev acc),t)
+        end)
+    ([],synth_type)
+
+let process_spec
+    (ec:Context.Exprs.t)
+    (tc:Context.Types.t)
+    (vc:Context.Variants.t)
+    (i_e:(Id.t * Expr.t) list)
+    (synth_type:Type.t)
+    (us:unprocessed_spec) : spec =
+  begin match us with
+    | UIOEs us ->
+      List.iter
+        ~f:(fun (es,e) ->
+            let typecheck = Typecheck.typecheck_exp ec tc vc in
+            let es_ts =
+              List.map
+                ~f:typecheck
+                es
+            in
+            let e_t = typecheck e in
+            let ex_t =
+              List.fold_right
+                ~f:Type.mk_arrow
+                ~init:e_t
+                es_ts
+            in
+            if Typecheck.type_equiv tc synth_type ex_t then
+              ()
+            else
+              failwith "example doesn't satisfy the expected type")
+        us;
+      let examples =
+        List.map
+          ~f:(fun (es,e) ->
+              let vs =
+                List.map
+                  ~f:(Eval.evaluate_with_holes ~eval_context:i_e)
+                  es
+              in
+              let v =
+                Eval.evaluate_with_holes
+                  ~eval_context:i_e
+                  e
+              in
+              (Value.mk_tuple vs,v))
+          us
+      in
+      IOEs examples
+    | UEquiv e ->
+      let t = Typecheck.typecheck_exp ec tc vc e in
+      assert (Typecheck.type_equiv tc t synth_type);
+      let runner =
+        fun v1 ->
+          let real_e =
+            begin match Value.destruct_tuple v1 with
+              | None -> Expr.mk_app e (Value.to_exp v1)
+              | Some vs ->
+                List.fold
+                  ~f:(fun acc v -> Expr.mk_app acc (Value.to_exp v))
+                  ~init:e
+                  vs
+            end
+          in
+          Eval.evaluate_with_holes ~eval_context:i_e real_e
+      in
+      Equiv runner
+    | UPost e ->
+      let (tin,tout) = st_to_pair synth_type in
+      let t = Typecheck.typecheck_exp ec tc vc e in
+      assert
+        (Typecheck.type_equiv
+           tc
+           t
+           (Type.mk_arrow tin (Type.mk_arrow tout Type._bool)));
+      Post
+        (fun v1 v2 ->
+           let e1 = Value.to_exp v1 in
+           let e2 = Value.to_exp v2 in
+           let full_exp = Expr.mk_app (Expr.mk_app e e1) e2 in
+           let vout = Eval.evaluate full_exp in
+           Value.equal vout Value.true_)
+  end
+
+let rec process (unprocessed : t_unprocessed) : t =
+  let (_,decs,synth_type,uspec) = unprocessed in
   let (ec,tc,vc,i_e) =
     process_decl_list
       Context.empty
@@ -90,59 +223,10 @@ let process (unprocessed : t_unprocessed) : t =
       decs
   in
   let eval_context =
-    (*(List.concat_map
-       ~f:(fun cts ->
-           List.map
-             ~f:(fun (c,t) -> (c, Expr.mk_func (Id.create "i",t) (Expr.Ctor (c, Expr.mk_var (Id.create "i")))))
-             cts)
-       (Context.data vc))
-      @*) i_e
+    i_e
   in
-  List.iter
-    ~f:(fun (es,e) ->
-        let typecheck = Typecheck.typecheck_exp ec tc vc in
-        let es_ts =
-          List.map
-            ~f:typecheck
-            es
-        in
-        let e_t = typecheck e in
-        let ex_t =
-          List.fold_right
-            ~f:Type.mk_arrow
-            ~init:e_t
-            es_ts
-        in
-        if Typecheck.type_equiv tc synth_type ex_t then
-          ()
-        else
-          failwith "example doesn't satisfy the expected type")
-    exs;
-  let examples =
-    List.map
-      ~f:(fun (es,e) ->
-          let vs =
-            List.map
-              ~f:(Eval.evaluate_with_holes ~eval_context)
-              es
-          in
-          let v =
-            Eval.evaluate_with_holes
-            ~eval_context
-            e
-          in
-          (Value.mk_tuple vs,v))
-      exs
-  in
-  let synth_type =
-    fold_until_completion
-      ~f:(fun (acc,t) ->
-          begin match t with
-            | Type.Arrow (t1,t2) -> Left (t1::acc,t2)
-            | _ -> Right (Type.mk_tuple (List.rev acc),t)
-          end)
-      ([],synth_type)
-  in
+  let spec = process_spec ec tc vc i_e synth_type uspec in
+  let synth_type = st_to_pair synth_type in
   make
     ~ec
     ~tc
@@ -150,5 +234,15 @@ let process (unprocessed : t_unprocessed) : t =
     ~eval_context
     ~unprocessed
     ~synth_type
-    ~examples
+    ~spec
     ()
+
+let extract_context
+    (p:t)
+  : Context.t =
+  {
+    ec = p.ec ;
+    tc = p.tc ;
+    vc = p.vc ;
+    evals = p.eval_context ;
+  }

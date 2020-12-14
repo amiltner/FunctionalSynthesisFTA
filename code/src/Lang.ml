@@ -5,6 +5,7 @@ type 'a e_node_maker =
   | App of 'a e_maker * 'a e_maker
   | Func of Param.t * 'a e_maker
   | Ctor of Id.t * 'a e_maker
+  | Unctor of Id.t * 'a e_maker
   | Match of 'a e_maker * Id.t * (Id.t * 'a e_maker) list
   | Fix  of Id.t * Type.t * 'a e_maker
   | Tuple of 'a e_maker list
@@ -67,6 +68,7 @@ module Expr = struct
       ~(app_f:a -> a -> a)
       ~(func_f:Param.t -> a -> a)
       ~(ctor_f:Id.t -> a -> a)
+      ~(unctor_f:Id.t -> a -> a)
       ~(match_f:a -> Id.t -> (Id.t * a) list -> a)
       ~(fix_f:Id.t -> Type.t -> a -> a)
       ~(tuple_f:a list -> a)
@@ -88,6 +90,8 @@ module Expr = struct
         -> tuple_f (List.map ~f:fold_internal es)
       | Proj (i,e)
         -> proj_f i (fold_internal e)
+      | Unctor (i,e)
+        -> unctor_f i (fold_internal e)
     in fold_internal e
 
   let mk_app (e1:t) (e2:t) : t =
@@ -161,6 +165,31 @@ module Expr = struct
       (e:t)
     : Id.t * t =
     Option.value_exn (destruct_ctor e)
+
+  let mk_unctor
+      (i:Id.t)
+      (e:t)
+    : t =
+    create (Unctor (i,e))
+
+  let apply_unctor
+      (type a)
+      ~(f:Id.t -> t -> a)
+      (e:t)
+    : a option =
+    begin match node e with
+      | Unctor (i,e2) -> Some (f i e2)
+      | _ -> None
+    end
+
+  let destruct_unctor
+    : t -> (Id.t * t) option =
+    apply_unctor ~f:(fun a e2 -> (a,e2))
+
+  let destruct_unctor_exn
+      (e:t)
+    : Id.t * t =
+    Option.value_exn (destruct_unctor e)
 
   let mk_tuple
       (es:t list)
@@ -284,6 +313,8 @@ module Expr = struct
           mk_func (i',t) (replace_simple e')
       | Ctor (i,e) ->
         mk_ctor i (replace_simple e)
+      | Unctor (i,e) ->
+        mk_unctor i (replace_simple e)
       | Match (e,i',branches) ->
         let branches =
           if Id.equal i i' then
@@ -363,6 +394,7 @@ module Expr = struct
         else
           contains_var_simple e
       | Ctor (_,e) -> contains_var_simple e
+      | Unctor (_,e) -> contains_var_simple e
       | Match (e,i,branches) ->
         contains_var_simple e ||
         (if Id.equal i v then
@@ -402,6 +434,8 @@ module Expr = struct
           mk_fix i t e
       | Ctor (i,e) ->
         mk_ctor i (simplify e)
+      | Unctor (i,e) ->
+        mk_unctor i (simplify e)
       | Tuple es -> mk_tuple (List.map ~f:simplify es)
       | Proj (i,e) -> mk_proj i (simplify e)
     end
@@ -447,6 +481,7 @@ module Expr = struct
       ~app_f:(fun x y -> x+y+1)
       ~func_f:(fun (_,t) i -> 1 + (Type.size t) + i)
       ~ctor_f:(fun _ s -> s+1)
+      ~unctor_f:(fun _ s -> s+1)
       ~match_f:(fun s _ bs -> List.fold_left bs ~init:(s+1)
                    ~f:(fun acc (_,s) -> s+acc))
       ~fix_f:(fun _ t s -> 1 + (Type.size t) + s)
@@ -481,6 +516,7 @@ module Expr = struct
       | Proj _ -> 500
       | Func _ | Fix _ -> 100
       | Ctor  (_, e) -> (if equal e unit_ then 1000 else 600)
+      | Unctor  (_, e) -> 600
       | Tuple _       -> 700
       | Match  _      -> 200
       | Var _         -> 1000
@@ -523,6 +559,9 @@ module Expr = struct
               fpf ppf "@[<2>%a@]" Id.pp c
             else
               fpf ppf "@[<2>%a %a@]" Id.pp c pp_internal (this_lvl + 1, e)
+          | Unctor (c, e)  ->
+            let unc = Id.create ("un_" ^ (Id.to_string c)) in
+            fpf ppf "@[<2>%a %a@]" Id.pp unc pp_internal (this_lvl + 1, e)
           | Match (e, i, bs) ->
             fpf ppf "@[<2>match %a binding %a with@\n%a@]"
               pp_internal (0, e)
@@ -546,6 +585,39 @@ module Expr = struct
       create (Ctor (Id.create "O",unit_))
     else
       create (Ctor (Id.create "S",from_int (n-1)))
+
+  let rec of_type
+      (t:Type.t)
+    : t option =
+    begin match Type.node t with
+      | Named i -> None
+      | Arrow (t1,t2) ->
+        Option.map
+          ~f:(fun e2 ->
+              (mk_func
+                 (Id.create "var",t1)
+                 e2))
+          (of_type t2)
+      | Tuple ts ->
+        let eso = List.map ~f:of_type ts in
+        begin match distribute_option eso with
+          | None -> None
+          | Some es -> Some (mk_tuple es)
+        end
+      | Mu (_,t) ->
+        of_type t
+      | Variant branches ->
+        List.fold
+          ~f:(fun acco (i,t) ->
+              begin match acco with
+                | None ->
+                  let eo = of_type t in
+                  Option.map ~f:(fun e -> mk_ctor i e) eo
+                | Some e -> Some e
+              end)
+          ~init:None
+          branches
+    end
 end
 
 module Value = struct
@@ -662,6 +734,7 @@ module Value = struct
     | Proj _
     | Match _
     | Fix _
+    | Unctor _
       -> None
 
   let from_exp_exn (e:Expr.t) : t =
@@ -680,6 +753,33 @@ module Value = struct
   let strict_subvalue (e1:t) (e2:t) : bool =
     List.mem ~equal (strict_subvalues e2) e1
 
+  let rec functional_subvalues
+      ~(break:t -> bool)
+      (v:t)
+    : t list =
+    if break v then
+      subvalues v
+    else
+      begin match node v with
+        | Func _ -> [v]
+        | Ctor (_,v') -> v::(functional_subvalues ~break v')
+        | Tuple vs ->
+          let vssubs = List.map ~f:(functional_subvalues ~break) vs in
+          let all_subs = List.concat vssubs in
+          let combos = List.map ~f:mk_tuple (combinations vssubs) in
+          all_subs@combos
+      end
+
+  let strict_functional_subvalues
+      ~(break:t -> bool)
+      (v:t)
+    : t list =
+    List.filter
+      ~f:(fun v' -> not (equal v v'))
+      (functional_subvalues ~break v)
+
+  let strict_functional_subvalue ~(break:t -> bool) (e1:t) (e2:t) : bool =
+    List.mem ~equal (strict_functional_subvalues ~break e2) e1
 
   let size : t -> int =
     fold
@@ -696,4 +796,12 @@ module Value = struct
       create (Ctor (Id.create "O",unit_))
     else
       create (Ctor (Id.create "S",from_int (n-1)))
+
+  let pp f v = Expr.pp f (to_exp v)
+  let show = show_of_pp pp
+
+  let rec of_type
+      (t:Type.t)
+    : t option =
+    Option.map ~f:from_exp_exn (Expr.of_type t)
 end

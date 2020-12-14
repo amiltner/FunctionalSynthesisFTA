@@ -1,23 +1,40 @@
 open MyStdLib
 
-type t =
+type t_node =
   | Named of Id.t
   | Arrow of t * t
   | Tuple of t list
   | Mu of Id.t * t
   | Variant of (Id.t * t) list
+and t = t_node hash_consed
 [@@deriving eq, hash, ord, show, sexp]
 
+let table = HashConsTable.create 1000
+
+let create
+    (node:t_node)
+  : t =
+  HashConsTable.hashcons
+    hash_t_node
+    compare_t_node
+    table
+    node
+
+let node
+    (v:t)
+  : t_node =
+  v.node
+
 let mk_named (i : Id.t) : t =
-  Named i
+  create (Named i)
 
 let mk_arrow (t1:t) (t2:t) : t =
-  Arrow (t1,t2)
+  create (Arrow (t1,t2))
 
 let mk_mu (i:Id.t) (t:t) : t =
   if equal t (mk_named i) then
     failwith "cannot do infinite loop";
-  Mu (i,t)
+  create (Mu (i,t))
 
 let fold (type a)
          ~(name_f : Id.t -> a)
@@ -28,7 +45,7 @@ let fold (type a)
          (e : t)
          : a =
   let rec fold_internal (e : t) : a =
-    match e with
+    match node e with
       | Named v -> name_f v
       | Arrow (e1,e2) -> arr_f (fold_internal e1) (fold_internal e2)
       | Tuple es -> tuple_f (List.map ~f:fold_internal es)
@@ -38,7 +55,7 @@ let fold (type a)
   in fold_internal e
 
 let arr_apply (type a) ~(f : t -> t -> a) (ty : t) : a option =
-  match ty with
+  match node ty with
     | Arrow (ty1,ty2) -> Some (f ty1 ty2)
     | _ -> None
 
@@ -49,7 +66,7 @@ let destruct_arr_exn (t : t) : t * t =
   Option.value_exn (destruct_arr t)
 
 let id_apply (type a) ~(f:Id.t -> a) (ty:t) : a option =
-  match ty with
+  match node ty with
     | Named v -> Some (f v)
     | _ -> None
 
@@ -60,10 +77,10 @@ let destruct_id_exn (x:t) : Id.t =
   Option.value_exn (destruct_id x)
 
 let mk_variant (vs:(Id.t * t) list) : t =
-  Variant vs
+  create (Variant vs)
 
 let variant_apply (type a) ~(f:(Id.t * t) list -> a) (ty:t) : a option =
-  match ty with
+  match node ty with
     | Variant its -> Some (f its)
     | _ -> None
 
@@ -76,11 +93,11 @@ let destruct_variant_exn (t:t) : (Id.t * t) list =
 let mk_tuple (ts:t list) : t =
   begin match ts with
     | [t] -> t
-    | _ -> Tuple ts
+    | _ -> create (Tuple ts)
   end
 
 let tuple_apply (type a) ~(f:t list -> a) (ty:t) : a option =
-  match ty with
+  match node ty with
     | Tuple ts -> Some (f ts)
     | _ -> None
 
@@ -91,7 +108,7 @@ let destruct_tuple_exn (t:t) : t list =
   Option.value_exn (destruct_tuple t)
 
 let mu_apply (type a) ~(f:Id.t -> t -> a) (ty:t) : a option =
-  match ty with
+  match node ty with
     | Mu (i,t)-> Some (f i t)
     | _ -> None
 
@@ -128,7 +145,7 @@ let is_functionless
 let rec split_to_arg_list_result
     (x:t)
   : t list * t =
-  begin match x with
+  begin match node x with
     | Arrow (t1,t2) ->
       let (args,res) = split_to_arg_list_result t2 in
       (t1::args,res)
@@ -141,7 +158,7 @@ let rec replace
     (rep:t)
   : t =
   let replace t = replace t i rep in
-  begin match t with
+  begin match node t with
     | Named i' ->
       if Id.equal i i' then
         rep
@@ -156,3 +173,48 @@ let rec replace
     | Variant branches ->
       mk_variant (List.map ~f:(fun (i,t) -> (i,replace t)) branches)
   end
+
+let pp f t =
+  let fpf = Format.fprintf in
+  let prec_of_typ (t:t) =
+    match node t with
+    | Named _  -> 125
+    | Tuple _ -> 75
+    | Arrow   _ -> 50
+    | Mu   _ -> 20
+    | Variant _ -> 10
+  in
+  let rec pp_internal f ((lvl, t): int * t) =
+    let this_lvl = prec_of_typ t in
+    (if this_lvl < lvl then fpf f "(");
+    begin match node t with
+      | Named x       -> fpf f "%a" Id.pp x
+      | Arrow (t1, t2) ->
+        fpf f "@[<2>%a ->@ %a@]" pp_internal (this_lvl+1, t1) pp_internal (this_lvl, t2)
+      | Tuple ts -> fpf_tuple_typ_list f (lvl, ts)
+      | Mu (i,t) ->
+        fpf f "@[<2>mu@ %a .@ %a@]" Id.pp i pp_internal (this_lvl, t)
+      | Variant branches ->
+        fpf_branches f (lvl, branches)
+    end;
+    (if this_lvl < lvl then fpf f ")")
+  and fpf_tuple_typ_list ppf (lvl, ts) =
+    match ts with
+    | []    -> ()
+    | [t]   -> fpf ppf "%a" pp_internal (76, t)  (* Hack to ensure that nested tuples get parens *)
+    | t::ts -> fpf ppf "%a * %a" pp_internal (76, t) fpf_tuple_typ_list (lvl, ts)
+  and fpf_branches ppf (lvl, branches) =
+    match branches with
+    | []    -> ()
+    | [(i,t)]   ->
+      fpf
+        ppf
+        "|@ %a@ %a"
+        Id.pp i
+        pp_internal (11, t)  (* Hack to ensure that nested tuples get parens *)
+    | (i,t)::branches ->
+      fpf ppf "|@ %a@ %a@ %a" Id.pp i pp_internal (11, t) fpf_branches (lvl, branches)
+  in
+  pp_internal f (0,t)
+
+let show = show_of_pp pp

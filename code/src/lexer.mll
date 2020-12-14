@@ -11,8 +11,10 @@ let reserved_words : (string * Parser.token) list =
   ; ("with", WITH)
   ; ("type", TYPE)
   ; ("of", OF)
+  ; ("equiv", EQUIV)
   ; ("let", LET)
   ; ("satisfying", SATISFYING)
+  ; ("include", INCLUDE)
   ; ("synth", SYNTH)
   (*; ("in", IN)*)
   (*; ("rec", REC)*)
@@ -60,6 +62,11 @@ let create_symbol lexbuf =
   let str = lexeme lexbuf in
   let len = String.length str in
   PROJ (int_of_string (String.sub str ~pos:1 ~len:(len - 1)))*)
+
+let remove_quotes lexbuf =
+  let str = lexeme lexbuf in
+  let len = String.length str in
+  String.sub str ~pos:1 ~len:(len-2)
 }
 
 let newline    = '\n' | ('\r' '\n') | '\r'
@@ -68,6 +75,7 @@ let lowercase  = ['a'-'z']
 let uppercase  = ['A'-'Z']
 let character  = uppercase | lowercase
 let digit      = ['0'-'9']
+let string = ('"''"') | ('"' ("\\\"" | [^'"'])* '"')
 
 rule token = parse
   | eof   { EOF }
@@ -80,6 +88,7 @@ rule token = parse
   | '?' | "|>" | '=' | "->" | "=>" | '*' | ',' | ':' | ';' | '|' | '(' | ')'
   | '{' | '}' | '[' | ']' | '_' | '.'
     { create_symbol lexbuf }
+  | string { STR (remove_quotes lexbuf) }
   | _ as c { raise @@ Lexer_error ("Unexpected character: " ^ Char.escaped c) }
 
 and comments level = parse

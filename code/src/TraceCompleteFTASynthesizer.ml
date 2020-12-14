@@ -63,7 +63,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let variant_construct_conversions =
       List.concat_map
         ~f:(fun t ->
-            match t with
+            match Type.node t with
             | Type.Variant l ->
               List.map
                 ~f:(fun (i,t') -> make_conversion_with i t t')
@@ -83,7 +83,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let variant_unsafe_destruct_conversions =
       List.concat_map
         ~f:(fun t ->
-            match t with
+            match Type.node t with
             | Type.Variant l ->
               List.map
                 ~f:(fun (i,t') -> make_destruct_conversion_with i t t')
@@ -94,7 +94,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let tuple_constructors =
       List.filter_map
         ~f:(fun t ->
-            match t with
+            match Type.node t with
             | Type.Tuple ts ->
               Some (FTAConstructor.Transition.TupleConstruct t
                    ,(fun vs -> [Value.mk_tuple vs])
@@ -106,7 +106,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let tuple_destructors =
       List.concat_map
         ~f:(fun t ->
-            begin match t with
+            begin match Type.node t with
               | Type.Tuple ts ->
                 List.mapi
                   ~f:(fun i tout ->
@@ -145,6 +145,12 @@ module Create(B : Automata.AutomatonBuilder) = struct
       @ rec_call_conversions
       @ variant_unsafe_destruct_conversions
     in
+    let examples =
+      begin match problem.spec with
+        | IOEs vs -> vs
+        | _ -> failwith "not ready yet"
+      end
+    in
     let subcall_sites =
       List.filter_map
         ~f:(fun (i',_) ->
@@ -152,7 +158,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
               Some ([(i,i')],args_t)
             else
               None)
-        problem.examples
+        examples
     in
     let c = C.add_states c subcall_sites in
     let c =
@@ -166,55 +172,55 @@ module Create(B : Automata.AutomatonBuilder) = struct
     let c = C.minimize c in
     c
 
+  module S = FTASynthesizer.Create(B)
+
   let construct_full
       ~(problem:Problem.t)
       (num_applications:int)
-    : C.t =
-    let spec = problem.examples in
+    : S.C.t =
+    let examples =
+      begin match problem.spec with
+        | IOEs vs -> vs
+        | _ -> failwith "not ready yet"
+      end
+    in
+    let spec = examples in
     let cs =
       List.map
         ~f:(fun (vin,vout) ->
-            construct_initial_fta
+            S.construct_single_fta
+              ~problem
+              (fun v -> [List.Assoc.find_exn ~equal:Value.equal examples v])
+              vin
+              (fun v1 v2 -> Value.equal v1 vin && Value.equal v2 vout)
+            (*construct_initial_fta
               ~problem
               spec
               vin
-              vout
+              vout*)
               num_applications)
         spec
     in
     let c =
       merge_by_size_applies_exn
         ~compare:(fun c1 c2 ->
-            let s1 = C.size c1 in
-            let s2 = C.size c2 in
+            let s1 = S.C.size c1 in
+            let s2 = S.C.size c2 in
             Int.compare s1 s2)
         ~merge:(fun x y ->
-            let inted = C.intersect x y in
-            C.minimize inted)
+            let inted = S.C.intersect x y in
+            S.C.minimize inted)
         ~needs_merge:(fun max cand ->
-            let max_tso = C.min_term_state max in
+            let max_tso = S.C.min_term_state max in
             begin match max_tso with
               | None -> true
               | Some ts ->
                 let t = A.TermState.to_term ts in
-                not (C.accepts_term cand t)
+                not (S.C.accepts_term cand t)
             end)
         cs
     in
     c
-
-  let extract_recursive_requirements
-      (sin:FTAConstructor.State.t)
-      (sout:FTAConstructor.State.t)
-    : (Value.t * Value.t) list =
-    begin match (FTAConstructor.State.destruct_vals sin,FTAConstructor.State.destruct_vals sout) with
-      | (Some (vvsin,_), Some (vvsout,_)) ->
-        let ins = List.map ~f:snd vvsin in
-        let outs = List.map ~f:snd vvsout in
-        let inouts = List.zip_exn ins outs in
-        inouts
-      | _ -> failwith "when would this happen?"
-    end
 
   let rec synth_internal
       ~(problem:Problem.t)
@@ -225,10 +231,10 @@ module Create(B : Automata.AutomatonBuilder) = struct
         ~problem
         current
     in
-    let st = C.min_term_state c in
+    let st = S.C.min_term_state c in
     begin match st with
       | None -> synth_internal ~problem (current+2)
-      | Some st -> C.term_to_exp (A.TermState.to_term st)
+      | Some st -> C.term_to_exp_internals (A.TermState.to_term st)
     end
 
   let synth

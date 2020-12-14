@@ -302,7 +302,8 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
     }
 
   let remove_transition conf label q a =
-    let remove_parent_from q parents = StateMap.add q (ConfigurationSet.remove conf (state_parents q a)) parents in
+    let remove_parent_from q parents =
+      StateMap.add q (ConfigurationSet.remove conf (state_parents q a)) parents in
     {
       a with
       state_confs = StateMap.add q (LabeledConfigurationSet.remove (conf, label) (configurations_for_state q a)) a.state_confs;

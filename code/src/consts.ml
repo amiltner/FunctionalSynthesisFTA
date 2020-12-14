@@ -13,6 +13,8 @@ let path_to_vata = ref "../../libvata/build/cli/vata"
 let isect_time = ref 0.0
 let minify_time = ref 0.0
 let min_elt_time = ref 0.0
+let initial_creation_time = ref 0.0
+let accepts_term_time = ref 0.0
 
 let time t f =
   let init = Sys.time () in

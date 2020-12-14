@@ -53,7 +53,7 @@ let rec tc_val
       node = n;
     }
   in
-  begin match t with
+  begin match Type.node t with
     | Named i ->
       tc_val
         tc

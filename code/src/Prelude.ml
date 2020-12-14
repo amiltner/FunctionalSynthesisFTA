@@ -1,7 +1,7 @@
 let prelude_string = "
 (* PRELUDE *)
 
-type bool =
+(*type bool =
   | False
   | True
 
@@ -69,7 +69,7 @@ let nat_eq =
         | S -> (match x2 binding x2 with
                 | O -> False
                 | S -> nat_eq x1 x2)
-;;
+;;*)
 
 (* END_PRELUDE *)
 

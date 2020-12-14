@@ -1,5 +1,108 @@
+open MyStdLib
 open Tool
 open Lang
+
+let rec import_imports
+    (acc:Problem.t_unprocessed)
+  : Problem.t_unprocessed =
+  begin match Problem.extract_file acc with
+    | None -> acc
+    | Some (fname,acc) ->
+      let (news,newd) =
+        Parser.imports_decls_start
+          Lexer.token
+          (Lexing.from_string
+             (MyStdLib.SimpleFile.read_from_file ~fname))
+      in
+      let news = Problem.update_import_base news fname in
+      import_imports
+        (Problem.merge_unprocessed
+           acc
+           (news,newd))
+  end
+
+module Crazy = CrazyFTASynthesizer.Create(Automata.TimbukBuilder)
+module VEQ = Synthesizers.VerifiedEquiv.Make(Synthesizers.IOSynth.OfPredSynth(Crazy))(QuickCheckVerifier.T)
+
+let get_ioe_synthesizer
+    ~(use_myth:bool)
+    ~(use_l2:bool)
+    ~(tc_synth:bool)
+    ~(use_timbuk:bool)
+  : (module Synthesizers.IOSynth.S) =
+  let synth =
+    if use_myth then
+      (module MythSynthesisCaller : Synthesizers.IOSynth.S)
+    else if use_l2 then
+      (module L2SynthesisCaller : Synthesizers.IOSynth.S)
+    else
+      let builder =
+        if use_timbuk then
+          (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
+        else
+          (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
+      in
+      (module Synthesizers.IOSynth.OfPredSynth(CrazyFTASynthesizer.Create(val builder)) : Synthesizers.IOSynth.S)
+  in
+  if tc_synth then
+    (module Synthesizers.IOSynth.TCToNonTC(val synth) : Synthesizers.IOSynth.S)
+  else
+    synth
+
+
+let synthesize_satisfying_verified_equiv
+    ~(context:Context.t)
+    ~(tin:Type.t)
+    ~(tout:Type.t)
+    ~(equiv:Value.t -> Value.t)
+    ~(use_myth:bool)
+    ~(use_l2:bool)
+    ~(tc_synth:bool)
+    ~(use_timbuk:bool)
+  : Expr.t =
+  let synth = get_ioe_synthesizer ~use_myth ~use_l2 ~tc_synth ~use_timbuk in
+  let module S = Synthesizers.VerifiedEquiv.Make(val synth)(QuickCheckVerifier.T) in
+  S.synth ~context ~tin ~tout equiv
+
+let synthesize_satisfying_postcondition
+    ~(context:Context.t)
+    ~(tin:Type.t)
+    ~(tout:Type.t)
+    ~(post:Value.t -> Value.t -> bool)
+    ~(use_myth:bool)
+    ~(use_l2:bool)
+    ~(tc_synth:bool)
+    ~(use_timbuk:bool)
+  : Expr.t =
+  if use_myth then failwith "invalid synthesizer for postconditions";
+  if use_l2 then failwith "invalid synthesizer for postconditions";
+  if tc_synth then failwith "invalid synthesizer for postconditions";
+  let synth =
+    let builder =
+      if use_timbuk then
+        (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
+      else
+        (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
+    in
+    (module CrazyFTASynthesizer.Create(val builder) : Synthesizers.PredicateSynth.S)
+  in
+  let module S = Synthesizers.VerifiedPredicate.Make(val synth)(QuickCheckVerifier.T) in
+  S.synth ~context ~tin ~tout post
+
+let synthesize_satisfying_ioes
+    ~(context:Context.t)
+    ~(tin:Type.t)
+    ~(tout:Type.t)
+    ~(ioes:(Value.t * Value.t) list)
+    ~(use_myth:bool)
+    ~(use_l2:bool)
+    ~(tc_synth:bool)
+    ~(use_timbuk:bool)
+  : Expr.t =
+  let synth = get_ioe_synthesizer ~use_myth ~use_l2 ~tc_synth ~use_timbuk in
+  let module S = (val synth) in
+  let sa = S.init ~context ~tin ~tout in
+  snd (S.synth sa ioes)
 
 let synthesize_solution
     (fname:string)
@@ -20,8 +123,12 @@ let synthesize_solution
       (Lexing.from_string
          (Prelude.prelude_string ^ (MyStdLib.SimpleFile.read_from_file ~fname)))
   in
+  let p_unprocessed = Problem.update_all_import_bases p_unprocessed fname in
+  let p_unprocessed = import_imports p_unprocessed in
   let problem = Problem.process p_unprocessed in
-  let synth =
+  (*print_endline (Expr.show (Crazy.simple_synth ~problem));*)
+  print_endline "found";
+  (*let synth =
     if use_myth then
       (module MythSynthesisCaller : Synthesizer.S)
     else if use_l2 then
@@ -39,15 +146,57 @@ let synthesize_solution
       else
         (module (FTASynthesizer.Create(val builder))
           : Synthesizer.S)
-  in
+    in
   let module Synthesizer = (val synth) in
-  let e = Synthesizer.synth ~problem in
+    let e = Synthesizer.synth ~problem in*)
+  let e =
+    begin match problem.spec with
+      | IOEs ioes ->
+        let context = Problem.extract_context problem in
+        let (tin,tout) = problem.synth_type in
+        synthesize_satisfying_ioes
+          ~context
+          ~tin
+          ~tout
+          ~ioes
+          ~use_myth
+          ~use_l2
+          ~tc_synth
+          ~use_timbuk
+      | Post post ->
+        let context = Problem.extract_context problem in
+        let (tin,tout) = problem.synth_type in
+        synthesize_satisfying_postcondition
+          ~context
+          ~tin
+          ~tout
+          ~post
+          ~use_myth
+          ~use_l2
+          ~tc_synth
+          ~use_timbuk
+      | Equiv equiv ->
+        let context = Problem.extract_context problem in
+        let (tin,tout) = problem.synth_type in
+        synthesize_satisfying_verified_equiv
+          ~context
+          ~tin
+          ~tout
+          ~equiv
+          ~use_myth
+          ~use_l2
+          ~tc_synth
+          ~use_timbuk
+    end
+  in
   print_endline (Expr.show e);
   if print_times then
     begin
       print_endline ("Intersection Time: " ^ (Float.to_string !Consts.isect_time));
       print_endline ("Minify Time: " ^ (Float.to_string !Consts.minify_time));
       print_endline ("Min-elt Time: " ^ (Float.to_string !Consts.min_elt_time));
+      print_endline ("Initial Creation Time: " ^ (Float.to_string !Consts.initial_creation_time));
+      print_endline ("Accepts Term Time: " ^ (Float.to_string !Consts.accepts_term_time));
     end
 
 open MyStdLib.Command.Let_syntax

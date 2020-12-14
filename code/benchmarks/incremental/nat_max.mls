@@ -1,0 +1,14 @@
+include "nat.decls"
+
+synth nat -> nat -> nat satisfying
+
+equiv
+
+fix (max : nat -> nat -> nat) =
+  fun (x1 : nat) ->
+    fun (x2 : nat) ->
+      match x1 binding x1p with
+      | O -> x2
+      | S -> (match x2 binding x2p with
+              | O -> x1
+              | S -> S (max x1p x2p))

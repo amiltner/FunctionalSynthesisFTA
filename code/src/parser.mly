@@ -10,6 +10,7 @@ let rec appify (e:Expr.t) (es:Expr.t list) : Expr.t =
 
 %token <string> LID
 %token <string> UID
+%token <string> STR
                 (*%token <int> PROJ*)
 
 %token <int> INT
@@ -27,6 +28,7 @@ let rec appify (e:Expr.t) (es:Expr.t list) : Expr.t =
 %token UNIT
 
 %token EQ
+%token EQUIV
 %token ARR
 %token COMMA
 %token COLON
@@ -46,15 +48,39 @@ let rec appify (e:Expr.t) (es:Expr.t list) : Expr.t =
 %token RPAREN
 %token DOT
 %token EOF
+%token INCLUDE
 
 %start unprocessed_problem
+%start imports_decls_start
 %type <Problem.t_unprocessed> unprocessed_problem
+%type <string list * Declaration.t list> imports_decls_start
 
 %%
 
 unprocessed_problem:
-    | ds=decl_list SYNTH st=typ SATISFYING exs=examples EOF
-      { (ds,st,exs) }
+    | ids=imports_decls SYNTH st=typ SATISFYING s=spec EOF
+      { (fst ids,snd ids,st,s) }
+
+imports_decls_start:
+    | ids=imports_decls EOF
+      { ids }
+
+imports_decls:
+    | is=imports ds=decl_list
+      { (is,ds) }
+
+imports:
+    | INCLUDE s=STR is=imports
+      { s::is }
+    | { [] }
+
+spec:
+    | exs=examples
+      {Problem.UIOEs exs}
+    | EQUIV e=exp
+      {Problem.UEquiv e}
+    | e=exp
+      {Problem.UPost e}
 
 examples:
   | exs=nonempty_examples
