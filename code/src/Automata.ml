@@ -46,6 +46,7 @@ sig
   val final_states : t -> State.t list
   val is_final_state : t -> State.t -> bool
   val add_final_state : t -> State.t -> t
+  val has_state : t -> State.t -> bool
   val is_empty : t -> bool
   val accepts_term : t -> Term.t -> bool
   val transitions_from
@@ -174,6 +175,12 @@ module TimbukBuilder : AutomatonBuilder =
 
     let add_final_state a f =
       A.add_final_state f a
+
+    let has_state
+        a
+        s
+      =
+      A.StateSet.mem s (A.states a)
 
     let is_empty a =
       Option.is_some

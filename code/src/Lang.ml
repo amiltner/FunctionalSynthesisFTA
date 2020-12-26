@@ -485,7 +485,7 @@ module Expr = struct
       ~match_f:(fun s _ bs -> List.fold_left bs ~init:(s+1)
                    ~f:(fun acc (_,s) -> s+acc))
       ~fix_f:(fun _ t s -> 1 + (Type.size t) + s)
-      ~tuple_f:(List.fold_left~f:(+) ~init:1)
+      ~tuple_f:(List.fold_left ~f:(+) ~init:1)
       ~proj_f:(fun _ i -> i+2)
 
   let pp f e =

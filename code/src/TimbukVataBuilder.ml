@@ -244,6 +244,12 @@ module Make : AutomatonBuilder =
       : State.t list =
       TimbukAut.states (get_aut x)
 
+    let has_state
+        (x:t)
+        (s:State.t)
+      : bool =
+      TimbukAut.has_state (get_aut x) s
+
     let final_states
         (x:t)
       : State.t list =

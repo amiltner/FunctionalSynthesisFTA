@@ -127,7 +127,6 @@ let synthesize_solution
   let p_unprocessed = import_imports p_unprocessed in
   let problem = Problem.process p_unprocessed in
   (*print_endline (Expr.show (Crazy.simple_synth ~problem));*)
-  print_endline "found";
   (*let synth =
     if use_myth then
       (module MythSynthesisCaller : Synthesizer.S)

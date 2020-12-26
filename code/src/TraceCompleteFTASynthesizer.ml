@@ -96,7 +96,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
         ~f:(fun t ->
             match Type.node t with
             | Type.Tuple ts ->
-              Some (FTAConstructor.Transition.TupleConstruct t
+              Some (FTAConstructor.Transition.TupleConstruct (List.length ts)
                    ,(fun vs -> [Value.mk_tuple vs])
                    ,ts
                    ,t)
@@ -110,7 +110,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
               | Type.Tuple ts ->
                 List.mapi
                   ~f:(fun i tout ->
-                      (FTAConstructor.Transition.TupleDestruct (t,i)
+                      (FTAConstructor.Transition.TupleDestruct (List.length ts,i)
                       ,(fun vs ->
                          [List.nth_exn (Value.destruct_tuple_exn (List.hd_exn vs)) i])
                       ,[t]

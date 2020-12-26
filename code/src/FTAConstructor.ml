@@ -45,8 +45,8 @@ struct
     | FunctionApp of Id.t
     | VariantConstruct of Id.t
     | UnsafeVariantDestruct of Id.t
-    | TupleConstruct of Type.t
-    | TupleDestruct of Type.t * int
+    | TupleConstruct of int
+    | TupleDestruct of int * int
     | Var
     | LetIn
     | Rec
@@ -82,14 +82,14 @@ struct
     match id with
     | FunctionApp x -> MyStdLib.Id.to_string x
     | VariantConstruct x -> "Variant(" ^ MyStdLib.Id.to_string x ^ ")"
-    | TupleConstruct t -> "Tuple(" ^ (string_of_int (List.length (Type.destruct_tuple_exn t))) ^ ")"
+    | TupleConstruct i -> "Tuple(" ^ (string_of_int i) ^ ")"
     | Var -> "Var"
     | LetIn -> "LetIn"
     | Rec -> "Rec"
     | UnsafeVariantDestruct t -> "VariantUnsafe(" ^ (Id.show t) ^ ")"
     | TupleDestruct (t,i) ->
       "TupleProj("
-      ^ (string_of_int (List.length (Type.destruct_tuple_exn t)))
+      ^ (string_of_int t)
       ^ ","
       ^ (string_of_int i)
       ^ ")"
@@ -239,6 +239,50 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (Type.mk_arrow tin tout)
       (Expr.mk_func (xid,tin) internal)
 
+  module EasyTerm = struct
+    type t =
+      | App of string * t list
+      | VC of string * t
+      | UVD of string * t
+      | TC of t list
+      | TD of int * int * t
+      | Var
+      | Rec of t
+      | VSwitch of string list * t list
+
+    let rec to_term
+        (e:t)
+      : A.Term.t =
+      let mk_term
+          (id:Transition.id)
+          (children:A.Term.t list)
+        : A.Term.t =
+        let s = List.length children in
+        A.Term (Transition.create (id,s),children)
+      in
+      begin match e with
+        | Var ->
+          mk_term Transition.Var []
+        | App (i,ets) ->
+          let ts = List.map ~f:to_term ets in
+          mk_term (Transition.FunctionApp (Id.create i)) ts
+        | VC (i,et) ->
+          mk_term (Transition.VariantConstruct (Id.create i)) [to_term et]
+        | UVD (i,et) ->
+          mk_term (Transition.UnsafeVariantDestruct (Id.create i)) [to_term et]
+        | TC (ets) ->
+          let ts = List.map ~f:to_term ets in
+          mk_term (Transition.TupleConstruct (List.length ets)) ts
+        | TD (i1,i2,et) ->
+          mk_term (Transition.TupleDestruct (i1,i2)) [to_term et]
+        | Rec et ->
+          mk_term (Transition.Rec) [to_term et]
+        | VSwitch (ids,ets) ->
+          let ts = List.map ~f:to_term ets in
+          mk_term (Transition.VariantSwitch (List.map ~f:Id.create ids)) ts
+      end
+  end
+
   let get_type_rep
       (c:t)
       (t:Type.t)
@@ -363,22 +407,40 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (trans_id:Transition.id)
       (sins:State.t list)
       (sout:State.t)
+      (ensure_state:bool)
     : t =
     let c =
       update_tset
         c
         (Transition.create (trans_id,List.length sins))
     in
-    let c =
-      begin match sout with
-        | Top -> c
-        | Vals (vinsvouts,t) ->
-          add_state c vinsvouts t
-      end
-    in
-    let a = A.add_transition c.a (Transition.create (trans_id,List.length sins)) sins sout in
-    invalidate_computations {c with a}
-
+    if ensure_state then
+      let c =
+        begin match sout with
+          | Top -> c
+          | Vals (vinsvouts,t) ->
+            add_state c vinsvouts t
+        end
+      in
+      let a =
+        A.add_transition
+          c.a
+          (Transition.create (trans_id,List.length sins))
+          sins
+          sout
+      in
+      invalidate_computations { c with a }
+    else if A.has_state c.a sout then
+      let a =
+        A.add_transition
+          c.a
+          (Transition.create (trans_id,List.length sins))
+          sins
+          sout
+      in
+      invalidate_computations { c with a }
+    else
+      c
 
   let remove_transition
       (c:t)
@@ -427,6 +489,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       let outs = List.map ~f:Eval.evaluate full_exps in*)
 
   let update_from_conversions
+      ?(ensure_state:bool = true)
       (c:t)
       (conversions:(Transition.id
                     * (Value.t list -> Value.t list)
@@ -462,7 +525,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             a
             i
             ins
-            out)
+            out
+            ensure_state)
       ~init:c
       ids_ins_outs
 
@@ -545,7 +609,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             c
             Var
             []
-            (val_state c [(i,i)] input_type))
+            (val_state c [(i,i)] input_type)
+            true)
       ~init:c
       input_vals
 
@@ -594,7 +659,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             c
             Var
             []
-            (val_state c [(i,i)] input_type))
+            (val_state c [(i,i)] input_type)
+            true)
       ~init:c
       input_vals
 
@@ -619,6 +685,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                   LetIn
                   [s1;s2]
                   (val_state c [v11,v22] t)
+                  true
               else
                  c
             | _ -> c
@@ -689,7 +756,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             c
             t
             ins
-            out)
+            out
+            true)
       ~init:c
       all_transformations
 
@@ -760,7 +828,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
               c
               Transition.Rec
               [sarg]
-              target)
+              target
+              true)
         ~init:c
         adds
     in
@@ -943,4 +1012,10 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     Consts.time
       Consts.accepts_term_time
       (fun _ -> A.accepts_term c.a t)
+
+  let size_compare
+      (c1:t)
+      (c2:t)
+    : int =
+    Int.compare (size c1) (size c2)
 end

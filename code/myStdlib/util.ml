@@ -1682,12 +1682,30 @@ let rec extract_min_exn
         (tmin,h::tt)
   end
 
+let extract_min
+    ~(compare:'a -> 'a -> int)
+    (l:'a list)
+  : ('a * 'a list) option =
+  begin match l with
+    | [] -> None
+    | _ -> Some (extract_min_exn ~compare l)
+  end
+
 let extract_max_exn
     ~(compare:'a -> 'a -> int)
     (l:'a list)
   : 'a * 'a list =
   let compare x y = (compare y x) in
   extract_min_exn ~compare l
+
+let extract_min_where
+    ~(compare:'a -> 'a -> int)
+    ~(f:'a -> bool)
+    (l:'a list)
+  : ('a * 'a list) option =
+  let (possibilities,remainder) = split_by_condition ~f l in
+  let min_r'_o = extract_min ~compare possibilities in
+  Option.map ~f:(fun (min,r') -> (min,r'@remainder)) min_r'_o
 
 let rec merge_by_size_exn
     ~(compare:'a -> 'a -> int)
