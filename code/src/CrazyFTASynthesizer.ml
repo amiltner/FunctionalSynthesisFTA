@@ -535,6 +535,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         | Some (min,to_intersect) ->
           (*print_endline "intersect start";*)
           let c = C.intersect min pqe.c in
+          let c = C.minimize c in
           (*print_endline "intersect end";*)
           let inputs = pqe.inputs in
           let constraints = pqe.constraints in
