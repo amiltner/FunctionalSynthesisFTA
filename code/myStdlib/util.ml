@@ -763,17 +763,20 @@ let rec lookup (k:'a) (l:('a * 'b) list) : 'b option =
   | [] -> None
   | (k', v)::l -> if k = k' then Some v else lookup k l
 
-let rec split_by_first_satisfying (f:'a -> bool) (l:'a list)
-                            : ('a * 'a list) option =
+let rec split_by_first_satisfying
+    (f:'a -> bool)
+    (l:'a list)
+  : ('a list * 'a * 'a list) option =
   begin match l with
   | [] -> None
-  | h::t -> if f h then
-              Some (h,t)
-            else
-              begin match split_by_first_satisfying f t with
-              | None -> None
-              | Some (h',t') -> Some (h',h::t')
-              end
+  | h::t ->
+    if f h then
+      Some ([],h,t)
+    else
+      begin match split_by_first_satisfying f t with
+        | None -> None
+        | Some (t,v,t') -> Some (h::t,v,t')
+      end
   end
 
 let split_by_first (l:'a list) : ('a * 'a list) option =
@@ -1682,6 +1685,20 @@ let rec extract_min_exn
         (tmin,h::tt)
   end
 
+let rec extract_nth_exn
+    (i:int)
+    (l:'a list)
+  : 'a * 'a list =
+  begin match l with
+    | [] -> failwith "bad"
+    | h::t ->
+      if i = 0 then
+        (h,t)
+      else
+        let (e,t) = extract_nth_exn (i-1) t in
+        (e,h::t)
+  end
+
 let extract_min
     ~(compare:'a -> 'a -> int)
     (l:'a list)
@@ -1745,3 +1762,37 @@ let merge_by_size_applies_exn
   in
   let (min,elts) = extract_min_exn ~compare elts in
   merge_by_size_applies_internal min elts
+
+let safe_sort
+    (type a)
+    ~(compare:a -> a -> int option)
+  : a list -> a list =
+  let extract_maximal =
+    (fold_until_completion
+       ~f:(fun ((h,t):a*a list) ->
+           let sat x =
+             begin match compare h x with
+               | None -> false
+               | Some i -> i < 0
+             end
+           in
+           let extraction_o = split_by_first_satisfying sat t in
+           begin match extraction_o with
+             | None -> Right (h,t)
+             | Some (s,e,t) ->
+               Left (e,h::s@t)
+           end))
+  in
+  let rec safe_sort_internal
+      (acc:a list)
+      (remainder:a list)
+    : a list =
+    begin match remainder with
+      | [] -> acc
+      | h::t ->
+        let (h,t) = extract_maximal (h,t) in
+        safe_sort_internal (h::acc) t
+    end
+  in
+  safe_sort_internal []
+

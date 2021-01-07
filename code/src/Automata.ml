@@ -49,6 +49,7 @@ sig
   val has_state : t -> State.t -> bool
   val is_empty : t -> bool
   val accepts_term : t -> Term.t -> bool
+  val accepting_term_state : t -> Term.t -> TermState.t option
   val transitions_from
     : t
     -> State.t
@@ -57,7 +58,7 @@ sig
   val transitions : t -> (Symbol.t * (State.t list) * State.t) list
   val minimize : t -> t
   val size : t -> int
-  val min_term_state : t -> term_state option
+  val min_term_state : t -> (term_state -> bool) -> term_state option
 end
 
 module type AutomatonBuilder =
@@ -309,6 +310,7 @@ module TimbukBuilder : AutomatonBuilder =
       end)
     let min_term_state
         (a:t)
+        (f:TermState.t -> bool)
       : TermState.t option =
       let get_produced_from
           (st:StateToTS.t)
@@ -334,23 +336,26 @@ module TimbukBuilder : AutomatonBuilder =
         : TermState.t option =
         begin match TSPQ.pop pq with
           | Some ((i,t,s),_,pq) ->
-            if is_final_state a s then
-              Some t
-            else if StateToTS.member st s then
-              min_tree_internal st pq
-            else
-              let st = StateToTS.insert st s (i,t) in
+            if f t then
+              if is_final_state a s then
+                Some t
+              else if StateToTS.member st s then
+                min_tree_internal st pq
+              else
+                let st = StateToTS.insert st s (i,t) in
 
-              let triggered_transitions = transitions_from a s in
-              let produced =
-                List.filter_map
-                  ~f:(fun (t,ss,s) ->
-                      Option.map
-                        ~f:(fun (i,t) -> (i,t,s))
-                        (get_produced_from st t s ss))
-                  triggered_transitions
-              in
-              let pq = TSPQ.push_all pq produced in
+                let triggered_transitions = transitions_from a s in
+                let produced =
+                  List.filter_map
+                    ~f:(fun (t,ss,s) ->
+                        Option.map
+                          ~f:(fun (i,t) -> (i,t,s))
+                          (get_produced_from st t s ss))
+                    triggered_transitions
+                in
+                let pq = TSPQ.push_all pq produced in
+                min_tree_internal st pq
+            else
               min_tree_internal st pq
           | None -> None
         end
@@ -366,4 +371,25 @@ module TimbukBuilder : AutomatonBuilder =
       min_tree_internal
         StateToTS.empty
         (TSPQ.from_list initial_terms)
+
+    let accepting_term_state (a:t) (t:term) : TermState.t option =
+      let rec accepting_term_state_state t q =
+        begin match t with
+          | Term (i,ts) ->
+            List.find_map
+              ~f:(fun (i',ss) ->
+                  if Symbol.equal i i' then
+                    let ts_ss = List.zip_exn ts ss in
+                    Option.map
+                      ~f:(fun ts -> TS (i,q,ts))
+                      (distribute_option
+                         (List.map
+                            ~f:(uncurry accepting_term_state_state)
+                            ts_ss))
+                  else
+                    None)
+              (transitions_to a q)
+        end
+      in
+      List.find_map ~f:(accepting_term_state_state t) (final_states a)
   end

@@ -80,6 +80,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
       (valid_ios:Value.t -> Value.t -> bool)
       (num_applications:int)
     : C.t =
+    let (tin,tout) = problem.synth_type in
     Consts.time
       Consts.initial_creation_time
       (fun _ -> 
@@ -96,11 +97,16 @@ module Create(B : Automata.AutomatonBuilder) = struct
              valid_ios
          in
          let context_conversions =
-           List.map
+           List.concat_map
              ~f:(fun (i,e) ->
                  let t = Context.find_exn problem.ec i in
                  let (ins,out) = Type.split_to_arg_list_result t in
-                 let e = Expr.replace_holes ~i_e:(problem.eval_context) e in
+                 let ins =
+                   List.map
+                     ~f:(fun int -> (int,TermClassification.Introduction))
+                     ins
+                 in
+                 let e = Expr.replace_holes ~i_e:problem.eval_context e in
                  let evaluation vs =
                    let es = List.map ~f:Value.to_exp vs in
                    [Eval.evaluate
@@ -109,13 +115,9 @@ module Create(B : Automata.AutomatonBuilder) = struct
                          ~init:e
                          es)]
                  in
-                 (FTAConstructor.Transition.FunctionApp i,evaluation,ins,out))
+                 [(FTAConstructor.Transition.FunctionApp i,evaluation,ins,(out,TermClassification.Elimination))
+                 ;(FTAConstructor.Transition.FunctionApp i,evaluation,ins,(out,TermClassification.Introduction))])
              problem.eval_context
-         in
-         let make_conversion_with i t t' =
-           (FTAConstructor.Transition.VariantConstruct i,
-            (fun vs -> [Value.mk_ctor i (List.hd_exn vs)]),
-            [t'], t)
          in
          let variant_construct_conversions =
            List.concat_map
@@ -123,19 +125,14 @@ module Create(B : Automata.AutomatonBuilder) = struct
                  match Type.node t with
                  | Type.Variant l ->
                    List.map
-                     ~f:(fun (i,t') -> make_conversion_with i t t')
+                     ~f:(fun (i,t') ->
+                         (FTAConstructor.Transition.VariantConstruct i
+                         ,(fun vs -> [Value.mk_ctor i (List.hd_exn vs)])
+                         ,[(t',TermClassification.Introduction)]
+                         ,(t,TermClassification.Introduction)))
                      l
                  | _ -> [])
              (C.get_all_types c)
-         in
-         let make_destruct_conversion_with i t t' =
-           (FTAConstructor.Transition.UnsafeVariantDestruct i,
-            (fun vs ->
-               match Value.destruct_ctor (List.hd_exn vs) with
-               | Some (i',v) ->
-                 if Id.equal i i' then [v] else []
-               | _ -> []),
-            [t], t')
          in
          let variant_unsafe_destruct_conversions =
            List.concat_map
@@ -143,7 +140,15 @@ module Create(B : Automata.AutomatonBuilder) = struct
                  match Type.node t with
                  | Type.Variant l ->
                    List.map
-                     ~f:(fun (i,t') -> make_destruct_conversion_with i t t')
+                     ~f:(fun (i,t') ->
+                         (FTAConstructor.Transition.UnsafeVariantDestruct i,
+                          (fun vs ->
+                             match Value.destruct_ctor (List.hd_exn vs) with
+                             | Some (i',v) ->
+                               if Id.equal i i' then [v] else []
+                             | _ -> [])
+                         ,[(t,TermClassification.Elimination)]
+                         ,(t',TermClassification.Elimination)))
                      l
                  | _ -> [])
              (C.get_all_types c)
@@ -153,10 +158,15 @@ module Create(B : Automata.AutomatonBuilder) = struct
              ~f:(fun t ->
                  match Type.node t with
                  | Type.Tuple ts ->
+                   let ts =
+                     List.map
+                       ~f:(fun t -> (t,TermClassification.Introduction))
+                       ts
+                   in
                    Some (FTAConstructor.Transition.TupleConstruct (List.length ts)
                         ,(fun vs -> [Value.mk_tuple vs])
                         ,ts
-                        ,t)
+                        ,(t,TermClassification.Introduction))
                  | _ -> None)
              (C.get_all_types c)
          in
@@ -165,13 +175,18 @@ module Create(B : Automata.AutomatonBuilder) = struct
              ~f:(fun t ->
                  begin match Type.node t with
                    | Type.Tuple ts ->
-                     List.mapi
+                     List.concat_mapi
                        ~f:(fun i tout ->
-                           (FTAConstructor.Transition.TupleDestruct (List.length ts,i)
-                           ,(fun vs ->
-                              [List.nth_exn (Value.destruct_tuple_exn (List.hd_exn vs)) i])
-                           ,[t]
-                           ,tout))
+                           [(FTAConstructor.Transition.TupleDestruct (List.length ts,i)
+                            ,(fun vs ->
+                               [List.nth_exn (Value.destruct_tuple_exn (List.hd_exn vs)) i])
+                            ,[(t,TermClassification.Elimination)]
+                            ,(tout,TermClassification.Elimination))
+                           ;(FTAConstructor.Transition.TupleDestruct (List.length ts,i)
+                            ,(fun vs ->
+                               [List.nth_exn (Value.destruct_tuple_exn (List.hd_exn vs)) i])
+                            ,[(t,TermClassification.Elimination)]
+                            ,(tout,TermClassification.Introduction))])
                        ts
                    | _ -> []
                  end)
@@ -181,18 +196,33 @@ module Create(B : Automata.AutomatonBuilder) = struct
            let evaluation vs =
              begin match vs with
                | [v1] ->
-                 if Value.strict_subvalue v1 input then
+                 let break = fun v ->
+                     let t =
+                       Typecheck.typecheck_value
+                         problem.ec
+                         problem.tc
+                         problem.vc
+                         v
+                     in
+                     C.is_recursive_type
+                       c
+                       t
+                 in
+                 if Value.strict_functional_subvalue ~break v1 input then
                    sub_calls v1
                  else
                    []
-
                | _ -> failwith "invalid"
              end
            in
            [(FTAConstructor.Transition.Rec
             ,evaluation
-            ,[args_t]
-            ,res_t)]
+            ,[(tin,TermClassification.Elimination)]
+            ,(tout,TermClassification.Elimination))
+           ;(FTAConstructor.Transition.Rec
+            ,evaluation
+            ,[(tin,TermClassification.Elimination)]
+            ,(tout,TermClassification.Introduction))]
          in
          let conversions =
            context_conversions
@@ -223,7 +253,7 @@ module Create(B : Automata.AutomatonBuilder) = struct
            List.filter_map
              ~f:(fun i' ->
                  if Value.strict_subvalue i' input then
-                   Some ([(input,i')],args_t)
+                   Some ([(input,i')],(args_t,TermClassification.Elimination))
                  else
                    None)
              subvalues
@@ -281,122 +311,147 @@ module Create(B : Automata.AutomatonBuilder) = struct
         problem.synth_type
         checker
     in
-    let context_conversions =
-      List.map
-        ~f:(fun (i,e) ->
-            let t = Context.find_exn problem.ec i in
-            let (ins,out) = Type.split_to_arg_list_result t in
-            let e = Expr.replace_holes ~i_e:(problem.eval_context) e in
-            let evaluation vs =
-              let es = List.map ~f:Value.to_exp vs in
-              [Eval.evaluate
-                 (List.fold
-                    ~f:Expr.mk_app
-                    ~init:e
-                    es)]
-            in
-            (FTAConstructor.Transition.FunctionApp i,evaluation,ins,out))
-        problem.eval_context
-    in
-    let make_conversion_with i t t' =
-      (FTAConstructor.Transition.VariantConstruct i,
-       (fun vs -> [Value.mk_ctor i (List.hd_exn vs)]),
-       [t'], t)
-    in
-    let variant_construct_conversions =
-      List.concat_map
-        ~f:(fun t ->
-            match Type.node t with
-            | Type.Variant l ->
-              List.map
-                ~f:(fun (i,t') -> make_conversion_with i t t')
-                l
-            | _ -> [])
-        (C.get_all_types c)
-    in
-    let make_destruct_conversion_with i t t' =
-      (FTAConstructor.Transition.UnsafeVariantDestruct i,
-       (fun vs ->
-          match Value.destruct_ctor (List.hd_exn vs) with
-          | Some (i',v) ->
-            if Id.equal i i' then [v] else []
-          | _ -> []),
-       [t], t')
-    in
-    let variant_unsafe_destruct_conversions =
-      List.concat_map
-        ~f:(fun t ->
-            match Type.node t with
-            | Type.Variant l ->
-              List.map
-                ~f:(fun (i,t') -> make_destruct_conversion_with i t t')
-                l
-            | _ -> [])
-        (C.get_all_types c)
-    in
-    let tuple_constructors =
-      List.filter_map
-        ~f:(fun t ->
-            match Type.node t with
-            | Type.Tuple ts ->
-              Some (FTAConstructor.Transition.TupleConstruct (List.length ts)
-                   ,(fun vs -> [Value.mk_tuple vs])
-                   ,ts
-                   ,t)
-            | _ -> None)
-        (C.get_all_types c)
-    in
-    let tuple_destructors =
-      List.concat_map
-        ~f:(fun t ->
-            begin match Type.node t with
-              | Type.Tuple ts ->
-                List.mapi
-                  ~f:(fun i tout ->
-                      (FTAConstructor.Transition.TupleDestruct (List.length ts,i)
-                      ,(fun vs ->
-                         [List.nth_exn (Value.destruct_tuple_exn (List.hd_exn vs)) i])
-                      ,[t]
-                      ,tout))
-                  ts
-              | _ -> []
-            end)
-        (C.get_all_types c)
-    in
-    let rec_call_conversions =
-      let evaluation vs =
-        begin match vs with
-          | [v1] ->
-            if Value.strict_subvalue v1 i then
-              C.get_final_values
-                (ValToC.lookup_exn
-                   inmap
-                   v1)
-                v1
-            else
-              []
-
-          | _ -> failwith "invalid"
-        end
-      in
-      [(FTAConstructor.Transition.Rec
-       ,evaluation
-       ,[args_t]
-       ,res_t)]
-    in
-    let conversions =
-      context_conversions
-      @ variant_construct_conversions
-      @ tuple_constructors
-      @ tuple_destructors
-      @ rec_call_conversions
-      @ variant_unsafe_destruct_conversions
-    in
+         let context_conversions =
+           List.concat_map
+             ~f:(fun (i,e) ->
+                 let t = Context.find_exn problem.ec i in
+                 let (ins,out) = Type.split_to_arg_list_result t in
+                 let ins =
+                   List.map
+                     ~f:(fun int -> (int,TermClassification.Introduction))
+                     ins
+                 in
+                 let e = Expr.replace_holes ~i_e:problem.eval_context e in
+                 let evaluation vs =
+                   let es = List.map ~f:Value.to_exp vs in
+                   [Eval.evaluate
+                      (List.fold
+                         ~f:Expr.mk_app
+                         ~init:e
+                         es)]
+                 in
+                 [(FTAConstructor.Transition.FunctionApp i,evaluation,ins,(out,TermClassification.Elimination))
+                 ;(FTAConstructor.Transition.FunctionApp i,evaluation,ins,(out,TermClassification.Introduction))])
+             problem.eval_context
+         in
+         let variant_construct_conversions =
+           List.concat_map
+             ~f:(fun t ->
+                 match Type.node t with
+                 | Type.Variant l ->
+                   List.map
+                     ~f:(fun (i,t') ->
+                         (FTAConstructor.Transition.VariantConstruct i
+                         ,(fun vs -> [Value.mk_ctor i (List.hd_exn vs)])
+                         ,[(t',TermClassification.Introduction)]
+                         ,(t,TermClassification.Introduction)))
+                     l
+                 | _ -> [])
+             (C.get_all_types c)
+         in
+         let variant_unsafe_destruct_conversions =
+           List.concat_map
+             ~f:(fun t ->
+                 match Type.node t with
+                 | Type.Variant l ->
+                   List.map
+                     ~f:(fun (i,t') ->
+                         (FTAConstructor.Transition.UnsafeVariantDestruct i,
+                          (fun vs ->
+                             match Value.destruct_ctor (List.hd_exn vs) with
+                             | Some (i',v) ->
+                               if Id.equal i i' then [v] else []
+                             | _ -> [])
+                         ,[(t,TermClassification.Elimination)]
+                         ,(t',TermClassification.Elimination)))
+                     l
+                 | _ -> [])
+             (C.get_all_types c)
+         in
+         let tuple_constructors =
+           List.filter_map
+             ~f:(fun t ->
+                 match Type.node t with
+                 | Type.Tuple ts ->
+                   let ts =
+                     List.map
+                       ~f:(fun t -> (t,TermClassification.Introduction))
+                       ts
+                   in
+                   Some (FTAConstructor.Transition.TupleConstruct (List.length ts)
+                        ,(fun vs -> [Value.mk_tuple vs])
+                        ,ts
+                        ,(t,TermClassification.Introduction))
+                 | _ -> None)
+             (C.get_all_types c)
+         in
+         let tuple_destructors =
+           List.concat_map
+             ~f:(fun t ->
+                 begin match Type.node t with
+                   | Type.Tuple ts ->
+                     List.concat_mapi
+                       ~f:(fun i tout ->
+                           [(FTAConstructor.Transition.TupleDestruct (List.length ts,i)
+                            ,(fun vs ->
+                               [List.nth_exn (Value.destruct_tuple_exn (List.hd_exn vs)) i])
+                            ,[(t,TermClassification.Elimination)]
+                            ,(tout,TermClassification.Elimination))
+                           ;(FTAConstructor.Transition.TupleDestruct (List.length ts,i)
+                            ,(fun vs ->
+                               [List.nth_exn (Value.destruct_tuple_exn (List.hd_exn vs)) i])
+                            ,[(t,TermClassification.Elimination)]
+                            ,(tout,TermClassification.Introduction))])
+                       ts
+                   | _ -> []
+                 end)
+             (C.get_all_types c)
+         in
+         let rec_call_conversions =
+           let evaluation vs =
+             begin match vs with
+               | [v1] ->
+                 let break = fun v ->
+                     let t =
+                       Typecheck.typecheck_value
+                         problem.ec
+                         problem.tc
+                         problem.vc
+                         v
+                     in
+                     C.is_recursive_type
+                       c
+                       t
+                 in
+                 if Value.strict_functional_subvalue ~break v1 i then
+                   C.get_final_values (ValToC.lookup_exn inmap v1) v1
+                 else
+                   []
+               | _ -> failwith "invalid"
+             end
+           in
+           [(FTAConstructor.Transition.Rec
+            ,evaluation
+            ,[(args_t,TermClassification.Elimination)]
+            ,(res_t,TermClassification.Elimination))
+           ;(FTAConstructor.Transition.Rec
+            ,evaluation
+            ,[(args_t,TermClassification.Elimination)]
+            ,(res_t,TermClassification.Introduction))]
+         in
+         let conversions =
+           context_conversions
+           @ variant_construct_conversions
+           @ tuple_constructors
+           @ tuple_destructors
+           @ rec_call_conversions
+           @ variant_unsafe_destruct_conversions
+         in
     let subcall_sites =
       List.filter_map
         ~f:(fun (i',_) ->
             if Value.strict_subvalue i' i then
-              Some ([(i,i')],args_t)
+              Some ([(i,i')],(args_t,TermClassification.Elimination))
             else
               None)
         examples

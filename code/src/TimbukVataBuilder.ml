@@ -385,10 +385,11 @@ module Make : AutomatonBuilder =
 
     let min_term_state
         (x:t)
+        (f:term_state -> bool)
       : term_state option =
       let x = get_small_aut x in
       let aut = get_aut x in
-      let tso = TimbukAut.min_term_state aut in
+      let tso = TimbukAut.min_term_state aut (f % from_timbuk_termstate) in
       Option.map ~f:from_timbuk_termstate tso
 
     let size
@@ -396,4 +397,12 @@ module Make : AutomatonBuilder =
       : int =
       let x = get_aut x in
       TimbukAut.size x
+
+    let accepting_term_state
+        (x:t)
+        (t:term)
+      : TermState.t option =
+      let x = get_aut x in
+      let tso = TimbukAut.accepting_term_state x (to_timbuk_term t) in
+      Option.map ~f:from_timbuk_termstate tso
   end

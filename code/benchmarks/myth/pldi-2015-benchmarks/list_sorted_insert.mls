@@ -1,0 +1,42 @@
+type nat =
+  | O
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+type cmp =
+  | LT
+  | EQ
+  | GT
+
+let compare =
+  fix (compare : nat -> nat -> cmp) =
+    fun (x1 : nat) ->
+      fun (x2 : nat) ->
+        match x1 binding x1 with
+        | O -> (match x2 binding x2 with
+                | O -> EQ
+                | S -> LT)
+        | S -> (match x2 binding x2 with
+                | O -> GT
+                | S -> compare x1 x2)
+;;
+
+synth list -> nat -> list satisfying
+
+[Nil,0] -> Cons(0,Nil),
+[Nil,1] -> Cons(1,Nil),
+[Nil,2] -> Cons(2,Nil),
+[Cons(0,Nil),0] -> Cons(0,Nil),
+[Cons(0,Nil),1] -> Cons(0,Cons(1,Nil)),
+[Cons(1,Nil),0] -> Cons(0,Cons(1,Nil)),
+[Cons(1,Nil),1] -> Cons(1,Nil),
+[Cons(1,Nil),2] -> Cons(1,Cons(2,Nil)),
+[Cons(2,Nil),0] -> Cons(0,Cons(2,Nil)),
+[Cons(2,Nil),1] -> Cons(1,Cons(2,Nil)),
+[Cons(0,Cons(1,Nil)),0] -> Cons(0,Cons(1,Nil)),
+[Cons(0,Cons(1,Nil)),2] -> Cons(0,Cons(1,Cons(2,Nil))),
+
+(* Takes up to size 6, it shouldn't, why does it? *)

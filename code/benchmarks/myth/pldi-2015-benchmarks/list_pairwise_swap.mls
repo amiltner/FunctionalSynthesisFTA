@@ -1,0 +1,33 @@
+type nat =
+  | O
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+synth list -> list satisfying
+
+[Nil] -> Nil,
+[Cons(0,Nil)] -> Nil,
+[Cons(1,Nil)] -> Nil,
+[Cons(2,Nil)] -> Nil,
+[Cons(2,Cons(2,Nil))] -> Cons(2,Cons(2,Nil)),
+[Cons(0,Cons(1,Nil))] -> Cons(1,Cons(0,Nil)),
+[Cons(1,Cons(0,Nil))] -> Cons(0,Cons(1,Nil)),
+[Cons(1,Cons(2,Nil))] -> Cons(2,Cons(1,Nil)),
+[Cons(2,Cons(1,Nil))] -> Cons(1,Cons(2,Nil)),
+[Cons(0,Cons(2,Nil))] -> Cons(2,Cons(0,Nil)),
+[Cons(0,Cons(1,Cons(0,Nil)))] -> Nil,
+[Cons(1,Cons(0,Cons(1,Nil)))] -> Nil,
+[Cons(2,Cons(0,Cons(2,Nil)))] -> Nil,
+[Cons(1,Cons(2,Cons(1,Nil)))] -> Nil,
+[Cons(2,Cons(1,Cons(2,Nil)))] -> Nil,
+[Cons(0,Cons(1,Cons(0,Cons(1,Nil))))] -> Cons(1,Cons(0,Cons(1,Cons(0,Nil)))),
+[Cons(1,Cons(0,Cons(1,Cons(0,Nil))))] -> Cons(0,Cons(1,Cons(0,Cons(1,Nil)))),
+[Cons(1,Cons(2,Cons(1,Cons(2,Nil))))] -> Cons(2,Cons(1,Cons(2,Cons(1,Nil)))),
+[Cons(2,Cons(1,Cons(2,Cons(1,Nil))))] -> Cons(1,Cons(2,Cons(1,Cons(2,Nil)))),
+[Cons(0,Cons(2,Cons(0,Cons(2,Nil))))] -> Cons(2,Cons(0,Cons(2,Cons(0,Nil)))),
+
+(* This is a particularly hard benchmark with current approach to
+building the FTA, as it creates a really complex new structure *)
