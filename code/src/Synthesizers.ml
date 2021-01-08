@@ -74,6 +74,12 @@ struct
         (a:t)
         (ios:(Value.t * Value.t) list)
       : t * Expr.t =
+      (*List.iter
+        ~f:(fun (i,o) ->
+            print_endline (string_of_int (Value.size i));
+            print_endline (string_of_int (Value.size o));
+            print_endline "\n")
+        ios;*)
       let pred =
         fun v1 v2 ->
           begin match List.Assoc.find ~equal:Value.equal ios v1 with

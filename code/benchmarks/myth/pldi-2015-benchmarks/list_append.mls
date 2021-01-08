@@ -20,5 +20,3 @@ synth list -> list -> list satisfying
 [Cons(0,Cons(0,Nil)),Nil] -> Cons(0,Cons(0,Nil)),
 [Cons(0,Cons(0,Nil)),Cons(0,Nil)] -> Cons(0,Cons(0,Cons(0,Nil))),
 [Cons(0,Cons(0,Nil)),Cons(1,Nil)] -> Cons(0,Cons(0,Cons(1,Nil)))
-
-(* TODO: why does this take 6 operations, not 4? *)
