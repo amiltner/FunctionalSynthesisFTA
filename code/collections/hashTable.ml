@@ -20,6 +20,11 @@ module type S = sig
   val iter : (key -> 'a -> unit) -> 'a t -> unit
   val map : (key -> 'a -> 'b) -> 'a t -> 'b t
   val union : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t
+  val pp : (Format.formatter -> key -> unit) ->
+    (Format.formatter -> 'a -> unit) ->
+    Format.formatter ->
+    'a t ->
+    unit
 end
 
 module Make (K: HashedType) = struct
@@ -235,4 +240,51 @@ module Make (K: HashedType) = struct
       | None -> set key y t
     in
     fold fold_b t b
+
+  let as_kvp_list d =
+    fold
+      (fun l k v -> (k,v)::l)
+      []
+      d
+
+
+  let pp
+      (type a)
+      (k_pp:Format.formatter -> key -> unit)
+      (v_pp:Format.formatter -> a -> unit)
+      (f:Format.formatter)
+      (d:a t)
+    : unit =
+    let rec pp_kvp f kvp =
+      begin match kvp with
+        | [] -> ()
+        | [(k,v)] ->
+          Format.fprintf
+            f
+            "(%a,%a)"
+            k_pp
+            k
+            v_pp
+            v
+        | (k,v)::l ->
+          Format.fprintf
+            f
+            "(%a,%a);%a"
+            k_pp
+            k
+            v_pp
+            v
+            pp_kvp
+            l
+
+      end
+    in
+    let kvp = as_kvp_list d in
+    Format.fprintf
+      f
+      "[";
+    pp_kvp f kvp;
+    Format.fprintf
+      f
+      "["
 end

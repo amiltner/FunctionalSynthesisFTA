@@ -8,6 +8,8 @@ module PriorityQueue = PriorityQueue
 
 module HashTable = HashTable
 
+module HashSet = HashSet
+
 module UnionFind = UnionFind
 
 module List = List

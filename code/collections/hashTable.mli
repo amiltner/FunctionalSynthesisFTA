@@ -32,6 +32,12 @@ module type S = sig
   val map : (key -> 'a -> 'b) -> 'a t -> 'b t
 
   val union : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t
+
+  val pp : (Format.formatter -> key -> unit) ->
+    (Format.formatter -> 'a -> unit) ->
+    Format.formatter ->
+    'a t ->
+    unit
 end
 
 module Make (K: HashedType) : S with type key = K.t
