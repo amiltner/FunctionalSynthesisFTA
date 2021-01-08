@@ -144,15 +144,24 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
            t)
   end
 
-  module StateSet = SetOf(State)
+  module StateSet =
+    struct
+      include Collections.HashSet.Make(State)
+      let pp = pp State.pp
+    end
   module InputsAndTypeToStates =
-    DictOf(PairOf(ListOf(Value))(ClassifiedType))(StateSet)
+  struct
+    module VT = PairOf(ListOf(Value))(ClassifiedType)
+    include Collections.HashTable.Make(VT)
+
+    let pp = pp VT.pp
+  end
   module TransitionSet = SetOf(Transition)
 
   type t =
     {
       a                : A.t                        ;
-      d                : InputsAndTypeToStates.t    ;
+      d                : StateSet.t InputsAndTypeToStates.t    ;
       ds               : TypeDS.t                   ;
       inputs           : Value.t list list          ;
       tset             : TransitionSet.t            ;
@@ -162,6 +171,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       input_type       : Type.t                     ;
       output_type      : Type.t                     ;
       mutable min_term_state   : A.TermState.t option option ;
+      all_states       : StateSet.t                 ;
     }
   [@@deriving show]
 
@@ -325,27 +335,15 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
           end)
       final_states
 
-  let get_states_singleton
-      (c:t)
-      ((t,cl):ClassifiedType.t)
-      (input:Value.t)
-    : State.t list =
-    StateSet.as_list
-      (InputsAndTypeToStates.lookup_default
-         ~default:StateSet.empty
-         c.d
-         ([input],(get_type_rep c t,cl)))
-
   let get_states
       (c:t)
       ((t,cl):ClassifiedType.t)
       (inputs:Value.t list)
     : State.t list =
-    StateSet.as_list
-      (InputsAndTypeToStates.lookup_default
-         ~default:StateSet.empty
-         c.d
-         (inputs,(get_type_rep c t,cl)))
+    begin match InputsAndTypeToStates.find_opt (inputs,(get_type_rep c t,cl)) c.d with
+      | None -> []
+      | Some ss -> StateSet.as_list ss
+    end
 
   let top_state : State.t = State.top
 
@@ -365,14 +363,23 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let t = get_type_rep c t in
     let vins = List.map ~f:fst vinsvouts in
     let s = val_state c vinsvouts (t,cl) in
-    let d =
-      InputsAndTypeToStates.insert_or_combine
-        ~combiner:(StateSet.union)
-        c.d
-        (vins,(t,cl))
-        (StateSet.singleton s)
+    let to_add =
+      begin match InputsAndTypeToStates.find_opt (vins,(t,cl)) c.d with
+        | None ->
+          let ss = StateSet.create 1000 in
+          StateSet.add s ss
+        | Some ss ->
+          StateSet.add s ss
+      end
     in
-    let _ = InputsAndTypeToStates.lookup_exn d (vins,(t,cl)) in
+    let all_states = StateSet.add s c.all_states in
+    let d =
+      InputsAndTypeToStates.set
+        (vins,(t,cl))
+        to_add
+        c.d
+    in
+    let _ = InputsAndTypeToStates.find (vins,(t,cl)) d in
     let c =
       if Type.equal t c.output_type
          && TermClassification.equal cl TermClassification.Introduction
@@ -382,7 +389,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       else
         c
     in
-    invalidate_computations {c with d}
+    invalidate_computations {c with d; all_states; }
 
   let update_tset
       (c:t)
@@ -430,7 +437,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
           sout
       in
       invalidate_computations { c with a }
-    else if A.has_state c.a sout then
+    else if StateSet.contains sout c.all_states (*A.has_state c.a sout*) then
       let a =
         A.add_transition
           c.a
@@ -583,12 +590,13 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     in
     let ds = create_ds_from_t_list_context ~context ts in
     let a = A.empty in
-    let d = InputsAndTypeToStates.empty in
+    let d = InputsAndTypeToStates.create 1000 in
     let input_vals = inputs in
     let inputs = List.map ~f:(fun i -> [i]) inputs in
     let tset = TransitionSet.empty in
     let (input_type,_) = TypeDS.find_representative ds input_type in
     let (output_type,_) = TypeDS.find_representative ds output_type in
+    let all_states = StateSet.create 1000 in
     let c =
       {
         a                 ;
@@ -602,6 +610,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         input_type        ;
         output_type       ;
         min_term_state = None;
+        all_states        ;
       }
     in
     List.fold
@@ -644,12 +653,13 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     in
     let ds = create_ds_from_t_list ~problem ts in
     let a = A.empty in
-    let d = InputsAndTypeToStates.empty in
+    let d = InputsAndTypeToStates.create 1000 in
     let input_vals = inputs in
     let inputs = List.map ~f:(fun i -> [i]) inputs in
     let tset = TransitionSet.empty in
     let (input_type,_) = TypeDS.find_representative ds input_type in
     let (output_type,_) = TypeDS.find_representative ds output_type in
+    let all_states = StateSet.create 1000 in
     let c =
       {
         a                 ;
@@ -663,6 +673,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         input_type        ;
         output_type       ;
         min_term_state = None;
+        all_states        ;
       }
     in
     List.fold
@@ -728,7 +739,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     : t =
     Consts.time
       Consts.minify_time
-      (fun _ -> 
+      (fun _ ->
          let a = A.minimize c.a in
          { c with a ; up_to_date=false })
 
@@ -945,8 +956,14 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   module PQ = PriorityQueueOf(struct
       module Priority = IntModule
       type t = (int * StateToProd.t * State.t list * StateSet.t)
-      [@@deriving eq, hash, ord, show]
       let priority (i,_,_,_) = i
+
+      let compare _ _ = failwith "no impl"
+      let hash _ = failwith "no impl"
+      let hash_fold_t _ _ = failwith "no impl"
+      let equal _ _ = failwith "no impl"
+      let pp _ _ = failwith "no impl"
+      let show _ = failwith "no impl"
     end)
   type min_tree_acc' = StateToTree.t * (A.term * State.t) list
 

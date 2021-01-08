@@ -328,10 +328,12 @@ let oget
 module PairOf
     (D1:Data)
     (D2:Data)
-  : Data with type t = (D1.t * D2.t) =
+    (*: Data with type t = (D1.t * D2.t) *)=
 struct
   type t = (D1.t * D2.t)
   [@@deriving ord, show, hash, eq]
+
+  let print x y = pp y x
 end
 
 module TripleOf
