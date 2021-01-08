@@ -104,7 +104,7 @@ module Make : AutomatonBuilder =
 
       let state_from_str
           (id:string)
-        : State.t =
+        : State.t option =
         let stripped =
           String.strip
             ~drop:(fun c -> Char.equal '[' c || Char.equal ']' c)
@@ -130,14 +130,18 @@ module Make : AutomatonBuilder =
             ~f:SB.get_d
             cleaned_components
         in
-        fold_on_head_exn
-          ~f:(fun s1 s2 ->
-              begin match State.product s1 s2 with
-                | None ->
-                  failwith ("(" ^ State.show s1 ^ "," ^ State.show s2 ^ ")")
-                | Some s -> s
-              end)
-          components
+        begin match components with
+          | [] -> failwith "shouldnt occur"
+          | h::t ->
+            List.fold
+              ~f:(fun acc x ->
+                  begin match acc with
+                    | None -> None
+                    | Some acc -> State.product acc x
+                  end)
+              ~init:(Some h)
+              t
+        end
 
       let symbol_from_str
           (id:string)
@@ -182,16 +186,21 @@ module Make : AutomatonBuilder =
           List.fold
             ~f:TimbukAut.add_final_state
             ~init:TimbukAut.empty
-            roots
+            (List.filter_map ~f:ident roots)
         in
         let transitions = transitions ast.Ast.aut_transitions in
         List.fold
           ~f:(fun aut (sym,subs,out) ->
-              TimbukAut.add_transition
-                aut
-                sym
-                subs
-                out)
+              begin match (distribute_option subs,out) with
+                | (Some subs, Some out) ->
+                  TimbukAut.add_transition
+                    aut
+                    sym
+                    subs
+                    out
+                | _ ->
+                  aut
+              end)
           ~init:aut
           transitions
     end

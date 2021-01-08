@@ -1,24 +1,27 @@
 module type S = sig
-  type key
+  type elt
   type t
   val create : int -> t
-  val add : key -> t -> t
+  val empty : unit -> t
+  val add : elt -> t -> t
   val size : t -> int
   val is_empty : t -> bool
-  val contains : key -> t -> bool
-  val fold : ('b -> key -> 'b) -> 'b -> t -> 'b
-  val as_list : t -> key list
-  val iter : (key -> unit) -> t -> unit
+  val contains : elt -> t -> bool
+  val fold : ('b -> elt -> 'b) -> 'b -> t -> 'b
+  val as_list : t -> elt list
+  val iter : (elt -> unit) -> t -> unit
   val union : t -> t -> t
-  val pp : (Format.formatter -> key -> unit) -> Format.formatter -> t -> unit
+  val pp : (Format.formatter -> elt -> unit) -> Format.formatter -> t -> unit
 end
 
 module Make (K: HashTable.HashedType) = struct
   module D = HashTable.Make(K)
-  type key = K.t
+  type elt = K.t
   type t = bool D.t
 
   let create = D.create
+
+  let empty _ = create 1000
 
   let add k s = D.set k true s
 
