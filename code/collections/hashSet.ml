@@ -4,14 +4,17 @@ module type S = sig
   val create : int -> t
   val empty : unit -> t
   val add : elt -> t -> t
+  val remove : elt -> t -> t
   val size : t -> int
   val is_empty : t -> bool
   val contains : elt -> t -> bool
-  val fold : ('b -> elt -> 'b) -> 'b -> t -> 'b
+  val fold : (elt -> 'b -> 'b) -> t -> 'b -> 'b
+  val fold2 : (elt -> elt -> 'a -> 'a) -> t -> t -> 'a -> 'a
   val as_list : t -> elt list
   val iter : (elt -> unit) -> t -> unit
   val union : t -> t -> t
   val pp : (Format.formatter -> elt -> unit) -> Format.formatter -> t -> unit
+  val update : (elt option -> unit) -> elt -> t -> t
 end
 
 module Make (K: HashTable.HashedType) = struct
@@ -21,7 +24,7 @@ module Make (K: HashTable.HashedType) = struct
 
   let create = D.create
 
-  let empty _ = create 1000
+  let empty _ = create 2
 
   let add k s = D.set k true s
 
@@ -35,19 +38,37 @@ module Make (K: HashTable.HashedType) = struct
       | Some b -> b
     end
 
-  let fold f init s =
-    D.fold
-      (fun acc k b ->
-         if b then
-           f acc k
-         else
-           acc)
-      init
+  let remove e s =
+    if contains e s then
+      D.set e false s
+    else
       s
 
-  let as_list =
+  let fold f s init =
+    D.fold
+      (fun k b acc ->
+         if b then
+           f k acc
+         else
+           acc)
+      s
+      init
+
+  let fold2 f a b x =
+    let fold2' ea x = fold (f ea) b x in
+    fold (fold2') a x
+
+  let exists f s =
     fold
-      (fun acc h -> h::acc)
+      (fun x acc ->
+         acc || f x)
+      s
+      false
+
+  let as_list s =
+    fold
+      (fun h acc -> h::acc)
+      s
       []
 
   let iter f s =
@@ -78,5 +99,15 @@ module Make (K: HashTable.HashedType) = struct
       s;
     Format.fprintf
       f
-      "]";
+      "]"
+
+    let update
+        (f:elt option -> unit)
+        (e:elt)
+        (s:t)
+      : t =
+      if contains e s then
+        (f (Some e); s)
+      else
+        (f None; add e s)
 end

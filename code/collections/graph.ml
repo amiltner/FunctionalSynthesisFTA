@@ -58,9 +58,9 @@ module Make (Node : HashTable.HashedType) = struct
 
   let fold (f : node -> node -> 'a -> 'a) (t : t) (x : 'a) : 'a =
     NodeTable.fold (
-      fun x node (_, succs) ->
+      fun node (_, succs) x ->
         NodeSet.fold (fun node' (x : 'a) -> f node node' x) succs x
-    ) x t.connections
+    ) t.connections x
 
   let add node t =
     { t with nodes = NodeSet.add node t.nodes }

@@ -5,6 +5,8 @@ module type ORDERED_FORMAT_TYPE = sig
 
   val hash : t -> int
 
+  val hash_fold_t : Base__Hash.state -> t -> Base__Hash.state
+
   val print : t -> Format.formatter -> unit
 end
 

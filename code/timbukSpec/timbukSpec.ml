@@ -5,7 +5,6 @@
 
 (** {1 Model} *)
 
-module Spec = Spec
 
 module UserState = UserState
 
@@ -17,7 +16,6 @@ module Alphabet = Alphabet
 
 module Ast = Ast
 
-module Build = Build
 
 module Lexer = Lexer
 

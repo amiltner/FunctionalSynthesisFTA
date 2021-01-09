@@ -5,6 +5,11 @@ type position =
 type 'sym term =
   | Term of 'sym * ('sym term) list
 
+val equal_term : ('sym -> 'sym -> bool) -> 'sym term -> 'sym term -> bool
+val compare_term : ('sym -> 'sym -> int) -> 'sym term -> 'sym term -> int
+
+val hash_fold_term : 'a Base.Hash.folder -> 'a term Base.Hash.folder
+
 module type S = sig
   module Sym : Symbol.S
 

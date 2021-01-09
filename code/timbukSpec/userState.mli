@@ -11,3 +11,4 @@ val string_opt : t -> string option
 val equal: t -> t -> bool
 
 val hash: t -> int
+val hash_fold_t: t Base.Hash.folder

@@ -1798,3 +1798,8 @@ let safe_sort
   in
   safe_sort_internal []
 
+let hash_fold_from_hash
+  (type a)
+  (h:a hasher)
+  : Base__Hash.state -> a -> Base__Hash.state =
+  fun s x -> Base__Hash.fold_int s (h x)

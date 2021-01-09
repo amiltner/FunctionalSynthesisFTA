@@ -10,13 +10,16 @@ module type S = sig
   type key
   type 'a t
   val create : int -> 'a t
+  val empty : unit -> 'a t
   val set : key -> 'a -> 'a t -> 'a t
+  val add : key -> 'a -> 'a t -> 'a t
   val size : 'a t -> int
   val is_empty : 'a t -> bool
   val find : key -> 'a t -> 'a
   val find_opt : key -> 'a t -> 'a option
   val resize : int -> 'a t -> 'a t
-  val fold : ('b -> key -> 'a -> 'b) -> 'b -> 'a t -> 'b
+  val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+  val fold2 : (key -> 'a -> key -> 'b -> 'c -> 'c) -> 'a t -> 'b t -> 'c -> 'c
   val iter : (key -> 'a -> unit) -> 'a t -> unit
   val map : (key -> 'a -> 'b) -> 'a t -> 'b t
   val union : (key -> 'a -> 'a -> 'a option) -> 'a t -> 'a t -> 'a t
@@ -58,6 +61,8 @@ module Make (K: HashedType) = struct
       size = 0;
       data = Array.make (max bucket_count 1) Empty
     })
+
+  let empty _ = create 100
 
   let key_bucket key ht =
     (K.hash key) mod (Array.length ht.data)
@@ -188,16 +193,30 @@ module Make (K: HashedType) = struct
       new_t
     | Diff _ -> ref (Diff {size = None; key = key; data = Some value; source = t})
 
+  let add = set
+
+  let ht_find key ht =
+    let i = key_bucket key ht in
+    let rec find_in_bucket = function
+      | Empty -> raise Not_found
+      | Cons { key = k; data = value; next = _ } when K.equal key k -> value
+      | Cons { key = _; data = _; next = next } -> find_in_bucket next
+    in
+    find_in_bucket ht.data.(i)
+
+  let ht_find_opt key ht =
+    let i = key_bucket key ht in
+    let rec find_in_bucket = function
+      | Empty -> None
+      | Cons { key = k; data = value; next = _; _ } when K.equal key k -> Some value
+      | Cons { key = _; data = _; next = next; _ } -> find_in_bucket next
+    in
+    find_in_bucket ht.data.(i)
+
   let rec find key t =
     match !t with
     | HashTable ht ->
-      let i = key_bucket key ht in
-      let rec find_in_bucket = function
-        | Empty -> raise Not_found
-        | Cons { key = k; data = value; next = _ } when K.equal key k -> value
-        | Cons { key = _; data = _; next = next } -> find_in_bucket next
-      in
-      find_in_bucket ht.data.(i)
+      ht_find key ht
     | Diff { key = k; data = None; source = _; _ } when K.equal key k -> raise Not_found
     | Diff { key = k; data = Some value; source = _; _ } when K.equal key k -> value
     | Diff { key = _; data = _; source = src; _ } -> find key src
@@ -205,13 +224,7 @@ module Make (K: HashedType) = struct
   let rec find_opt key t =
     match !t with
     | HashTable ht ->
-      let i = key_bucket key ht in
-      let rec find_in_bucket = function
-        | Empty -> None
-        | Cons { key = k; data = value; next = _; _ } when K.equal key k -> Some value
-        | Cons { key = _; data = _; next = next; _ } -> find_in_bucket next
-      in
-      find_in_bucket ht.data.(i)
+      ht_find_opt key ht
     | Diff { key = k; data = value_opt; source = _; _ } when K.equal key k -> value_opt
     | Diff { key = _; data = _; source = src; _ } -> find_opt key src
 
@@ -247,6 +260,20 @@ module Make (K: HashedType) = struct
       []
       d
 
+  let fold2
+      (type a)
+      (type b)
+      (type c)
+      (f:key -> a -> key -> b -> c -> c)
+      (d1:a t)
+      (d2:b t)
+      (acc:c)
+    : c =
+    let fold2' acc ka va =
+      fold (fun acc kb vb ->
+          f ka va kb vb acc) acc d2
+    in
+    fold fold2' acc d1
 
   let pp
       (type a)
@@ -287,4 +314,17 @@ module Make (K: HashedType) = struct
     Format.fprintf
       f
       "["
+
+  let fold
+      (type a)
+      (type b)
+      (f:key -> a -> b -> b)
+      (d:a t)
+      (acc:b)
+    : b =
+    fold (fun acc k v -> f k v acc) acc d
+
+  let fold2 f a b x =
+    let fold2' ka va x = fold (f ka va) b x in
+    fold fold2' a x
 end

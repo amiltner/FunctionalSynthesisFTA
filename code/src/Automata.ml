@@ -141,22 +141,22 @@ module TimbukBuilder : AutomatonBuilder =
 
     let add_transition a s sts st =
       A.add_transition
-        (A.Configuration.Cons
+        (A.Configuration.create (A.Configuration.Cons
            (s
            ,List.map
                ~f:(fun st -> A.Configuration.Var st)
-               sts))
+               sts)))
         ()
         st
         a
 
     let remove_transition a s sts st =
       A.remove_transition
-        (A.Configuration.Cons
+        (A.Configuration.create (A.Configuration.Cons
            (s
            ,List.map
                ~f:(fun st -> A.Configuration.Var st)
-               sts))
+               sts)))
         ()
         st
         a
@@ -216,7 +216,7 @@ module TimbukBuilder : AutomatonBuilder =
                 (A.states_for_configuration c a)
             in
             let (i,vs) =
-              begin match c with
+              begin match A.Configuration.node c with
                 | A.Configuration.Cons (i,ps) ->
                   (i
                   ,List.map
@@ -245,7 +245,7 @@ module TimbukBuilder : AutomatonBuilder =
       in
       List.map
         ~f:(fun (c,_) ->
-            begin match c with
+            begin match A.Configuration.node c with
               | A.Configuration.Cons (i,ps) ->
                 (i,
                  List.map
@@ -268,7 +268,7 @@ module TimbukBuilder : AutomatonBuilder =
           (fun s cs ts ->
              A.LabeledConfigurationSet.fold
                (fun (c,_) ts ->
-                  begin match c with
+                  begin match A.Configuration.node c with
                     | A.Configuration.Cons (i,ps) ->
                       (i
                       ,List.map

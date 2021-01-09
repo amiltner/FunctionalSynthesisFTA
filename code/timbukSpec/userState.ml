@@ -56,3 +56,5 @@ let product a b =
 
 let hash =
   Hashtbl.hash
+
+let hash_fold_t = MyStdLib__.Util.hash_fold_from_hash hash

@@ -8,9 +8,14 @@ end
 
 type position = Term.position
 
-type ('sym, 'x) pattern =
-  | Cons of 'sym * (('sym, 'x) pattern) list
-  | Var of 'x
+module Holder = struct
+  open MyStdLib
+  type ('sym, 'x) pattern =
+    | Cons of 'sym * (('sym, 'x) pattern) list
+    | Var of 'x
+  [@@deriving eq, hash, ord]
+end
+include Holder
 
 module type S = sig
   module Sym : Symbol.S
@@ -20,11 +25,14 @@ module type S = sig
     | Cons of 'sym * (('sym, 'x) pattern) list
     | Var of 'x
   type term = Sym.t Term.term
-  type t = (Sym.t, Var.t) pattern
+  type t_node = (Sym.t, Var.t) pattern
+
+  type t = t_node MyStdLib.hash_consed
 
   exception InvalidPosition of position * t
 
-  val create : Sym.t -> t list -> t
+  val create : t_node -> t
+  val node : t -> t_node
   val of_term : term -> t
   val of_var : Var.t -> t
   val is_cons : t -> bool
@@ -35,49 +43,79 @@ module type S = sig
   val compare : t -> t -> int
   val equal : t -> t -> bool
   val hash : t -> int
+  val hash_fold_t : t Base.Hash.folder
   val fold : (Var.t -> 'a -> 'a) -> t -> 'a -> 'a
   val is_closed : t -> bool
   val for_all : (Var.t -> bool) -> t -> bool
-  val apply : (Var.t -> t) -> t -> t
   val instanciate : (Var.t -> term) -> t -> term
   val as_term : t -> term
   val product : t -> t -> t option
   val print : t -> Format.formatter -> unit
   val print_var : (Var.t -> Format.formatter -> unit) -> t -> Format.formatter -> unit
-end
+  end
 
 module Make (F: Symbol.S) (X : VARIABLE) = struct
   module Sym = F
   module Var = X
 
-  type ('sym, 'x) abs_pattern = ('sym, 'x) pattern =
-    | Cons of 'sym * (('sym, 'x) pattern) list
-    | Var of 'x
-  type term = Sym.t Term.term
-  type t = (Sym.t, Var.t) pattern
+  module Holder = struct
+    open MyStdLib
+    type ('sym, 'x) abs_pattern = ('sym, 'x) pattern =
+      | Cons of 'sym * (('sym, 'x) pattern) list
+      | Var of 'x
+    [@@deriving eq, hash, ord]
+    type term = Sym.t Term.term
+    [@@deriving eq, hash, ord]
+    type t_node = (Sym.t, Var.t) pattern
+    [@@deriving eq, hash, ord]
+
+    type t = t_node hash_consed
+    [@@deriving eq, hash, ord]
+
+    let table = HashConsTable.create 1000
+
+    let create
+        (node:t_node)
+      : t =
+      HashConsTable.hashcons
+        hash_t_node
+        compare_t_node
+        table
+        node
+
+    let node (x:t)
+      : t_node =
+      x.node
+  end
+  include Holder
 
   exception InvalidPosition of position * t
 
-  let create f l =
-    if Sym.arity f = List.length l then
+  let cons f l =
+    create (if Sym.arity f = List.length l then
       Cons (f, l)
-    else raise (Invalid_argument "symbol arity does not match list length")
+            else raise (Invalid_argument "symbol arity does not match list length"))
 
   let rec of_term (Term.Term (f, l)) =
     Cons (f, List.map (of_term) l)
 
-  let of_var x =
-    Var x
+  let of_term x = create (of_term x)
 
-  let is_cons = function
+  let of_var x =
+    create (Var x)
+
+  let is_cons x =
+    match node x with
     | Cons _ -> true
     | _ -> false
 
-  let is_var = function
+  let is_var x =
+    match node x with
     | Var _ -> true
     | _ -> false
 
-  let normalized = function
+  let normalized x =
+    match node x with
     | Var x -> x
     | _ -> raise (Invalid_argument "not normalized.")
 
@@ -85,40 +123,16 @@ module Make (F: Symbol.S) (X : VARIABLE) = struct
     match pos, t with
     | Term.Subterm (i, pos), Cons (_, l) ->
       (match List.nth_opt l i with Some s -> subterm_opt pos s | None -> None)
-    | Term.Root, _ -> Some t
+    | Term.Root, _ -> Some (create t)
     | _, _ -> None
+
+  let subterm_opt pos t =
+    subterm_opt pos (node t)
 
   let subterm pos t =
     match subterm_opt pos t with
     | Some t -> t
     | None -> raise (InvalidPosition (pos, t))
-
-  let rec compare a b =
-    match a, b with
-    | Var x, Var y -> Var.compare x y
-    | Var _, _ -> 1
-    | _, Var _ -> -1
-    | Cons (fa, la), Cons (fb, lb) -> (* copy/paste from above *)
-      let rec lex_order la lb = (* lexicographic order to compare subterms *)
-        match la, lb with
-        | [], [] -> 0 (* terms are equals *)
-        | a::la, b::lb ->
-          let c = compare a b in
-          if c = 0 then lex_order la lb else c
-        | _::_, [] -> -1
-        | _, _ -> 1
-      in
-      let c = Sym.compare fa fb in (* first we compare the constructors... *)
-      if c = 0 then lex_order la lb else c (* ...if there are equals, we compare the subterms. *)
-
-  let rec equal a b =
-    match a, b with
-    | Var x, Var y -> Var.equal x y
-    | Cons (fa, la), Cons (fb, lb) ->
-      Sym.equal fa fb && List.for_all2 (fun ta tb -> equal ta tb) la lb
-    | _, _ -> false
-
-  let hash t = Hashtbl.hash t
 
   (* let variables t =
      let rec vars set = function
@@ -127,38 +141,36 @@ module Make (F: Symbol.S) (X : VARIABLE) = struct
      in vars (VarSet.empty) t *)
 
   let fold f t x =
-    let table = Hashtbl.create 8 in
-    let visit var =
-      match Hashtbl.find_opt table var with
-      | Some () -> false
-      | None ->
-        Hashtbl.add table var ();
-        true
-    in
     let rec do_fold t x =
       match t with
       | Cons (_, l) -> List.fold_right do_fold l x
-      | Var var -> if visit var then f var x else x
+      | Var var -> f var x
     in
-    do_fold t x
+    do_fold (node t) x
 
   let rec is_closed = function
     | Cons (_, l) -> List.for_all (is_closed) l
     | Var _ -> false
 
+  let is_closed x = is_closed (node x)
+
   let rec for_all f = function
     | Cons (_, l) -> List.for_all (for_all f) l
     | Var x -> f x
+
+  let for_all f x = for_all f (node x)
 
   let rec apply sigma = function
     | Cons (f, l) -> Cons (f, List.map (apply sigma) l)
     | Var x ->
       try sigma x with
       | Not_found -> Var x
+  let apply s x = create (apply s (node x))
 
   let rec instanciate sigma = function
     | Cons (f, l) -> Term.Term (f, List.map (instanciate sigma) l)
     | Var x -> sigma x
+  let instanciate s x = instanciate s (node x)
 
   let as_term t =
     instanciate (function _ -> raise (Invalid_argument "pattern is not a term")) t
@@ -190,12 +202,16 @@ module Make (F: Symbol.S) (X : VARIABLE) = struct
     | _ ->
       None
 
+  let product a b = Option.map (create) (product (node a) (node b))
+
   let rec print_var pp_var t out =
     match t with
     | Cons (f, []) -> Sym.print f out
     | Cons (f, l) ->
       Format.fprintf out "%t(%t)" (Sym.print f) (Collections.List.print (print_var pp_var) ", " l)
     | Var x -> pp_var x out
+
+  let print_var pp_var t out = print_var pp_var (node t) out
 
   let print = print_var Var.print
 end

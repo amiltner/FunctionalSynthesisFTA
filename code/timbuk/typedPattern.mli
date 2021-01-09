@@ -50,6 +50,7 @@ module type S = sig
   val equal : t -> t -> bool
 
   val hash : t -> int
+  val hash_fold_t : t Base.Hash.folder
 
   (** Get all the variables in the term. *)
   (* val variables : t -> VarSet.t *)

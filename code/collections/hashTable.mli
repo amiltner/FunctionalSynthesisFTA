@@ -13,7 +13,11 @@ module type S = sig
 
   val create : int -> 'a t
 
+  val empty : unit -> 'a t
+
   val set : key -> 'a -> 'a t -> 'a t
+
+  val add : key -> 'a -> 'a t -> 'a t
 
   val size : 'a t -> int
 
@@ -25,7 +29,8 @@ module type S = sig
 
   val resize : int -> 'a t -> 'a t
 
-  val fold : ('b -> key -> 'a -> 'b) -> 'b -> 'a t -> 'b
+  val fold: (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
+  val fold2 : (key -> 'a -> key -> 'b -> 'c -> 'c) -> 'a t -> 'b t -> 'c -> 'c
 
   val iter : (key -> 'a -> unit) -> 'a t -> unit
 

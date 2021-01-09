@@ -4,4 +4,11 @@
 
 (library
     (name collections)
-    (public_name collections))
+    (libraries myStdLib)
+
+    (public_name collections)
+(preprocess (pps ppx_bin_prot ppx_hash ppx_deriving.std ppx_let ppx_optcomp ppx_compare ppx_sexp_conv
+    landmarks.ppx --auto
+    ;export OCAML_LANDMARKS=auto,format=json,output=lm.json
+    ))
+)

@@ -38,6 +38,7 @@ module type S = sig
   val compare : t -> t -> int
   val equal : t -> t -> bool
   val hash : t -> int
+  val hash_fold_t : t Base.Hash.folder
   val is_var : t -> bool
   val is_closed : t -> bool
   val for_all : (Var.t -> Type.t -> bool) -> t -> bool
@@ -187,6 +188,7 @@ module Make (F: Symbol.S) (X : Pattern.VARIABLE) (T : TypedTerm.TYPE) = struct
     end
 
   let hash t = Hashtbl.hash t
+  let hash_fold_t s v = (MyStdLib__.Util.hash_fold_from_hash hash) s v
 
   let is_var = function
     | Var _, _ -> true

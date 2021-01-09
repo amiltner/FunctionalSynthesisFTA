@@ -44,6 +44,8 @@ let rec hash = function
   | Fresh i -> i
   | Product (a, b) -> (hash a) lxor (hash b)
 
+let hash_fold_t = MyStdLib__.Util.hash_fold_from_hash hash
+
 let rec print t out =
   match t with
   | Product (x, y) ->

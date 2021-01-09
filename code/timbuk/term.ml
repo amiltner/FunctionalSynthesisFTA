@@ -1,9 +1,16 @@
-type position =
-  | Root
-  | Subterm of int * position
 
-type 'sym term =
-  | Term of 'sym * ('sym term) list
+module Holder = struct
+  open MyStdLib
+  type position =
+    | Root
+    | Subterm of int * position
+  [@@deriving eq, hash, ord]
+
+  type 'sym term =
+    | Term of 'sym * ('sym term) list
+  [@@deriving eq, hash, ord]
+end
+include Holder
 
 module type S = sig
   module Sym : Symbol.S

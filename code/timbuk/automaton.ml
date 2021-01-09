@@ -90,54 +90,29 @@ module type S = sig
   val pick_term_opt : ?smallest:bool -> ?epsilon:bool -> t -> BoundTerm.t option
   val pick_term_in : ?epsilon:bool -> State.t -> t -> BoundTerm.t
   val pick_term_in_opt : ?epsilon:bool -> State.t -> t -> BoundTerm.t option
-  val pick_term_in_intersection : ?epsilon:bool -> StateSet.t -> t -> Sym.t Term.term
-  val pick_term_in_intersection_opt : ?epsilon:bool -> StateSet.t -> t -> Sym.t Term.term option
   val map : ?filter:(Configuration.t -> Label.t -> State.t -> t -> bool) -> (Label.t -> Label.t) -> (State.t -> State.t) -> t -> t
   val filter : (Configuration.t -> Label.t -> State.t -> bool) -> t -> t
   val fold_states : (State.t -> 'a -> 'a) -> t -> 'a -> 'a
   val fold_transitions : (Configuration.t -> Label.t -> State.t -> 'a -> 'a) -> t -> 'a -> 'a
-  val fold_transition_pairs : ?reflexive:bool -> (Configuration.t -> Label.t -> State.t -> Configuration.t -> Label.t -> State.t -> 'a -> 'a) -> t -> 'a -> 'a
   val label : ((State.t -> 'a) -> State.t -> 'a) -> (State.t -> 'a) -> t -> (State.t -> 'a)
   val merge : t -> t -> t
   val inter : ?hook:(t -> State.t -> unit) -> (data -> data -> data) -> t -> t -> t
   val reachable_states : ?epsilon:bool -> t -> StateSet.t
   val reachable_values : t -> BoundTerm.t StateMap.t
   val reduce : ?epsilon:bool -> ?from_finals:bool -> t -> t
-  val complete : ?with_states:StateSet.t -> (Configuration.t -> State.t * Label.t) -> Sym.t list -> t -> t
-  val complement : t -> t
   val unepsilon : t -> t
-  val determinise : ?init_classes:StateSet.t -> (StateSet.t -> State.t) -> t -> t
-  val determinise_typed : ?init_classes:StateSet.t -> (module TYPE with type t = 'a) -> (State.t -> 'a) -> (StateSet.t -> 'a -> State.t) -> t -> t
-  val minimalise : ?filter:(State.t -> State.t -> bool) -> t -> t
   val prune_useless : t -> t
   type renaming = State.t StateMap.t
-  val state_renaming : ?knowledge:renaming -> t -> t -> State.t -> State.t -> State.t StateMap.t option
   type normalizer = Sym.t -> State.t list -> LabeledState.t
-  val add_normalized_transition : ?hook:hook -> normalizer -> Configuration.t -> Label.t -> State.t -> t -> t
-  val add_normalized_transitions : ?hook:hook -> normalizer -> transition list -> t -> t
-  val add_configurations_to : ?normalizer:normalizer -> ?hook:hook -> LabeledConfiguration.t list -> State.t -> t -> t
-  val add_configuration : normalizer -> ?hook:hook -> Configuration.t -> t -> BoundConfiguration.t * t
-  val add : normalizer -> ?hook:hook -> Configuration.t -> t -> BoundConfiguration.t * t
-  val of_term : normalizer -> Sym.t Term.term -> data -> t
-  val of_terms : normalizer -> (Sym.t Term.term) list -> data -> t
-  val compare : t -> t -> int
   val print : t -> Format.formatter -> unit
   module Patterns (Var : Pattern.VARIABLE) : sig
     type pattern = (Sym.t, Var.t) Pattern.pattern
-    val recognizes_pattern : pattern -> t -> bool
     val recognizes_pattern_in : State.t -> pattern -> t -> bool
     val configuration_of_pattern : (Var.t -> State.t) -> pattern -> Configuration.t
   end
   type dynamic_filter =
     | NoFilter
     | Filter of (State.t -> Label.t -> (bool * dynamic_filter))
-  module BoundPatterns (Var : Pattern.VARIABLE) : sig
-    type bound_pattern = (Sym.t, Var.t, Binding.t) TypedPattern.typed_pattern
-    val fold_pattern_instances : ?epsilon_f:((bound_pattern -> bool) option) -> ?filter:dynamic_filter -> (BoundTerm.t -> 'a -> 'a) -> bound_pattern -> t -> 'a -> 'a
-    val instanciate_pattern_opt : ?epsilon:bool -> bound_pattern -> t -> BoundTerm.t option
-    val recognizes_bound_pattern : ?epsilon:bool -> bound_pattern -> t -> bool
-    val recognizes_bound_pattern_in : ?debug:bool -> ?epsilon:bool -> State.t -> bound_pattern -> t -> bool
-  end
 end
 
 (** Find or creates an element in a Hastbl.
@@ -160,6 +135,7 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
 
   module LabeledConfiguration = struct
     type t = Configuration.t * Label.t
+    [@@deriving hash]
 
     let compare (a, la) (b, lb) =
       let c = Label.compare la lb in
@@ -168,6 +144,9 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
     let print (c, l) out =
       Configuration.print c out;
       Label.print l out
+
+    let equal (a,la) (b,lb) =
+      (Label.equal la lb) && (Configuration.equal a b)
   end
 
   module LabeledState = struct
@@ -208,7 +187,7 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
   type data = unit
 
   let empty = {
-    roots = StateSet.empty;
+    roots = (StateSet.empty);
     state_confs = StateMap.empty;
     conf_states = ConfigurationMap.empty;
     state_parents = StateMap.empty
@@ -231,7 +210,7 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
   let state_parents q a =
     match StateMap.find_opt q a.state_parents with
     | Some set -> set
-    | None -> ConfigurationSet.empty
+    | None -> (ConfigurationSet.empty)
 
   let add_final_state q a = {
     a with
@@ -253,7 +232,7 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
   let configurations_for_state q a =
     match StateMap.find_opt q a.state_confs with
     | Some set -> set
-    | None -> LabeledConfigurationSet.empty
+    | None -> (LabeledConfigurationSet.empty)
 
   (*let is_state_empty q a =
     let confs = configurations_for_state q a in
@@ -262,7 +241,7 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
   let states_for_configuration conf a =
     match ConfigurationMap.find_opt conf a.conf_states with
     | Some set -> set
-    | None -> LabeledStateSet.empty
+    | None -> (LabeledStateSet.empty)
 
   (*let sub_states_of a q =
     let confs = configurations_for_state q a in
@@ -366,7 +345,9 @@ module Extend (B: BASE) = struct
   end
 
   module Binding = struct
+    let hash_fold_option = MyStdLib.hash_fold_option
     type t = State.t option * Label.t option
+    [@@deriving hash]
 
     let product (qa,la) (qb,lb) =
       match Option.product State.product qa qb, Option.product Label.product la lb with
@@ -409,11 +390,11 @@ module Extend (B: BASE) = struct
     let confs = configurations_for_state q a in
     LabeledConfigurationSet.fold (
       fun (conf, _) sub_states ->
-        match conf with
+        match Configuration.node conf with
         | Configuration.Var q' ->
           StateSet.add q' sub_states
         | _ -> sub_states
-    ) confs StateSet.empty
+    ) confs (StateSet.empty)
 
   let typed_configuration conf =
     let id = ref 0 in
@@ -452,7 +433,7 @@ module Extend (B: BASE) = struct
         Hashtbl.add table q ();
         LabeledConfigurationSet.fold fold_conf (configurations_for_state q a) (f q x)
     and fold_conf (conf, _) x =
-      match conf with
+      match Configuration.node conf with
       | Configuration.Var q' ->
         fold_state q' x
       | _ -> x
@@ -492,13 +473,13 @@ module Extend (B: BASE) = struct
       | None ->
         Hashtbl.add visited q ();
         let fold_conf conf set =
-          match conf with
+          match Configuration.node conf with
           | Configuration.Var _ -> fold_state q set
           | _ -> ConfigurationSet.add conf set
         in
         ConfigurationSet.fold fold_conf (state_parents q a) set
     in
-    fold_state q ConfigurationSet.empty
+    fold_state q (ConfigurationSet.empty)
 
   let fold_transitions f a x =
     let fold_state_confs q confs x =
@@ -507,7 +488,7 @@ module Extend (B: BASE) = struct
     in
     StateMap.fold (fold_state_confs) (configurations_for_states a) x
 
-  let fold_transition_pairs ?(reflexive=false) f t x =
+  (*let fold_transition_pairs ?(reflexive=false) f t x =
     StateMap.fold_pairs (
       fun q confs q' confs' x ->
         if State.equal q q' then
@@ -527,7 +508,7 @@ module Extend (B: BASE) = struct
                 ) confs' x
             ) confs x
           end
-    ) ~reflexive:true (configurations_for_states t) x
+    ) ~reflexive:true (configurations_for_states t) x*)
 
   let fold_states f a x =
     let table = Hashtbl.create 8 in
@@ -545,13 +526,13 @@ module Extend (B: BASE) = struct
         Hashtbl.add table q ();
         LabeledConfigurationSet.fold (fold_labeled_configuration) (configurations_for_state q a) (f q x)
     and fold_labeled_configuration (conf, _) =
-      fold_configuration conf
+      fold_configuration (Configuration.node conf)
     and fold_configuration conf x =
       match conf with
       | Configuration.Cons (_, l) -> List.fold_right (fold_configuration) l x
       | Configuration.Var q -> fold_state q x
     and fold_transition conf _ q x =
-      fold_configuration conf (uniq_f q x)
+      fold_configuration (Configuration.node conf) (uniq_f q x)
     in
     let x = StateSet.fold (uniq_f) (final_states a) x in
     fold_transitions (fold_transition) a x
@@ -570,10 +551,16 @@ module Extend (B: BASE) = struct
     LabeledStateSet.mem (state, label) states
 
   let mem_configuration conf a =
-    ConfigurationMap.mem conf (states_for_configurations a)
+    begin match ConfigurationMap.find_opt conf (states_for_configurations a) with
+      | Some _ -> true
+      | None -> false
+    end
 
   let mem_state q a =
-    StateMap.mem q (configurations_for_states a) || StateSet.mem q (final_states a)
+    begin match StateMap.find_opt q (configurations_for_states a) with
+      | None -> false
+      | Some _ -> true
+    end || StateSet.mem q (final_states a)
 
   let rec fold_configurations_for_binding func ty t x =
     match ty with
@@ -608,7 +595,7 @@ module Extend (B: BASE) = struct
       | None ->
         Hashtbl.add table q ();
         let fold_conf (conf, _) x =
-          match conf with
+          match Configuration.node conf with
           | Configuration.Var q' ->
             let x = func conf x in
             fold_state q' x
@@ -674,7 +661,7 @@ module Extend (B: BASE) = struct
           | Some typed_term -> Some typed_term
           | None ->
             begin
-              match conf with
+              match Configuration.node conf with
               | Configuration.Cons (f', l') when Sym.compare f' f = 0 ->
                 begin
                   match list_map2_opt type_subterm l' l with
@@ -688,7 +675,7 @@ module Extend (B: BASE) = struct
           | Some typed_term -> Some typed_term
           | None ->
             begin
-              match conf with
+              match Configuration.node conf with
               | Configuration.Var q' ->
                 begin
                   match ignore_epsilon q' (Term.Term (f, l)) with
@@ -729,7 +716,7 @@ module Extend (B: BASE) = struct
           | true -> true
           | false ->
             begin
-              match conf with
+              match Configuration.node conf with
               | Configuration.Var q' -> ignore_epsilon q' (Term.Term (f, l))
               | Configuration.Cons (f', l') when Sym.compare f' f = 0 ->
                 List.fold_right2 (fold_subconf) l' l true
@@ -754,7 +741,7 @@ module Extend (B: BASE) = struct
             | true -> true
             | false ->
               begin
-                match conf with
+                match Configuration.node conf with
                 | Configuration.Var q' -> ignore_epsilon q'
                 | _ -> false
               end
@@ -772,7 +759,7 @@ module Extend (B: BASE) = struct
     StateSet.fold fold_state (final_states t) None
 
   let recognizes term t =
-    StateSet.exists (function q -> recognizes_in q term t) (final_states t)
+    List.exists (function q -> recognizes_in q term t) (StateSet.elements (final_states t))
 
   let label f default _ = (* FIXME why is the automaton not used? *)
     let table = Hashtbl.create 8 in
@@ -790,7 +777,7 @@ module Extend (B: BASE) = struct
   type normalizer = Sym.t -> State.t list -> LabeledState.t
 
   (** Return [a] and a state+label in [a] that recognises [conf] normalised. *)
-  let rec normalize_to_state ?hook (create_state : normalizer) aref (conf : Configuration.t) : BoundConfiguration.t =
+  (*let rec normalize_to_state ?hook (create_state : normalizer) aref (conf : Configuration.t) : BoundConfiguration.t =
     let id = ref 0 in
     let next_var typ =
       let x = Var.of_int !id in
@@ -842,15 +829,15 @@ module Extend (B: BASE) = struct
   let add_configuration norm ?hook (conf : Configuration.t) a : BoundConfiguration.t * t =
     let aut = ref a in
     let q = normalize_to_state ?hook norm aut conf in
-    (q, !aut)
+    (q, !aut)*)
 
-  let add norm ?hook conf a =
+  (*let add norm ?hook conf a =
     let conf, a = add_configuration norm ?hook conf a in
     match conf with
     | _, (Some q, _) -> (conf, add_final_state q a)
-    | _, (None, _) -> failwith "normalization failed."
+    | _, (None, _) -> failwith "normalization failed."*)
 
-  let map ?filter f_label f_state a =
+  (*let map ?filter f_label f_state a =
     let map_label = Hashtbl.create 8 in (* 8: arbitrary size *)
     let map_state = Hashtbl.create 8 in (* 8: arbitrary size *)
     let f_label = find_or_create f_label map_label in
@@ -859,6 +846,7 @@ module Extend (B: BASE) = struct
       | Configuration.Cons (f, l) -> Configuration.Cons (f, (List.map (f_conf) l))
       | Configuration.Var q -> Configuration.Var (f_state q)
     in
+    let f_conf x = f_conf (Configuration.node x) in
     let add conf label q b =
       let conf = f_conf conf in
       let label = f_label label in
@@ -876,7 +864,7 @@ module Extend (B: BASE) = struct
     let add_final q b =
       add_final_state (f_state q) b
     in
-    StateSet.fold add_final (final_states a) aut
+    StateSet.fold add_final (final_states a) aut*)
 
   let filter p t =
     let add conf label q aut =
@@ -904,12 +892,13 @@ module Extend (B: BASE) = struct
           visit_conf conf u
         in
         LabeledConfigurationSet.fold add_conf confs u
-    and visit_conf conf u =
+    and visit_conf_internal conf u =
       match conf with
       | Configuration.Cons (_, l) ->
-        List.fold_right visit_conf l u
+        List.fold_right visit_conf_internal l u
       | Configuration.Var q ->
         visit_state q u
+    and visit_conf x u = visit_conf_internal (Configuration.node x) u
     in
     StateSet.fold visit_state states (set_final_states states (clear t))
 
@@ -932,17 +921,17 @@ module Extend (B: BASE) = struct
             | Some conf, Some label -> add_transition conf label q aut
             | None, Some label ->
               begin
-                match ca, cb with
+                match Configuration.node ca, Configuration.node cb with
                 | Configuration.Var qa', _ ->
                   begin
                     match State.product qa' qb with
-                    | Some q' -> add_transition (Configuration.Var q') label q aut
+                    | Some q' -> add_transition (Configuration.of_var q') label q aut
                     | None -> aut
                   end
                 | _, Configuration.Var qb' ->
                   begin
                     match State.product qa qb' with
-                    | Some q' -> add_transition (Configuration.Var q') label q aut
+                    | Some q' -> add_transition (Configuration.of_var q') label q aut
                     | None -> aut
                   end
                 | _, _ -> aut
@@ -1054,11 +1043,11 @@ module Extend (B: BASE) = struct
       | Configuration.Var _ -> alphabet
     in
     let fold_transition conf _ _ alphabet =
-      fold_conf conf alphabet
+      fold_conf (Configuration.node conf) alphabet
     in
-    fold_transitions fold_transition t SymSet.empty
+    fold_transitions fold_transition t (SymSet.empty)
 
-  let complete ?(with_states=StateSet.empty) get_state abc t =
+  (*let complete ?(with_states=StateSet.empty ()) get_state abc t =
     let states = StateSet.union with_states (states t) in
     let for_each_symbol t f =
       let for_each_word word t =
@@ -1071,17 +1060,17 @@ module Extend (B: BASE) = struct
       in
       StateSet.fold_words (Sym.arity f) for_each_word states t
     in
-    List.fold_left for_each_symbol t abc
+    List.fold_left for_each_symbol t abc*)
 
-  let complement cdt =
+  (*let complement cdt =
     let states = states cdt in
     let new_final_states = StateSet.diff states (final_states cdt) in
-    set_final_states new_final_states cdt
+    set_final_states new_final_states cdt*)
 
   let unepsilon _ =
     failwith "TODO: unepsilon: Not implemented yet."
 
-  let determinise ?init_classes map_class t =
+  (*let determinise ?init_classes map_class t =
     let module DetState = struct
       include StateSet
 
@@ -1110,8 +1099,8 @@ module Extend (B: BASE) = struct
       (* let print (conf, _, q) fmt =
          Format.fprintf fmt "%t -> %t" (DetConfiguration.print conf) (DetState.print q) *)
     end in
-    let module DetTransitionSet = Set.Make (DetTransition) in
-    let module DetStateSet = Set.Make (DetState) in
+    let module DetTransitionSet = HashSet.Make (DetTransition) in
+    let module DetStateSet = HashSet.Make (DetState) in
     let table = Hashtbl.create 8 in
     let classes_of classes q =
       DetStateSet.filter (DetState.mem q) classes
@@ -1246,8 +1235,8 @@ module Extend (B: BASE) = struct
       (* let print (conf, _, q) fmt =
          Format.fprintf fmt "%t -> %t" (DetConfiguration.print conf) (DetState.print q) *)
     end in
-    let module DetTransitionSet = Set.Make (DetTransition) in
-    let module DetStateSet = Set.Make (DetState) in
+    let module DetTransitionSet = HashSet.Make (DetTransition) in
+    let module DetStateSet = HashSet.Make (DetState) in
     let table = Hashtbl.create 8 in
     let classes_of classes q =
       DetStateSet.filter (DetState.matches q) classes
@@ -1392,10 +1381,10 @@ module Extend (B: BASE) = struct
       ) t ();
       None
     with
-    | Found_equiv (q, q') -> Some (q, q')
+    | Found_equiv (q, q') -> Some (q, q') *)
 
   (* Minimalise the automaton. *)
-  let rec minimalise ?(filter=fun _ _ -> true) t =
+  (*let rec minimalise ?(filter=fun _ _ -> true) t =
     begin match find_equiv_opt filter t with
       | Some (q, q') ->
         let map_label l = l in
@@ -1404,7 +1393,7 @@ module Extend (B: BASE) = struct
         minimalise ~filter t
       | None ->
         t
-    end
+    end*)
 
   let prune_useless (x:t)
     : t =
@@ -1417,7 +1406,7 @@ module Extend (B: BASE) = struct
 
   exception Found of renaming
 
-  let rec state_renaming ?(knowledge=StateMap.empty) a b qa qb =
+  (*let rec state_renaming ?(knowledge=StateMap.empty) a b qa qb =
     match StateMap.find_opt qb knowledge with
     | Some q when State.equal qa q -> Some knowledge
     | Some _ -> None
@@ -1481,22 +1470,22 @@ module Extend (B: BASE) = struct
             raise Not_found
         with
         | Not_found -> None
-      end
+      end*)
 
-  let of_term norm t data =
+  (*let of_term norm t data =
     let (_, a) = add norm (Configuration.of_term t) (create data) in
-    a
+    a*)
 
-  let of_terms norm l data =
+  (*let of_terms norm l data =
     let add_term a term =
       let (_, a) = add norm (Configuration.of_term term) a in
       a
     in
-    List.fold_left (add_term) (create data) l
+    List.fold_left (add_term) (create data) l*)
 
-  let compare a b =
+  (*let compare a b =
     let c = StateSet.compare (final_states a) (final_states b) in
-    if c = 0 then StateMap.compare (LabeledConfigurationSet.compare) (configurations_for_states a) (configurations_for_states b) else c
+    if c = 0 then StateMap.compare (LabeledConfigurationSet.compare) (configurations_for_states a) (configurations_for_states b) else c*)
 
   let print t out =
     let print_state_confs q confs =
@@ -1549,7 +1538,7 @@ module Extend (B: BASE) = struct
                 | true -> true
                 | false ->
                   begin
-                    match conf with
+                    match Configuration.node conf with
                     | Configuration.Var q' -> ignore_epsilon q' pattern
                     | Configuration.Cons (f', l') when Sym.compare f' f = 0 ->
                       List.fold_right2 (fold_subconf) l' l true
@@ -1563,8 +1552,8 @@ module Extend (B: BASE) = struct
       in
       ignore_epsilon q pattern
 
-    let recognizes_pattern pattern t =
-      StateSet.exists (function q -> recognizes_pattern_in q pattern t) (final_states t)
+    (*let recognizes_pattern pattern t =
+      StateSet.exists (function q -> recognizes_pattern_in q pattern t) (final_states t)*)
 
     let rec configuration_of_pattern state = function
       | Pattern.Cons (f, l) -> Configuration.Cons (f, List.map (configuration_of_pattern state) l)
@@ -1608,7 +1597,7 @@ module Extend (B: BASE) = struct
             let accept, new_filter = call_filter q label in
             if proceed && accept then
               begin
-                match conf with
+                match Configuration.node conf with
                 | Configuration.Var _ -> x
                 | Configuration.Cons (f, l) ->
                   let rec fold_conf_list g left l x =
@@ -1649,7 +1638,7 @@ module Extend (B: BASE) = struct
             let accept, new_filter = call_filter q label in
             if proceed && accept then
               begin
-                match conf with
+                match Configuration.node conf with
                 | Configuration.Var q' ->
                   let fold_type_inhabitant term x =
                     g (BoundTerm.Cast term, (Some q, Some label)) x
@@ -1684,7 +1673,7 @@ module Extend (B: BASE) = struct
           let visited, proceed = visit q in
           if proceed then
             begin
-              match conf with
+              match Configuration.node conf with
               | Configuration.Var q' when epsilon ->
                 begin
                   match pick_in visited (Some q', None) with
@@ -1760,7 +1749,7 @@ module Extend (B: BASE) = struct
     | Some term -> term
     | None -> raise (Invalid_argument "Automaton.pick_term_in: empty state")
 
-  let fold_common_configurations ?(epsilon=true) g states t accu =
+  (*let fold_common_configurations ?(epsilon=true) g states t accu =
     let states = StateSet.elements states in
     let fold_configurations_for_state =
       if epsilon then
@@ -1810,7 +1799,7 @@ module Extend (B: BASE) = struct
 
   let pick_term_in_intersection_opt ?(epsilon=true) states t =
     let exception Found of Sym.t Term.term in
-    let module StateSetSet = Set.Make (StateSet) in
+    let module StateSetSet = HashSet.Make (StateSet) in
     let already_found = Hashtbl.create 8 in
     let rec pick visited states =
       (* Format.eprintf "states: %t@." (StateSet.print State.print "," states); *)
@@ -1864,11 +1853,11 @@ module Extend (B: BASE) = struct
           Some term
       | None -> pick_term_in_opt ~epsilon q t
     in
-    StateSet.fold pick_in (final_states t) None*)
+    StateSet.fold pick_in (final_states t) None*)*)
 
   let rec config_to_bt_opt
       (f:State.t -> BoundTerm.t option)
-      (c:Configuration.t)
+      (c:Configuration.t_node)
     : BoundTerm.t option =
     begin match c with
       | Var s -> f s
@@ -1883,7 +1872,7 @@ module Extend (B: BASE) = struct
           | Some bts -> Some (BoundTerm.Term (l,bts),(None,None))
         end
     end
-
+  let config_to_bt_opt f c = config_to_bt_opt f (Configuration.node c)
 
   let reachable_values a =
     let retrieve_computed_value map c = StateMap.find_opt c map in
@@ -1898,9 +1887,9 @@ module Extend (B: BASE) = struct
               let (map,new_todos) =
                 LabeledStateSet.fold
                   (fun (q,_) (map,new_todos) ->
-                     if StateMap.mem q map then
-                       (map,new_todos)
-                     else
+                     begin match StateMap.find_opt q map with
+                       | Some _ -> (map,new_todos)
+                       | None ->
                        let map = StateMap.add q bt map in
                        let new_todos =
                          ConfigurationSet.fold
@@ -1909,7 +1898,8 @@ module Extend (B: BASE) = struct
                            (state_parents q a)
                            new_todos
                        in
-                       (map,new_todos))
+                       (map,new_todos)
+                     end)
                   lbl_states
                   (map,[])
               in
@@ -1923,7 +1913,7 @@ module Extend (B: BASE) = struct
         (states_for_configurations a)
         []
     in
-    find_reachables initial_todos StateMap.empty
+    find_reachables initial_todos (StateMap.empty)
 
   type 'a picked_in =
     | NoSolution
@@ -1957,7 +1947,7 @@ module Extend (B: BASE) = struct
                     let visited, proceed = visit q in
                     if proceed then
                       begin
-                        match conf with
+                        match Configuration.node conf with
                         | Configuration.Var q' ->
                           let (soln) = pick_in visited (Some q', None) (i-1) in
                           begin
@@ -2072,9 +2062,9 @@ module Extend (B: BASE) = struct
     | Some term -> term
       | None -> raise (Invalid_argument "Automaton.pick_term: empty automaton")*)
 
-  module BoundPatterns (X : Pattern.VARIABLE) = struct
+  (*module BoundPatterns (X : Pattern.VARIABLE) = struct
     module BoundPattern = TypedPattern.Make (Sym) (X) (Binding)
-    module VarTable = HashTable.Make (X)
+    module VarTable = Map.Make (X)
 
     type bound_pattern = BoundPattern.t
 
@@ -2400,7 +2390,7 @@ module Extend (B: BASE) = struct
 
     let recognizes_bound_pattern  ?(epsilon=true) pattern t =
       StateSet.exists (function q -> recognizes_bound_pattern_in ~epsilon q pattern t) (final_states t)
-  end
+    end*)
 end
 
 module Make (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
@@ -2408,6 +2398,8 @@ module Make (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
   include Extend (Base)
 
   let empty = Base.empty
+
+  let compare x y = 0
 end
 
 module MakeStateOption (Q : STATE) = struct
@@ -2468,360 +2460,4 @@ module MakeStateProduct (A : STATE) (B : STATE) = struct
 
   let print (a, b) out =
     Format.fprintf out "%t.%t" (A.print a) (B.print b)
-end
-
-module Ext (A : S) (B : S with module Sym = A.Sym) = struct
-  module ExtConf = Pattern.Ext (A.Configuration) (B.Configuration)
-  module ExtLabeledConfSet = Set.Ext (A.LabeledConfigurationSet) (B.LabeledConfigurationSet)
-  module ExtLabeledStateSet = Set.Ext (A.LabeledStateSet) (B.LabeledStateSet)
-  module ExtConfSet = Set.Ext (A.ConfigurationSet) (B.ConfigurationSet)
-  module ExtStateSet = Set.Ext (A.StateSet) (B.StateSet)
-  module ExtConfMap = Map.Ext (A.ConfigurationMap) (B.ConfigurationMap)
-  module ExtStateMap = Map.Ext (A.StateMap) (B.StateMap)
-
-  module StatePair = MakeStateProduct (A.State) (B.State)
-  module StatePairSet = Set.Make (StatePair)
-
-  (*		roots : StateSet.t; (* Final states. *)*)
-  (*		state_confs : LabeledConfigurationSet.t StateMap.t; (* Associates to each state the set of configurations leading to it. *)*)
-  (*		conf_states : LabeledStateSet.t ConfigurationMap.t; (* Associates to each configuration the set of states to go to. *)*)
-  (*		state_parents : ConfigurationSet.t StateMap.t *)
-
-  let map ?filter f_data f_label f_state a =
-    let map_label = Hashtbl.create 8 in (* 8: arbitrary size *)
-    let map_state = Hashtbl.create 8 in (* 8: arbitrary size *)
-    let f_label = find_or_create (f_label) map_label in
-    let f_state = find_or_create (f_state) map_state in
-    let rec f_conf = function
-      | A.Configuration.Cons (f, l) -> B.Configuration.Cons (f, (List.map (f_conf) l))
-      | A.Configuration.Var q -> B.Configuration.Var (f_state q)
-    in
-    (* let f_labeled_state (q, label) = (f_state q, f_label label) in
-       let f_labeled_conf (conf, label) = (f_conf conf, f_label label) in
-       let f_labeled_states set = ExtLabeledStateSet.map (f_labeled_state) set in
-       let f_labeled_confs set = ExtLabeledConfSet.map (f_labeled_conf) set in
-       let f_conf_labeled_states conf set = (f_conf conf, f_labeled_states set) in
-       let f_state_labeled_confs q set = (f_state q, f_labeled_confs set) in
-       let f_labeled_states_union set1 set2 = Some (B.LabeledStateSet.union set1 set2) in
-       let f_labeled_confs_union set1 set2 = Some (B.LabeledConfigurationSet.union set1 set2) in
-       let f_confs set = ExtConfSet.map (f_conf) set in
-       let f_confs_union set1 set2 = Some (B.ConfigurationSet.union set1 set2) in
-       let f_parent q confs = (f_state q, f_confs confs) in *)
-
-    let add conf label q b =
-      if match filter with
-        | Some f -> f conf label q
-        | None -> true
-      then B.add_transition (f_conf conf) (f_label label) (f_state q) b
-      else b
-    in
-    let aut = A.fold_transitions add a (B.create (f_data (A.data a))) in
-    let add_final q b =
-      B.add_final_state (f_state q) b
-    in
-    A.StateSet.fold add_final (A.final_states a) aut
-
-  (* {
-     B.roots = ExtStateSet.map (f_state) a.A.roots;
-     B.state_confs = ExtStateMap.map (f_state_labeled_confs) (f_labeled_confs_union) a.A.state_confs;
-     B.conf_states = ExtConfMap.map (f_conf_labeled_states) (f_labeled_states_union) a.A.conf_states;
-     B.state_parents = ExtStateMap.map (f_parent) (f_confs_union) a.A.state_parents
-     } *)
-
-  let states_intersection_opt qa qb a b =
-    let exception Found of A.BoundTerm.t * B.BoundTerm.t in
-    let rec states_intersection' visited qa qb =
-      if StatePairSet.mem (qa, qb) visited then
-        None
-      else
-        begin
-          let visited = StatePairSet.add (qa, qb) visited in
-          let qa_confs = A.configurations_for_state qa a in
-          let qb_confs = B.configurations_for_state qb b in
-          try
-            A.LabeledConfigurationSet.iter ( (* exists *)
-              function qa_conf, label_a ->
-                B.LabeledConfigurationSet.iter ( (* exists *)
-                  function qb_conf, label_b ->
-                  match qa_conf, qb_conf with
-                  | A.Configuration.Cons (fa, la), B.Configuration.Cons (fb, lb) when A.Sym.equal fa fb ->
-                    begin match List.map2_opt
-                                  (states_intersection' visited)
-                                  (List.map A.Configuration.normalized la)
-                                  (List.map B.Configuration.normalized lb) with
-                    | Some ll ->
-                      let la, lb = List.split ll in
-                      let ta = A.BoundTerm.Term (fa, la), (Some qa, Some label_a) in
-                      let tb = B.BoundTerm.Term (fb, lb), (Some qb, Some label_b) in
-                      raise (Found (ta, tb))
-                    | None -> ()
-                    end
-                  | A.Configuration.Var qa', B.Configuration.Var qb' ->
-                    begin match states_intersection' visited qa' qb' with
-                      | Some (ta, tb) ->
-                        let ta = A.BoundTerm.Cast ta, (Some qa, Some label_a) in
-                        let tb = B.BoundTerm.Cast tb, (Some qb, Some label_b) in
-                        raise (Found (ta, tb))
-                      | None -> ()
-                    end
-                  | _ ->
-                    ()
-                ) qb_confs;
-            ) qa_confs;
-            (* epsilon transitions in a *)
-            A.LabeledConfigurationSet.iter (
-              function qa_conf, label_a ->
-              match qa_conf with
-              | A.Configuration.Var qa' ->
-                begin match states_intersection' visited qa' qb with
-                  | Some (ta, tb) ->
-                    let ta = A.BoundTerm.Cast ta, (Some qa, Some label_a) in
-                    raise (Found (ta, tb))
-                  | None -> ()
-                end
-              | _ -> ()
-            ) qa_confs;
-            (* epsilon transitions in b *)
-            B.LabeledConfigurationSet.iter (
-              function qb_conf, label_b ->
-              match qb_conf with
-              | B.Configuration.Var qb' ->
-                begin match states_intersection' visited qa qb' with
-                  | Some (ta, tb) ->
-                    let tb = B.BoundTerm.Cast tb, (Some qb, Some label_b) in
-                    raise (Found (ta, tb))
-                  | None -> ()
-                end
-              | _ -> ()
-            ) qb_confs;
-            None
-          with
-          | Found (a, b) -> Some (a, b)
-        end
-    in
-    states_intersection' StatePairSet.empty qa qb
-
-  let states_intersects qa qb a b =
-    Option.is_some (states_intersection_opt qa qb a b)
-
-  let state_included_in ?(epsilon=true) a b qa qb : B.BoundTerm.t option =
-    let rec state_included_in' visited qa qb : B.BoundTerm.t option =
-      if StatePairSet.mem (qa, qb) visited then
-        None
-      else
-        begin
-          let visited = StatePairSet.add (qa, qb) visited in
-          let qb_confs = B.configurations_for_state qb b in
-          let qa_confs = A.configurations_for_state qa a in
-          (* Check that for all configuration of [qb] there exists an equivalent configuration in [qa] *)
-          B.LabeledConfigurationSet.fold (
-            function b_conf -> function
-              | Some sample -> Some sample
-              | None ->
-                begin match b_conf with
-                  | B.Configuration.Cons (fb, lb), label ->
-                    let lb = List.map B.Configuration.normalized lb in
-                    (* Check if there exists an exquivalent configuration in [qa]. *)
-                    let included, samples = A.LabeledConfigurationSet.fold (
-                        function a_conf -> function
-                          | true, samples -> true, samples
-                          | false, samples ->
-                            begin match a_conf with
-                              | A.Configuration.Cons (fa, la), _ when A.Sym.equal fa fb ->
-                                begin
-                                  (* Check that for all sub-states of lb, it is included in the quivalent state in la. *)
-                                  List.fold_right2
-                                    (
-                                      fun qa' qb' (included, samples) ->
-                                        if included then
-                                          match state_included_in' visited qa' qb' with
-                                          | None -> (included, None::samples)
-                                          | Some sample -> (false, (Some sample)::samples)
-                                        else (false, None::samples)
-                                    )
-                                    (List.map A.Configuration.normalized la)
-                                    lb
-                                    (true, [])
-                                end
-                              | _ ->
-                                false, samples
-                            end
-                      ) qa_confs (false, List.init (List.length lb) (function _ -> None))
-                    in
-                    if included then begin
-                      None
-                    end else begin
-                      let samples = List.map2
-                          (
-                            function qb' -> function
-                              | Some sample -> sample
-                              | None -> B.pick_term_in qb' b
-                          )
-                          lb samples
-                      in
-                      Some (B.BoundTerm.Term (fb, samples), (Some qb, Some label))
-                    end
-                  | B.Configuration.Var _, _ when not epsilon ->
-                    None
-                  | B.Configuration.Var qb', label ->
-                    begin match state_included_in' visited qa qb' with
-                      | Some sample -> Some (B.BoundTerm.Cast sample, (Some qb', Some label))
-                      | None -> None
-                    end
-                end
-          ) qb_confs None
-        end
-    in
-    match state_included_in' StatePairSet.empty qa qb with
-    | Some sample ->
-      (* Log.debug "state %t is not included in %t because of \n%t\n@."
-         (B.State.print qb) (A.State.print qa) (B.BoundTerm.print sample); *)
-      Some sample
-    | None -> None
-
-  type renaming = A.State.t B.StateMap.t
-
-  exception Found of renaming
-
-  let rec state_renaming ?(epsilon=true) ?(knowledge=B.StateMap.empty) label_eq a b qa qb =
-    match B.StateMap.find_opt qb knowledge with
-    | Some q when A.State.equal qa q -> Some knowledge
-    | Some _ -> None
-    | None ->
-      begin
-        (* NOTE idea: Use MurmurHash to hash the structure of each state. *)
-        let match_confs (qa_conf, qa_label) (qb_conf, qb_label) knowledge =
-          if label_eq qa_label qb_label then
-            match qa_conf, qb_conf with
-            | A.Configuration.Cons (fa, la), B.Configuration.Cons (fb, lb) when A.Sym.equal fa fb ->
-              begin
-                try
-                  let knowledge = List.fold_right2 (
-                      fun qa' qb' knowledge ->
-                        match state_renaming ~epsilon ~knowledge label_eq a b qa' qb' with
-                        | Some knowledge -> knowledge
-                        | None -> raise Not_found
-                    ) (List.map A.Configuration.normalized la) (List.map B.Configuration.normalized lb) knowledge
-                  in
-                  Some knowledge
-                with
-                | Not_found -> None
-              end
-            | A.Configuration.Var qa', B.Configuration.Var qb' ->
-              state_renaming ~epsilon ~knowledge label_eq a b qa' qb'
-            | _ -> None
-          else
-            None
-        in
-        try
-          let remove_epsilons_a confs =
-            if epsilon then confs else
-              A.LabeledConfigurationSet.filter (
-                function
-                | A.Configuration.Var _, _ -> false
-                | _ -> true
-              ) confs
-          in
-          let remove_epsilons_b confs =
-            if epsilon then confs else
-              B.LabeledConfigurationSet.filter (
-                function
-                | B.Configuration.Var _, _ -> false
-                | _ -> true
-              ) confs
-          in
-          let qa_confs = remove_epsilons_a (A.configurations_for_state qa a) in
-          let qb_confs = remove_epsilons_b (B.configurations_for_state qb b) in
-          if A.LabeledConfigurationSet.cardinal qa_confs = B.LabeledConfigurationSet.cardinal qb_confs then
-            try
-              let rec find_renaming qa_confs qb_confs knowledge =
-                if A.LabeledConfigurationSet.is_empty qa_confs then
-                  raise (Found knowledge)
-                else
-                  begin
-                    let qa_conf = A.LabeledConfigurationSet.choose qa_confs in
-                    B.LabeledConfigurationSet.iter (
-                      function qb_conf ->
-                      match match_confs qa_conf qb_conf knowledge with
-                      | Some knowledge ->
-                        begin
-                          let qa_confs = A.LabeledConfigurationSet.remove qa_conf qa_confs in
-                          let qb_confs = B.LabeledConfigurationSet.remove qb_conf qb_confs in
-                          try find_renaming qa_confs qb_confs knowledge with
-                          | Not_found -> ()
-                        end
-                      | None -> ()
-                    ) qb_confs;
-                    raise Not_found
-                  end
-              in
-              find_renaming qa_confs qb_confs (B.StateMap.add qb qa knowledge);
-              None
-            with
-            | Found knowledge -> Some knowledge
-          else
-            raise Not_found
-        with
-        | Not_found -> None
-      end
-end
-
-module Product (A : S) (B : S with module Sym = A.Sym) (AB : S with module Sym = B.Sym) = struct
-  module ConfProduct = Pattern.Product (A.Configuration) (B.Configuration) (AB.Configuration)
-  module ExtLabeledConfSet = Set.Ext (A.LabeledConfigurationSet) (B.LabeledConfigurationSet)
-  module ExtStateMap = Map.Ext (A.StateMap) (B.StateMap)
-  module ExtStateSet = Set.Ext (A.StateSet) (B.StateSet)
-
-  let do_product ?hook epsilon label_product state_product aut a b_state_confs b_roots =
-    let product qa qa_confs qb qb_confs aut =
-      match state_product qa qb with
-      | Some q ->
-        let conf_product (ca, la) (cb, lb) aut =
-          match (ConfProduct.product (state_product) ca cb), (label_product la lb) with
-          | Some conf, Some label ->
-            AB.add_transition conf label q aut
-          | None, Some label ->
-            if epsilon then
-              begin (* this part handles epsilon transitions. *)
-                match ca, cb with
-                | A.Configuration.Var qa', _ ->
-                  begin
-                    match state_product qa' qb with
-                    | Some q' ->
-                      AB.add_transition (AB.Configuration.Var q') label q aut
-                    | None -> aut
-                  end
-                | _, B.Configuration.Var qb' ->
-                  begin
-                    match state_product qa qb' with
-                    | Some q' ->
-                      AB.add_transition (AB.Configuration.Var q') label q aut
-                    | None -> aut
-                  end
-                | _, _ -> aut
-              end
-            else aut
-          | _, None -> aut
-        in
-        let aut = ExtLabeledConfSet.fold2 (conf_product) (qa_confs) (qb_confs) aut in
-        begin
-          match hook with
-          | Some h -> h aut q
-          | None -> ()
-        end;
-        aut
-      | None -> aut
-    in
-    let add_final qa qb aut =
-      match state_product qa qb with
-      | Some q -> AB.add_final_state q aut
-      | None -> aut
-    in
-    let aut = ExtStateMap.fold2 product (A.configurations_for_states a) b_state_confs aut in
-    ExtStateSet.fold2 add_final (A.final_states a) b_roots aut
-
-  let product ?hook ?(epsilon=true) data_product label_product state_product a b =
-    (*		let map = Hashtbl.create 8 in (* 8: arbitrary size *)*)
-    (*		let state_product a b = find_or_create (function (a, b) -> product a b) map (a, b) in*)
-    do_product ?hook epsilon label_product state_product (AB.create (data_product (A.data a) (B.data b))) a (B.configurations_for_states b) (B.final_states b)
 end
