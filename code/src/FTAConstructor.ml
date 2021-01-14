@@ -144,36 +144,32 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
            t)
   end
 
-  module StateSet =
-    struct
-      include Collections.HashSet.Make(State)
-      let pp = pp State.pp
-    end
-  module InputsAndTypeToStates =
-  struct
-    module VT = PairOf(ListOf(Value))(ClassifiedType)
-    include Collections.HashTable.Make(VT)
-
-    let pp = pp VT.pp
-  end
+  module StateSet = SetOf(State)
+  module InputsAndTypeToStates = DictOf(PairOf(ListOf(Value))(ClassifiedType))(StateSet)
   module TransitionSet = SetOf(Transition)
 
   type t =
     {
-      a                : A.t                        ;
-      d                : StateSet.t InputsAndTypeToStates.t    ;
-      ds               : TypeDS.t                   ;
-      inputs           : Value.t list list          ;
-      tset             : TransitionSet.t            ;
-      final_candidates : Value.t -> Value.t -> bool ;
-      all_types        : Type.t list                ;
-      up_to_date       : bool                       ;
-      input_type       : Type.t                     ;
-      output_type      : Type.t                     ;
-      mutable min_term_state   : A.TermState.t option option ;
-      all_states       : StateSet.t                 ;
+      a                  : A.t                        ;
+      mutable d          : InputsAndTypeToStates.t    ;
+      ds                 : TypeDS.t                   ;
+      inputs             : Value.t list list          ;
+      mutable tset       : TransitionSet.t            ;
+      final_candidates   : Value.t -> Value.t -> bool ;
+      all_types          : Type.t list                ;
+      mutable up_to_date : bool                       ;
+      input_type         : Type.t                     ;
+      output_type        : Type.t                     ;
+      mutable all_states : StateSet.t                 ;
+      mutable min_term_state : A.TermState.t option option ;
     }
   [@@deriving show]
+
+  let copy (c:t)
+    : t =
+    { c with
+      a = A.copy c.a ;
+    }
 
   let equal _ _ = failwith "not implemented"
   let hash_fold_t _ _ = failwith "not implemented"
@@ -312,8 +308,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let invalidate_computations
       (c:t)
-    : t =
-    {c with min_term_state = None}
+    : unit =
+    c.min_term_state <- None
 
   let get_final_values
       (c:t)
@@ -340,7 +336,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       ((t,cl):ClassifiedType.t)
       (inputs:Value.t list)
     : State.t list =
-    begin match InputsAndTypeToStates.find_opt (inputs,(get_type_rep c t,cl)) c.d with
+    begin match InputsAndTypeToStates.lookup c.d (inputs,(get_type_rep c t,cl)) with
       | None -> []
       | Some ss -> StateSet.as_list ss
     end
@@ -359,54 +355,53 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (c:t)
       (vinsvouts:(Value.t * Value.t) list)
       ((t,cl):ClassifiedType.t)
-    : t =
+    : unit =
     let t = get_type_rep c t in
     let vins = List.map ~f:fst vinsvouts in
     let s = val_state c vinsvouts (t,cl) in
     let to_add =
-      begin match InputsAndTypeToStates.find_opt (vins,(t,cl)) c.d with
+      begin match InputsAndTypeToStates.lookup c.d (vins,(t,cl)) with
         | None ->
-          let ss = StateSet.create 1000 in
-          StateSet.add s ss
+          StateSet.singleton s
         | Some ss ->
-          StateSet.add s ss
+          StateSet.insert s ss
       end
     in
-    let all_states = StateSet.add s c.all_states in
+    let all_states = StateSet.insert s c.all_states in
     let d =
-      InputsAndTypeToStates.set
+      InputsAndTypeToStates.insert
+        c.d
         (vins,(t,cl))
         to_add
-        c.d
     in
-    let _ = InputsAndTypeToStates.find (vins,(t,cl)) d in
-    let c =
+    begin
       if Type.equal t c.output_type
          && TermClassification.equal cl TermClassification.Introduction
          && List.for_all ~f:(uncurry c.final_candidates) vinsvouts then
-        let a = A.add_final_state c.a s in
-        {c with a}
+        A.add_final_state c.a s
       else
-        c
-    in
-    invalidate_computations {c with d; all_states; }
+        ()
+    end;
+    c.d <- d;
+    c.all_states <- all_states;
+    invalidate_computations c
 
   let update_tset
       (c:t)
       (trans:Transition.t)
-    : t =
+    : unit =
     if TransitionSet.member c.tset trans then
-      c
+      ()
     else
-      let a =
+      begin
         A.add_transition
           c.a
           trans
           (List.init ~f:(func_of State.top) (Transition.arity trans))
-          State.top
-      in
-      let tset = TransitionSet.insert trans c.tset in
-      invalidate_computations { c with a ; tset ; }
+          State.top;
+        c.tset <- TransitionSet.insert trans c.tset;
+        invalidate_computations c
+      end
 
 
   let add_transition
@@ -415,48 +410,44 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (sins:State.t list)
       (sout:State.t)
       (ensure_state:bool)
-    : t =
-    let c =
-      update_tset
-        c
-        (Transition.create (trans_id,List.length sins))
-    in
+    : unit =
+    update_tset
+      c
+      (Transition.create (trans_id,List.length sins));
     if ensure_state then
-      let c =
+      begin
         begin match sout with
-          | Top -> c
+          | Top -> ()
           | Vals (vinsvouts,t) ->
             add_state c vinsvouts t
-        end
-      in
-      let a =
+        end;
         A.add_transition
           c.a
           (Transition.create (trans_id,List.length sins))
           sins
-          sout
-      in
-      invalidate_computations { c with a }
-    else if StateSet.contains sout c.all_states (*A.has_state c.a sout*) then
-      let a =
+          sout;
+        invalidate_computations c
+      end
+    else if StateSet.member c.all_states sout then
+      begin
         A.add_transition
           c.a
           (Transition.create (trans_id,List.length sins))
           sins
-          sout
-      in
-      invalidate_computations { c with a }
+          sout;
+        invalidate_computations c;
+      end
     else
-      c
+      ()
 
   let remove_transition
       (c:t)
       (trans:Transition.t)
       (sins:State.t list)
       (sout:State.t)
-    : t =
-    invalidate_computations {c with
-     a = A.remove_transition c.a trans sins sout }
+    : unit =
+    A.remove_transition c.a trans sins sout;
+    invalidate_computations c
 
   let evaluate
       (c:t)
@@ -502,7 +493,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
          ((Transition.id
            * (Value.t list -> Value.t list)
            * (ClassifiedType.t list) * ClassifiedType.t) list))
-    : t =
+    : unit =
     let ids_ins_outs =
       List.concat_map
         ~f:(fun (i,e,tins,tout) ->
@@ -527,15 +518,14 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
               c.inputs)
         conversions
     in
-    List.fold
-      ~f:(fun a (i,ins,out) ->
+    List.iter
+      ~f:(fun (i,ins,out) ->
           add_transition
-            a
+            c
             i
             ins
             out
             ensure_state)
-      ~init:c
       ids_ins_outs
 
   let create_ds_from_t_list_context
@@ -589,14 +579,14 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
     in
     let ds = create_ds_from_t_list_context ~context ts in
-    let a = A.empty in
-    let d = InputsAndTypeToStates.create 1000 in
+    let a = A.empty () in
+    let d = InputsAndTypeToStates.empty in
     let input_vals = inputs in
     let inputs = List.map ~f:(fun i -> [i]) inputs in
     let tset = TransitionSet.empty in
     let (input_type,_) = TypeDS.find_representative ds input_type in
     let (output_type,_) = TypeDS.find_representative ds output_type in
-    let all_states = StateSet.create 1000 in
+    let all_states = StateSet.empty in
     let c =
       {
         a                 ;
@@ -613,27 +603,22 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         all_states        ;
       }
     in
-    List.fold
-      ~f:(fun c i ->
-          let c =
-            add_transition
-              c
-              Var
-              []
-              (val_state c [(i,i)] (input_type,TermClassification.Elimination))
-              true
-          in
-          let c =
-            add_transition
-              c
-              Var
-              []
-              (val_state c [(i,i)] (input_type,TermClassification.Introduction))
-              true
-          in
-          c)
-      ~init:c
-      input_vals
+    List.iter
+      ~f:(fun i ->
+          add_transition
+            c
+            Var
+            []
+            (val_state c [(i,i)] (input_type,TermClassification.Elimination))
+            true;
+          add_transition
+            c
+            Var
+            []
+            (val_state c [(i,i)] (input_type,TermClassification.Introduction))
+            true;)
+      input_vals;
+    c
 
   let initialize
       ~(problem:Problem.t)
@@ -652,14 +637,14 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
     in
     let ds = create_ds_from_t_list ~problem ts in
-    let a = A.empty in
-    let d = InputsAndTypeToStates.create 1000 in
+    let a = A.empty () in
+    let d = InputsAndTypeToStates.empty in
     let input_vals = inputs in
     let inputs = List.map ~f:(fun i -> [i]) inputs in
     let tset = TransitionSet.empty in
     let (input_type,_) = TypeDS.find_representative ds input_type in
     let (output_type,_) = TypeDS.find_representative ds output_type in
-    let all_states = StateSet.create 1000 in
+    let all_states = StateSet.empty in
     let c =
       {
         a                 ;
@@ -676,27 +661,22 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         all_states        ;
       }
     in
-    List.fold
-      ~f:(fun c i ->
-          let c =
-            add_transition
-              c
-              Var
-              []
-              (val_state c [(i,i)] (input_type,TermClassification.Elimination))
-              true
-          in
-          let c =
-            add_transition
-              c
-              Var
-              []
-              (val_state c [(i,i)] (input_type,TermClassification.Introduction))
-              true
-          in
-          c)
-      ~init:c
-      input_vals
+    List.iter
+      ~f:(fun i ->
+          add_transition
+            c
+            Var
+            []
+            (val_state c [(i,i)] (input_type,TermClassification.Elimination))
+            true;
+          add_transition
+            c
+            Var
+            []
+            (val_state c [(i,i)] (input_type,TermClassification.Introduction))
+            true;)
+      input_vals;
+    c
 
   let get_all_types
       (c:t)
@@ -705,9 +685,9 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let add_let_ins
       (c:t)
-    : t =
-    List.fold
-      ~f:(fun c (s1,s2) ->
+    : unit =
+    List.iter
+      ~f:(fun (s1,s2) ->
           begin match (s1,s2) with
             | (Vals ([v11,v12],_), Vals ([v21,v22],t)) ->
               if c.final_candidates v21 v22 &&
@@ -721,18 +701,17 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                   (val_state c [v11,v22] t)
                   true
               else
-                c
-            | _ -> c
+                ()
+            | _ -> ()
           end)
-      ~init:c
       (List.cartesian_product (A.states c.a) (A.states c.a))
 
   let add_final_state
       (c:t)
       (s:State.t)
-    : t =
-    let a = A.add_final_state c.a s in
-    invalidate_computations { c with a }
+    : unit =
+    A.add_final_state c.a s;
+    invalidate_computations c
 
   let minimize
       (c:t)
@@ -745,7 +724,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let add_destructors
       (c:t)
-    : t =
+    : unit =
     let all_transformations =
       cartesian_filter_map
         ~f:(fun (s1:State.t) (s2:State.t) ->
@@ -784,26 +763,24 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         (A.states c.a)
         (A.states c.a)
     in
-    List.fold
-      ~f:(fun c (t,ins,out) ->
+    List.iter
+      ~f:(fun (t,ins,out) ->
           add_transition
             c
             t
             ins
             out
             true)
-      ~init:c
       all_transformations
 
 
   let add_states
       (c:t)
       (states:((Value.t * Value.t) list * ClassifiedType.t) list)
-    : t =
-    List.fold
-      ~f:(fun c (vvs,t) ->
+    : unit =
+    List.iter
+      ~f:(fun (vvs,t) ->
           add_state c vvs t)
-      ~init:c
       states
 
   let recursion_targets
@@ -844,30 +821,23 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       List.unzip
         transitions_to_prune_and_add
     in
-    let c =
-      List.fold
-        ~f:(fun c (t,ss,s) ->
-            remove_transition
-              c
-              t
-              ss
-              s)
-        ~init:c
-        prunes
-    in
-    let c =
-      List.fold
-        ~f:(fun c (sarg,target) ->
-            add_transition
-              c
-              Transition.Rec
-              [sarg]
-              target
-              true)
-        ~init:c
-        adds
-    in
-    c
+    List.iter
+      ~f:(fun (t,ss,s) ->
+          remove_transition
+            c
+            t
+            ss
+            s)
+      prunes;
+    List.iter
+      ~f:(fun (sarg,target) ->
+          add_transition
+            c
+            Transition.Rec
+            [sarg]
+            target
+            true)
+      adds
 
   let intersect
       (c1:t)
@@ -896,33 +866,30 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
            TransitionSet.as_list
              (merge_tset c1.tset c2.tset)
          in
-         let c1 =
-           List.fold
-             ~f:update_tset
-             ~init:c1
-             ts
-         in
-         let c2 =
-           List.fold
-             ~f:update_tset
-             ~init:c2
-             ts
-         in
+         List.iter
+           ~f:(update_tset c1)
+           ts;
+         List.iter
+           ~f:(update_tset c2)
+           ts;
          let a = A.intersect c1.a c2.a in
-         invalidate_computations { c1 with a ; up_to_date = false ; })
+         let c = { c1 with a } in
+         invalidate_computations c;
+         c)
 
   let rec replace_all_recursions
       (c:t)
-    : t =
+    : unit =
     let candidates =
       recursion_targets
         c
     in
     begin match candidates with
-      | [] -> c
+      | [] -> ()
       | h::_ ->
+        prune_with_recursion_intro c h;
         replace_all_recursions
-          (prune_with_recursion_intro c h)
+          c
     end
 
   let rec replace_single_recursions
@@ -932,7 +899,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       recursion_targets
         c
     in
-    List.map ~f:(prune_with_recursion_intro c) candidates
+    List.map ~f:(fun q -> let c = copy c in prune_with_recursion_intro c q; c) candidates
 
   module StateToTree = DictOf(State)(A.Term)
   module StateToTree' = DictOf(State)(PairOf(IntModule)(A.Term))

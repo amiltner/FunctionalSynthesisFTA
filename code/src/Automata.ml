@@ -38,14 +38,15 @@ sig
   val compare : t comparer
   val equal : t equality_check
 
-  val empty : t
+  val empty : unit -> t
   val intersect : t -> t -> t
-  val add_transition : t -> Symbol.t -> State.t list -> State.t -> t
-  val remove_transition : t -> Symbol.t -> State.t list -> State.t -> t
+  val copy : t -> t
+  val add_transition : t -> Symbol.t -> State.t list -> State.t -> unit
+  val remove_transition : t -> Symbol.t -> State.t list -> State.t -> unit
   val states : t -> State.t list
   val final_states : t -> State.t list
   val is_final_state : t -> State.t -> bool
-  val add_final_state : t -> State.t -> t
+  val add_final_state : t -> State.t -> unit
   val has_state : t -> State.t -> bool
   val is_empty : t -> bool
   val accepts_term : t -> Term.t -> bool
@@ -137,6 +138,8 @@ module TimbukBuilder : AutomatonBuilder =
 
     let empty = A.empty
 
+    let copy = A.copy
+
     let intersect a1 a2 = A.inter (fun _ _ -> ()) a1 a2
 
     let add_transition a s sts st =
@@ -162,15 +165,15 @@ module TimbukBuilder : AutomatonBuilder =
         a
 
     let states a =
-      A.StateSet.elements
+      A.StateSet.as_list
         (A.states a)
 
     let final_states a =
-      A.StateSet.elements
+      A.StateSet.as_list
         (A.final_states a)
 
     let is_final_state a s =
-      A.StateSet.mem
+      A.StateSet.contains
         s
         (A.final_states a)
 
@@ -181,7 +184,7 @@ module TimbukBuilder : AutomatonBuilder =
         a
         s
       =
-      A.StateSet.mem s (A.states a)
+      A.StateSet.contains s (A.states a)
 
     let is_empty a =
       Option.is_some
@@ -208,7 +211,7 @@ module TimbukBuilder : AutomatonBuilder =
 
     let transitions_from a s =
       let ps = A.state_parents s a in
-      let cs = A.ConfigurationSet.elements ps in
+      let cs = A.ConfigurationSet.as_list ps in
       List.concat_map
         ~f:(fun c ->
             let ss =

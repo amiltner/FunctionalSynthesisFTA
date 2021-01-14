@@ -96,7 +96,7 @@ module Make : AutomatonBuilder =
           let value = "auts/symbol_bijection.mapping"
         end)
 
-    let empty = create_from_timbuk TimbukAut.empty
+    let empty () = create_from_timbuk (TimbukAut.empty ())
 
     module ASTBuilder =
     struct
@@ -182,15 +182,13 @@ module Make : AutomatonBuilder =
 
       let automaton (ast, _) =
         let roots = final_states ast.Ast.aut_roots in
-        let aut =
-          List.fold
-            ~f:TimbukAut.add_final_state
-            ~init:TimbukAut.empty
-            (List.filter_map ~f:ident roots)
-        in
+        let aut = TimbukAut.empty () in
+        List.iter
+          ~f:(TimbukAut.add_final_state aut)
+          (List.filter_map ~f:ident roots);
         let transitions = transitions ast.Ast.aut_transitions in
-        List.fold
-          ~f:(fun aut (sym,subs,out) ->
+        List.iter
+          ~f:(fun (sym,subs,out) ->
               begin match (distribute_option subs,out) with
                 | (Some subs, Some out) ->
                   TimbukAut.add_transition
@@ -199,10 +197,10 @@ module Make : AutomatonBuilder =
                     subs
                     out
                 | _ ->
-                  aut
+                  ()
               end)
-          ~init:aut
-          transitions
+          transitions;
+        aut
     end
 
     let get_aut
@@ -218,35 +216,33 @@ module Make : AutomatonBuilder =
           aut
       end
 
+    let copy (x:t)
+      : t =
+      create_from_timbuk (TimbukAut.copy (get_aut x))
+
     let add_transition
         (x:t)
         (sym:Symbol.t)
         (ss:State.t list)
         (s:State.t)
-      : t =
-      let aut =
-        TimbukAut.add_transition
-          (get_aut x)
-          sym
-          ss
-          s
-      in
-      create_from_timbuk aut
+      : unit =
+      TimbukAut.add_transition
+        (get_aut x)
+        sym
+        ss
+        s
 
     let remove_transition
         (x:t)
         (sym:Symbol.t)
         (ss:State.t list)
         (s:State.t)
-      : t =
-      let aut =
-        TimbukAut.remove_transition
-          (get_aut x)
-          sym
-          ss
-          s
-      in
-      create_from_timbuk aut
+      : unit =
+      TimbukAut.remove_transition
+        (get_aut x)
+        sym
+        ss
+        s
 
     let states
         (x:t)
@@ -273,9 +269,8 @@ module Make : AutomatonBuilder =
     let add_final_state
         (x:t)
         (s:State.t)
-      : t =
-      create_from_timbuk
-        (TimbukAut.add_final_state (get_aut x) s)
+      : unit =
+      (TimbukAut.add_final_state (get_aut x) s)
 
     let is_empty
         (x:t)

@@ -305,18 +305,19 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
              subvalues
          in
            let c = C.add_states c subcall_sites in*)
-         let c =
-           List.fold
-             ~f:(fun c _ ->
-                 let c = C.update_from_conversions c destruct_conversions in
-                 let c = C.update_from_conversions c conversions in
-                 c)
-             ~init:c
-             (range 0 num_applications)
-         in
-         let c = C.update_from_conversions c conversions ~ensure_state:false in
-         let c = C.add_destructors c in
-         let c = C.minimize c in
+           List.iter
+             ~f:(fun _ ->
+                 C.update_from_conversions c destruct_conversions;
+                 C.update_from_conversions c conversions)
+             (range 0 num_applications);
+         C.update_from_conversions c conversions ~ensure_state:false;
+           C.add_destructors c;
+           (*print_endline "here";
+             print_endline (C.show c);
+             print_endline (string_of_bool (Option.is_some (C.min_term_state c)));*)
+           let c = C.minimize c in
+           (*print_endline (C.show c);
+             print_endline "there";*)
          c)
 
   let checker_from_exp
@@ -633,23 +634,21 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       let (c,to_intersect) =
         begin match io with
           | None ->
-            let c =
-              C.remove_transition
-                qe.c
-                FTAConstructor.Transition.rec_
-                [s1]
-                s2
-            in
+            let c = C.copy qe.c in
+            C.remove_transition
+              c
+              FTAConstructor.Transition.rec_
+              [s1]
+              s2;
             (c,qe.to_intersect)
           | Some i ->
             let (h,t) = extract_nth_exn i qe.to_intersect in
-            let h =
-              C.remove_transition
-                h
-                FTAConstructor.Transition.rec_
-                [s1]
-                s2
-            in
+            let h = C.copy h in
+            C.remove_transition
+              h
+              FTAConstructor.Transition.rec_
+              [s1]
+              s2;
             (qe.c,h::t)
         end
       in

@@ -313,7 +313,7 @@ module Make (K: HashedType) = struct
     pp_kvp f kvp;
     Format.fprintf
       f
-      "["
+      "]"
 
   let fold
       (type a)

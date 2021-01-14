@@ -22,28 +22,30 @@ module type BASE = sig
     val hash : t -> int
     val print : t -> Format.formatter -> unit
   end
-  module StateSet : Set.S with type elt = State.t
-  module StateMap : Map.S with type key = State.t
-  module ConfigurationSet : Set.S with type elt = Configuration.t
+  module StateSet : MyStdLib.HashSet.ImperativeSet with type elt = State.t
+  module StateMap : MyStdLib.HashTable.ImperativeDict with type key = State.t
+  module ConfigurationSet : MyStdLib.HashSet.ImperativeSet with type elt = Configuration.t
   module ConfigurationMap : Map.S with type key = Configuration.t
   module LabeledConfigurationSet : Set.S with type elt = LabeledConfiguration.t
   module LabeledStateSet : Set.S with type elt = LabeledState.t
   type t
   type data
   val create : data -> t
+  val empty : unit -> t
   val data : t -> data
   val clear : t -> t
+  val copy : t -> t
   val final_states : t -> StateSet.t
   val configurations_for_states : t -> LabeledConfigurationSet.t StateMap.t
   val states_for_configurations : t -> LabeledStateSet.t ConfigurationMap.t
   val state_parents : State.t -> t -> ConfigurationSet.t
-  val add_final_state : State.t -> t -> t
-  val add_final_states : StateSet.t -> t -> t
-  val set_final_states : StateSet.t -> t -> t
+  val add_final_state : State.t -> t -> unit
+  val add_final_states : StateSet.t -> t -> unit
+  val set_final_states : StateSet.t -> t -> unit
   type hook = Configuration.t -> Label.t -> State.t -> unit
-  val add_transition : ?hook:hook -> Configuration.t -> Label.t -> State.t -> t -> t
-  val add_transition_unchecked : Configuration.t -> Label.t -> State.t -> t -> t
-  val remove_transition : Configuration.t -> Label.t -> State.t -> t -> t
+  val add_transition : ?hook:hook -> Configuration.t -> Label.t -> State.t -> t -> unit
+  val add_transition_unchecked : Configuration.t -> Label.t -> State.t -> t -> unit
+  val remove_transition : Configuration.t -> Label.t -> State.t -> t -> unit
 end
 
 module type S = sig
@@ -95,7 +97,6 @@ module type S = sig
   val fold_states : (State.t -> 'a -> 'a) -> t -> 'a -> 'a
   val fold_transitions : (Configuration.t -> Label.t -> State.t -> 'a -> 'a) -> t -> 'a -> 'a
   val label : ((State.t -> 'a) -> State.t -> 'a) -> (State.t -> 'a) -> t -> (State.t -> 'a)
-  val merge : t -> t -> t
   val inter : ?hook:(t -> State.t -> unit) -> (data -> data -> data) -> t -> t -> t
   val reachable_states : ?epsilon:bool -> t -> StateSet.t
   val reachable_values : t -> BoundTerm.t StateMap.t
@@ -168,36 +169,52 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
       State.print q out
   end
 
-  module StateSet = Set.Make (State)
-  module StateMap = Map.Make (State)
+  module StateP = struct
+    include State
 
-  module ConfigurationSet = Set.Make (Configuration)
+    let pp _ _ = failwith "no"
+    let show _ = failwith "no"
+  end
+
+  module ConfigurationP = struct
+    include Configuration
+
+    let pp _ _ = failwith "no"
+    let show _ = failwith "no"
+  end
+
+  module StateSet = MyStdLib.HashSet.HSWrapper (StateP)
+  module StateMap = MyStdLib.HashTable.Make(StateP)
+
+  module ConfigurationSet = MyStdLib.HashSet.HSWrapper (ConfigurationP)
   module ConfigurationMap = Map.Make (Configuration)
 
   module LabeledStateSet = Set.Make (LabeledState)
   module LabeledConfigurationSet = Set.Make (LabeledConfiguration)
 
   type t = {
-    roots : StateSet.t; (* Final states. *)
-    state_confs : LabeledConfigurationSet.t StateMap.t; (* Associates to each state the set of configurations leading to it. *)
-    conf_states : LabeledStateSet.t ConfigurationMap.t; (* Associates to each configuration the set of states to go to. *)
-    state_parents : ConfigurationSet.t StateMap.t (* Associates to each state the set of configurations it appears in. *)
+    mutable roots : StateSet.t; (* Final states. *)
+    mutable state_confs : LabeledConfigurationSet.t StateMap.t; (* Associates to each state the set of configurations leading to it. *)
+    mutable conf_states : LabeledStateSet.t ConfigurationMap.t; (* Associates to each configuration the set of states to go to. *)
+    mutable state_parents : ConfigurationSet.t StateMap.t (* Associates to each state the set of configurations it appears in. *)
   }
 
   type data = unit
 
-  let empty = {
-    roots = (StateSet.empty);
-    state_confs = StateMap.empty;
+  let empty () = {
+    roots = (StateSet.empty ());
+    state_confs = StateMap.empty ();
     conf_states = ConfigurationMap.empty;
-    state_parents = StateMap.empty
+    state_parents = StateMap.empty () ;
   }
 
-  let create _ = empty
+  let create _ = empty ()
 
   let data _ = ()
 
-  let clear _ = empty
+  let clear _ = empty ()
+
+  let copy x = x
 
   let final_states a = a.roots
 
@@ -210,22 +227,21 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
   let state_parents q a =
     match StateMap.find_opt q a.state_parents with
     | Some set -> set
-    | None -> (ConfigurationSet.empty)
+    | None ->
+      let p = (ConfigurationSet.empty ()) in
+      StateMap.add q p a.state_parents;
+      p
 
-  let add_final_state q a = {
-    a with
-    roots = StateSet.add q (a.roots)
-  }
+  let add_final_state q a =
+    StateSet.add q a.roots
 
-  let add_final_states set a = {
-    a with
-    roots = StateSet.union set (a.roots)
-  }
+  let add_final_states set a =
+    StateSet.iter
+      (fun e -> StateSet.add e a.roots)
+      set
 
-  let set_final_states set a = {
-    a with
-    roots = set
-  }
+  let set_final_states set a =
+    a.roots <- set
 
   type hook = Configuration.t -> Label.t -> State.t -> unit
 
@@ -234,74 +250,37 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
     | Some set -> set
     | None -> (LabeledConfigurationSet.empty)
 
-  (*let is_state_empty q a =
-    let confs = configurations_for_state q a in
-    LabeledConfigurationSet.is_empty confs*)
-
   let states_for_configuration conf a =
     match ConfigurationMap.find_opt conf a.conf_states with
     | Some set -> set
     | None -> (LabeledStateSet.empty)
 
-  (*let sub_states_of a q =
-    let confs = configurations_for_state q a in
-    LabeledConfigurationSet.fold (
-      fun (conf, _) sub_states ->
-        match conf with
-        | Configuration.Var q' ->
-          StateSet.add q' sub_states
-        | _ -> sub_states
-    ) confs StateSet.empty*)
-
-  let add_transition ?hook conf label q a =
-    let add_parent_to q parents = StateMap.add q (ConfigurationSet.add conf (state_parents q a)) parents in
-    let call_hook conf q =
-      match hook with
-      | Some h -> h conf label q
-      | None -> ()
+  let add_transition ?hook conf label q (a:t) =
+    let add_parent_to q () =
+      let cs = (state_parents q a) in
+      (ConfigurationSet.add conf cs)
     in
-    let update_conf q conf = function
-      | Some _ -> ()
-      | None -> call_hook conf q
+    StateMap.add q (LabeledConfigurationSet.add (conf, label) (configurations_for_state q a)) a.state_confs;
+    a.conf_states <- ConfigurationMap.add conf (LabeledStateSet.add (q, label) (states_for_configuration conf a)) a.conf_states;
+    Configuration.fold add_parent_to conf ()
+
+  let add_transition_unchecked conf label q (a:t) =
+    let add_parent_to q () =
+      let cs = (state_parents q a) in
+      (ConfigurationSet.add conf cs);
     in
-    {
-      a with
-      state_confs = StateMap.add q (LabeledConfigurationSet.update (update_conf q conf) (conf, label) (configurations_for_state q a)) a.state_confs;
-      conf_states = ConfigurationMap.add conf (LabeledStateSet.add (q, label) (states_for_configuration conf a)) a.conf_states;
-      state_parents = Configuration.fold add_parent_to conf a.state_parents
-    }
+    StateMap.add q (LabeledConfigurationSet.add (conf, label) (configurations_for_state q a)) a.state_confs;
+    a.conf_states <- ConfigurationMap.add conf (LabeledStateSet.add (q, label) (states_for_configuration conf a)) a.conf_states;
+    Configuration.fold add_parent_to conf ()
 
-  let add_transition_unchecked conf label q a =
-    let add_parent_to q parents = StateMap.add q (ConfigurationSet.add conf (state_parents q a)) parents in
-    {
-      a with
-      state_confs = StateMap.add q (LabeledConfigurationSet.add (conf, label) (configurations_for_state q a)) a.state_confs;
-      conf_states = ConfigurationMap.add conf (LabeledStateSet.add (q, label) (states_for_configuration conf a)) a.conf_states;
-      state_parents = Configuration.fold add_parent_to conf a.state_parents;
-    }
-
-  let remove_transition conf label q a =
-    let remove_parent_from q parents =
-      StateMap.add q (ConfigurationSet.remove conf (state_parents q a)) parents in
-    {
-      a with
-      state_confs = StateMap.add q (LabeledConfigurationSet.remove (conf, label) (configurations_for_state q a)) a.state_confs;
-      conf_states = ConfigurationMap.add conf (LabeledStateSet.remove (q, label) (states_for_configuration conf a)) a.conf_states;
-      state_parents = Configuration.fold remove_parent_from conf a.state_parents;
-    }
-
-  (* let merge a b =
-     (* It is assumed that states of a and b are disjoin. *)
-     let no_collision _ _ _ = failwith "automata are not disjoined." in
-     let conf_collision _ qs1 qs2 = Some (LabeledStateSet.union qs1 qs2) in (* TODO handle duplicated labels *)
-     let parents_collision _ parents1 parents2 = Some (ConfigurationSet.union parents1 parents2) in
-     {
-      roots = StateSet.union a.roots b.roots;
-      state_confs = StateMap.union (no_collision) a.state_confs b.state_confs;
-      conf_states = ConfigurationMap.union (conf_collision) a.conf_states b.conf_states;
-      state_parents = StateMap.union (parents_collision) a.state_parents b.state_parents
-     } *)
-
+  let remove_transition conf label q (a:t) =
+    let remove_parent_from q () =
+      let cs = (state_parents q a) in
+      (ConfigurationSet.remove conf cs);
+    in
+    StateMap.add q (LabeledConfigurationSet.remove (conf, label) (configurations_for_state q a)) a.state_confs;
+    a.conf_states <- ConfigurationMap.add conf (LabeledStateSet.remove (q, label) (states_for_configuration conf a)) a.conf_states;
+    Configuration.fold remove_parent_from conf ()
 end
 
 module Extend (B: BASE) = struct
@@ -375,7 +354,8 @@ module Extend (B: BASE) = struct
   let configurations_for_state q a =
     match StateMap.find_opt q (configurations_for_states a) with
     | Some set -> set
-    | None -> LabeledConfigurationSet.empty
+    | None ->
+      LabeledConfigurationSet.empty
 
   let is_state_empty q a =
     let confs = configurations_for_state q a in
@@ -387,14 +367,15 @@ module Extend (B: BASE) = struct
     | None -> LabeledStateSet.empty
 
   let sub_states_of a q =
+    let sub_states = StateSet.empty () in
     let confs = configurations_for_state q a in
     LabeledConfigurationSet.fold (
-      fun (conf, _) sub_states ->
+      fun (conf, _) () ->
         match Configuration.node conf with
         | Configuration.Var q' ->
           StateSet.add q' sub_states
-        | _ -> sub_states
-    ) confs (StateSet.empty)
+        | _ -> ()
+    ) confs ()
 
   let typed_configuration conf =
     let id = ref 0 in
@@ -466,20 +447,22 @@ module Extend (B: BASE) = struct
     fold_epsilon_class fold_q q a x
 
   let state_transitive_parents q a =
+    let set = ConfigurationSet.empty () in
     let visited = Hashtbl.create 8 in
-    let rec fold_state q set =
+    let rec fold_state q () =
       match Hashtbl.find_opt visited q with
-      | Some () -> set
+      | Some () -> ()
       | None ->
         Hashtbl.add visited q ();
-        let fold_conf conf set =
+        let fold_conf conf () =
           match Configuration.node conf with
-          | Configuration.Var _ -> fold_state q set
+          | Configuration.Var _ -> fold_state q ()
           | _ -> ConfigurationSet.add conf set
         in
-        ConfigurationSet.fold fold_conf (state_parents q a) set
+        ConfigurationSet.fold fold_conf (state_parents q a) ()
     in
-    fold_state q (ConfigurationSet.empty)
+    fold_state q ();
+    set
 
   let fold_transitions f a x =
     let fold_state_confs q confs x =
@@ -487,28 +470,6 @@ module Extend (B: BASE) = struct
       LabeledConfigurationSet.fold (fold_labeled_confs) confs x
     in
     StateMap.fold (fold_state_confs) (configurations_for_states a) x
-
-  (*let fold_transition_pairs ?(reflexive=false) f t x =
-    StateMap.fold_pairs (
-      fun q confs q' confs' x ->
-        if State.equal q q' then
-          begin
-            LabeledConfigurationSet.fold_pairs ~reflexive (
-              fun (conf, label) (conf', label') x ->
-                f conf label q conf' label' q' x
-            ) confs x
-          end
-        else
-          begin
-            LabeledConfigurationSet.fold (
-              fun (conf, label) x ->
-                LabeledConfigurationSet.fold (
-                  fun (conf', label') x ->
-                    f conf label q conf' label' q' x
-                ) confs' x
-            ) confs x
-          end
-    ) ~reflexive:true (configurations_for_states t) x*)
 
   let fold_states f a x =
     let table = Hashtbl.create 8 in
@@ -538,10 +499,12 @@ module Extend (B: BASE) = struct
     fold_transitions (fold_transition) a x
 
   let states a =
-    fold_states (StateSet.add) a (StateSet.empty)
+    let ss = StateSet.empty () in
+    fold_states (fun x () -> StateSet.add x ss) a ();
+    ss
 
   let is_final a q =
-    StateSet.mem q (final_states a)
+    StateSet.contains q (final_states a)
 
   let state_count a =
     fold_states (fun _ k -> k + 1) a 0
@@ -560,7 +523,7 @@ module Extend (B: BASE) = struct
     begin match StateMap.find_opt q (configurations_for_states a) with
       | None -> false
       | Some _ -> true
-    end || StateSet.mem q (final_states a)
+    end || StateSet.contains q (final_states a)
 
   let rec fold_configurations_for_binding func ty t x =
     match ty with
@@ -759,7 +722,7 @@ module Extend (B: BASE) = struct
     StateSet.fold fold_state (final_states t) None
 
   let recognizes term t =
-    List.exists (function q -> recognizes_in q term t) (StateSet.elements (final_states t))
+    List.exists (function q -> recognizes_in q term t) (StateSet.as_list (final_states t))
 
   let label f default _ = (* FIXME why is the automaton not used? *)
     let table = Hashtbl.create 8 in
@@ -776,147 +739,56 @@ module Extend (B: BASE) = struct
 
   type normalizer = Sym.t -> State.t list -> LabeledState.t
 
-  (** Return [a] and a state+label in [a] that recognises [conf] normalised. *)
-  (*let rec normalize_to_state ?hook (create_state : normalizer) aref (conf : Configuration.t) : BoundConfiguration.t =
-    let id = ref 0 in
-    let next_var typ =
-      let x = Var.of_int !id in
-      id := !id + 1;
-      BoundConfiguration.Var x, typ
-    in
-    let normalize = function
-      | Configuration.Cons (f, l) ->
-        let subs = (List.map (normalize_to_state ?hook create_state aref) l) in
-        let typof = function
-          | _, (Some q, _) -> q
-          | _ -> failwith "normalization failed."
-        in
-        let sub_types = List.map typof subs in
-        let conf = Configuration.Cons (f, List.map Configuration.of_var sub_types) in
-        let states = states_for_configuration conf !aref in
-        if LabeledStateSet.is_empty states then
-          let (q, label) = create_state f sub_types in
-          aref := add_transition ?hook conf label q !aref;
-          BoundConfiguration.Cons (f, subs), (Some q, Some label)
-        else
-          let (q, l) = LabeledStateSet.choose states in
-          BoundConfiguration.Cons (f, subs), (Some q, Some l)
-      | Configuration.Var q -> next_var (Some q, None)
-    in
-    normalize conf
-
-  and normalized_configuration ?hook create_state conf a =
-    match conf with
-    | Configuration.Cons (f, l) ->
-      let aut = ref a in
-      (BoundConfiguration.Cons (f, (List.map (normalize_to_state ?hook create_state aut) l)), (None, None)), !aut
-    | Configuration.Var q -> (BoundConfiguration.Var (Var.of_int 0), (Some q, None)), a
-
-  and add_normalized_transition ?hook normalizer conf label q a =
-    let conf, a = normalized_configuration ?hook normalizer conf a in
-    add_transition ?hook (untyped_configuration conf) label q a
-
-  let add_normalized_transitions ?hook normalizer l a =
-    List.fold_left (fun a' (conf, label, q) -> add_normalized_transition ?hook normalizer conf label q a') a l
-
-  let add_configurations_to ?normalizer ?hook lbl_confs q a =
-    let add = match normalizer with
-      | Some normalizer -> add_normalized_transition normalizer ?hook
-      | None -> add_transition ?hook
-    in
-    List.fold_left (fun a' (conf, label) -> add conf label q a') a lbl_confs
-
-  let add_configuration norm ?hook (conf : Configuration.t) a : BoundConfiguration.t * t =
-    let aut = ref a in
-    let q = normalize_to_state ?hook norm aut conf in
-    (q, !aut)*)
-
-  (*let add norm ?hook conf a =
-    let conf, a = add_configuration norm ?hook conf a in
-    match conf with
-    | _, (Some q, _) -> (conf, add_final_state q a)
-    | _, (None, _) -> failwith "normalization failed."*)
-
-  (*let map ?filter f_label f_state a =
-    let map_label = Hashtbl.create 8 in (* 8: arbitrary size *)
-    let map_state = Hashtbl.create 8 in (* 8: arbitrary size *)
-    let f_label = find_or_create f_label map_label in
-    let f_state = find_or_create f_state map_state in
-    let rec f_conf = function
-      | Configuration.Cons (f, l) -> Configuration.Cons (f, (List.map (f_conf) l))
-      | Configuration.Var q -> Configuration.Var (f_state q)
-    in
-    let f_conf x = f_conf (Configuration.node x) in
-    let add conf label q b =
-      let conf = f_conf conf in
-      let label = f_label label in
-      let q = f_state q in
-      let accept = match filter with
-        | Some f -> f conf label q b
-        | None -> true
-      in
-      if accept then
-        add_transition conf label q b
-      else
-        b
-    in
-    let aut = fold_transitions add a (clear a) in
-    let add_final q b =
-      add_final_state (f_state q) b
-    in
-    StateSet.fold add_final (final_states a) aut*)
-
   let filter p t =
-    let add conf label q aut =
+    let aut = empty () in
+    let add conf label q () =
       if p conf label q then
         add_transition_unchecked conf label q aut
       else
-        aut
+        ()
     in
-    let aut = fold_transitions add t (clear t) in
-    let add_final q aut =
+    fold_transitions add t ();
+    let add_final q =
       add_final_state q aut
     in
-    StateSet.fold add_final (final_states t) aut
+    StateSet.iter add_final (final_states t);
+    aut
+
 
   let sub_automaton states t =
+    let u = empty () in
     let visited = Hashtbl.create 8 in
-    let rec visit_state q u =
+    let rec visit_state q () =
       match Hashtbl.find_opt visited q with
-      | Some () -> u
+      | Some () -> ()
       | None ->
         Hashtbl.add visited q ();
         let confs = configurations_for_state q t in
-        let add_conf (conf, label) u =
+        let add_conf (conf, label) () =
           let u = add_transition conf label q u in
           visit_conf conf u
         in
-        LabeledConfigurationSet.fold add_conf confs u
-    and visit_conf_internal conf u =
+        LabeledConfigurationSet.fold add_conf confs ()
+    and visit_conf_internal conf () =
       match conf with
       | Configuration.Cons (_, l) ->
-        List.fold_right visit_conf_internal l u
+        List.fold_right visit_conf_internal l ()
       | Configuration.Var q ->
-        visit_state q u
-    and visit_conf x u = visit_conf_internal (Configuration.node x) u
+        visit_state q ()
+    and visit_conf x u = visit_conf_internal (Configuration.node x) ()
     in
-    StateSet.fold visit_state states (set_final_states states (clear t))
+    (set_final_states states u);
+    StateSet.fold visit_state states ();
+    u
 
-  let merge a b =
-    let b = fold_transitions (
-        fun conf label q b ->
-          add_transition conf label q b
-      ) a b
-    in
-    add_final_states (final_states a) b
-
-    let inter ?hook data_product a b =
-      (*		let map = Hashtbl.create 8 in (* 8: arbitrary size *)*)
-      (*		let state_product a b = find_or_create (function (a, b) -> State.product a b) map (a, b) in*)
-      let product qa qa_confs qb qb_confs aut =
-        match State.product qa qb with
-        | Some q ->
-          let labeled_conf_product (ca, la) (cb, lb) aut =
+  let inter ?hook data_product a b =
+    let aut = empty () in
+    (*		let map = Hashtbl.create 8 in (* 8: arbitrary size *)*)
+    (*		let state_product a b = find_or_create (function (a, b) -> State.product a b) map (a, b) in*)
+    let product qa qa_confs qb qb_confs () =
+      match State.product qa qb with
+      | Some q ->
+        let labeled_conf_product (ca, la) (cb, lb) () =
             match (Configuration.product ca cb), (Label.product la lb) with
             | Some conf, Some label -> add_transition conf label q aut
             | None, Some label ->
@@ -926,114 +798,79 @@ module Extend (B: BASE) = struct
                   begin
                     match State.product qa' qb with
                     | Some q' -> add_transition (Configuration.of_var q') label q aut
-                    | None -> aut
+                    | None -> ()
                   end
                 | _, Configuration.Var qb' ->
                   begin
                     match State.product qa qb' with
                     | Some q' -> add_transition (Configuration.of_var q') label q aut
-                    | None -> aut
+                    | None -> ()
                   end
-                | _, _ -> aut
+                | _, _ -> ()
               end
-            | _, None -> aut
+            | _, None -> ()
           in
-          let aut = LabeledConfigurationSet.fold2 (labeled_conf_product) (qa_confs) (qb_confs) aut in
+          LabeledConfigurationSet.fold2 (labeled_conf_product) (qa_confs) (qb_confs) ();
           begin
             match hook with
             | Some h -> h aut q
             | None -> ()
           end;
-          aut
-        | None -> aut
+          ()
+        | None -> ()
       in
-      let add_final qa qb aut =
+      let add_final qa qb () =
         match State.product qa qb with
         | Some q -> add_final_state q aut
-        | None -> aut
+        | None -> ()
       in
-
-      let aut = StateMap.fold2 product (configurations_for_states a) (configurations_for_states b) (create (data_product (data a) (data b))) in
-      let a = StateSet.fold2 add_final (final_states a) (final_states b) aut in
-      a
+      StateMap.fold2 product (configurations_for_states a) (configurations_for_states b) ();
+      StateSet.fold2 add_final (final_states a) (final_states b) ();
+      aut
 
   let reachable_states ?(epsilon=true) a =
     let visited = Hashtbl.create 8 in
-    let reachable set c = StateSet.mem c set in
+    let reachable set c = StateSet.contains c set in
+    let set = StateSet.empty () in
     let rec reach_conf conf set =
       reach_conf_states conf (states_for_configuration conf a) set
-    and reach_conf_states conf lbl_states set =
-      let fold (q, _) set =
+    and reach_conf_states conf lbl_states () =
+      let fold (q, _) () =
         match Hashtbl.find_opt visited q with
-        | Some () -> set
+        | Some () -> ()
         | None ->
           Hashtbl.add visited q ();
           ConfigurationSet.fold (reach_conf) (state_parents q a) (StateSet.add q set)
       in
       if (epsilon || Configuration.is_cons conf) && (Configuration.for_all (reachable set) conf) then
-        LabeledStateSet.fold (fold) lbl_states set
-      else set
+        LabeledStateSet.fold (fold) lbl_states ()
+      else ()
     in
-    ConfigurationMap.fold (reach_conf_states) ((states_for_configurations a)) (StateSet.empty)
+    ConfigurationMap.fold (reach_conf_states) ((states_for_configurations a)) ();
+    set
 
   let reduce ?(epsilon=true) ?(from_finals=true) t =
+    let rt = empty () in
     let reachable_states = reachable_states ~epsilon t in
-    let is_reachable_state q = StateSet.mem q reachable_states in
+    let is_reachable_state q = StateSet.contains q reachable_states in
     let is_reachable_conf = Configuration.for_all is_reachable_state in
-    let for_each_transition conf label q rt =
+    let for_each_transition conf label q () =
       if is_reachable_state q && is_reachable_conf conf then
         add_transition conf label q rt
-      else rt
+      else
+        ()
     in
-    let rt = fold_transitions for_each_transition t (clear t) in
-    let for_each_final_state q rt =
+    fold_transitions for_each_transition t ();
+    let for_each_final_state q () =
       if is_reachable_state q then
         add_final_state q rt
-      else rt
+      else ()
     in
-    if from_finals then
-      StateSet.fold for_each_final_state (final_states t) rt
+    (if from_finals then
+      StateSet.fold for_each_final_state (final_states t) ()
     else
-      fold_states for_each_final_state t rt
-  (* let reachable_set = reachable_states ~epsilon a in
-     let is_reachable_state q = StateSet.mem q reachable_set in
-     let is_reachable_conf c = Configuration.for_all (is_reachable_state) c in
-     let visited = Hashtbl.create 8 in
-
-     (* Build the automaton removing non-reachable states/confs. *)
-     let rec build_conf aut conf =
-     match conf with (* Assuming conf is reachable. *)
-     | Configuration.Cons (f, l) ->
-      List.fold_left (build_conf) aut l
-     | Configuration.Var q ->
-      build_state q aut
-     and build_state q aut =
-     match Hashtbl.find_opt visited q with
-     | Some () -> aut
-     | None ->
-      Hashtbl.add visited q ();
-      if is_reachable_state q then
-        let add_and_build (conf, label) aut =
-          if is_reachable_conf conf then
-            build_conf (add_transition conf label q aut) conf
-          else aut
-        in
-        LabeledConfigurationSet.fold (add_and_build) (configurations_for_state q a) aut
-      else aut
-     in
-
-     (* First we build the reduced automaton from the roots. *)
-     let aut = StateSet.fold (build_state) (a.roots) (empty) in
-     (* Then we add the final states. *)
-     let add_final q aut = if is_reachable_state q then add_final_state q aut else aut in
-     StateSet.fold (add_final) (a.roots) aut *)
-
-  (* let all label q alphabet =
-     let add_cons t f =
-      let l = List.init (Sym.arity f) (function _ -> Configuration.Var q) in
-      add_transition (Configuration.Cons (f, l)) label q t
-     in
-     List.fold_left add_cons (add_final_state q empty) alphabet *)
+      fold_states for_each_final_state t ());
+    rt
 
   let alphabet t =
     let rec fold_conf conf alphabet =
@@ -1047,445 +884,20 @@ module Extend (B: BASE) = struct
     in
     fold_transitions fold_transition t (SymSet.empty)
 
-  (*let complete ?(with_states=StateSet.empty ()) get_state abc t =
-    let states = StateSet.union with_states (states t) in
-    let for_each_symbol t f =
-      let for_each_word word t =
-        let l = List.map (function q -> Configuration.Var q) word in
-        let conf = Configuration.Cons (f, l) in
-        if LabeledStateSet.is_empty (states_for_configuration conf t) then
-          let r, label = get_state conf in
-          add_transition conf label r t
-        else t
-      in
-      StateSet.fold_words (Sym.arity f) for_each_word states t
-    in
-    List.fold_left for_each_symbol t abc*)
-
-  (*let complement cdt =
-    let states = states cdt in
-    let new_final_states = StateSet.diff states (final_states cdt) in
-    set_final_states new_final_states cdt*)
 
   let unepsilon _ =
     failwith "TODO: unepsilon: Not implemented yet."
-
-  (*let determinise ?init_classes map_class t =
-    let module DetState = struct
-      include StateSet
-
-      let print t fmt =
-        Format.fprintf fmt "{%t}" (StateSet.print State.print "," t)
-
-      let product a b =
-        let c = product State.product a b in
-        if is_empty c then
-          None
-        else
-          Some c
-    end in
-    let module DetConfiguration = Pattern.Make (Sym) (DetState) in
-    let module DetTransition = struct
-      type t = DetConfiguration.t * Label.t * DetState.t
-
-      let compare (a, la, qa) (b, lb, qb) =
-        let c = DetState.compare qa qb in
-        if c = 0 then
-          let c = Label.compare la lb in
-          if c = 0 then DetConfiguration.compare a b
-          else c
-        else c
-
-      (* let print (conf, _, q) fmt =
-         Format.fprintf fmt "%t -> %t" (DetConfiguration.print conf) (DetState.print q) *)
-    end in
-    let module DetTransitionSet = HashSet.Make (DetTransition) in
-    let module DetStateSet = HashSet.Make (DetState) in
-    let table = Hashtbl.create 8 in
-    let classes_of classes q =
-      DetStateSet.filter (DetState.mem q) classes
-    in
-    let add_state q labeled_det_conf =
-      let klass = match Hashtbl.find_opt table labeled_det_conf with
-        | Some klass ->
-          DetState.add q klass
-        | None ->
-          DetState.singleton q
-      in
-      Hashtbl.replace table labeled_det_conf klass
-    in
-    (* TODO optimize the collect function, by not folding ALL transitions,
-       but only the transitions containing at least one state in a klass that has just been created.
-       If it does not, we already have visited this det-transitions. *)
-    let rec collect classes det_transitions =
-      fold_transitions (
-        fun conf label q () ->
-          match conf with
-          | Configuration.Cons (f, l) ->
-            let possibles_det_l = List.map (classes_of classes) (List.map Configuration.normalized l) in
-            DetStateSet.fold_inline_combinations (
-              fun det_l () ->
-                let labeled_det_conf = (DetConfiguration.Cons (f, List.map DetConfiguration.of_var det_l), label) in
-                add_state q labeled_det_conf
-            ) possibles_det_l ()
-          | Configuration.Var _ ->
-            raise (Invalid_argument "Input is not a NFTA.")
-      ) t ();
-      let new_det_transitions, new_classes = Hashtbl.fold (
-          fun (det_conf, label) klass (det_transitions, classes) ->
-            let new_det_transitions = DetTransitionSet.add (det_conf, label, klass) det_transitions in
-            let new_classes = DetStateSet.add klass classes in
-            new_det_transitions, new_classes
-        ) table (det_transitions, classes)
-      in
-      if DetTransitionSet.cardinal new_det_transitions = DetTransitionSet.cardinal det_transitions then
-        new_det_transitions, classes
-      else
-        begin
-          Hashtbl.clear table;
-          collect new_classes new_det_transitions
-        end
-    in
-    let is_empty q =
-      LabeledConfigurationSet.is_empty (configurations_for_state q t)
-    in
-    let init_classes = match init_classes with
-      | Some classes -> StateSet.fold (fun q det_states -> DetStateSet.add (DetState.singleton q) det_states) classes DetStateSet.empty
-      (* We put the empty states in their own classes. *)
-      | None -> StateSet.fold (fun q det_states -> DetStateSet.add (DetState.singleton q) det_states) (StateSet.filter is_empty (states t)) DetStateSet.empty
-    in
-    let det_transitions, classes = collect init_classes DetTransitionSet.empty in
-    (* mapping time *)
-    let map_table = Hashtbl.create (DetStateSet.cardinal classes) in
-    let mapped_class k =
-      match Hashtbl.find_opt map_table k with
-      | Some q -> q
-      | None ->
-        let q = map_class k in
-        Hashtbl.replace map_table k q;
-        q
-    in
-    (* Format.printf "det transitions:\n%t@." (DetTransitionSet.print DetTransition.print "\n" det_transitions); *)
-    DetTransitionSet.fold (
-      fun (det_conf, label, klass) u ->
-        match det_conf with
-        | DetConfiguration.Cons (f, det_l) ->
-          let l = List.map mapped_class (List.map DetConfiguration.normalized det_l) in
-          let conf = Configuration.Cons (f, List.map Configuration.of_var l) in
-          let q = mapped_class klass in
-          let a = add_transition conf label q u in
-          if DetState.for_all (is_final t) klass then
-            add_final_state q a
-          else
-            a
-        | DetConfiguration.Var _ ->
-          failwith "deteminised automaton is not a NFTA. This is a bug."
-    ) det_transitions (clear t)
-
-  (* Determinise typed states automaton.
-     States with different types will not be placed in the same equivalence class. *)
-  let determinise_typed (type ty) ?init_classes (type_mod : (module TYPE with type t = ty)) (type_of : State.t -> ty) map_class t =
-    let module Type : TYPE with type t = ty = (val type_mod) in
-    let module DetState = struct
-      type t = StateSet.t * Type.t
-
-      let compare (sa, ta) (sb, tb) =
-        let c = Type.compare ta tb in
-        if c = 0 then StateSet.compare sa sb else c
-
-      let equal (sa, ta) (sb, tb) =
-        Type.equal ta tb && StateSet.equal sa sb
-
-      let print (states, ty) fmt =
-        Format.fprintf fmt "{%t}:%t" (StateSet.print State.print "," states) (Type.print ty)
-
-      let product (sa, ta) (sb, tb) =
-        match Type.product ta tb with
-        | Some ty ->
-          let states = StateSet.product State.product sa sb in
-          if StateSet.is_empty states then
-            None
-          else
-            Some (states, ty)
-        | None -> None
-
-      let hash = Hashtbl.hash
-
-      let matches q (states, ty) =
-        Type.equal (type_of q) ty && StateSet.mem q states
-
-      let add q (states, ty) =
-        StateSet.add q states, ty
-
-      let singleton q =
-        StateSet.singleton q, type_of q
-    end in
-    let module DetConfiguration = Pattern.Make (Sym) (DetState) in
-    let module DetTransition = struct
-      type t = DetConfiguration.t * Label.t * DetState.t
-
-      let compare (a, la, qa) (b, lb, qb) =
-        let c = DetState.compare qa qb in
-        if c = 0 then
-          let c = Label.compare la lb in
-          if c = 0 then DetConfiguration.compare a b
-          else c
-        else c
-
-      (* let print (conf, _, q) fmt =
-         Format.fprintf fmt "%t -> %t" (DetConfiguration.print conf) (DetState.print q) *)
-    end in
-    let module DetTransitionSet = HashSet.Make (DetTransition) in
-    let module DetStateSet = HashSet.Make (DetState) in
-    let table = Hashtbl.create 8 in
-    let classes_of classes q =
-      DetStateSet.filter (DetState.matches q) classes
-    in
-    let add_state q labeled_det_conf =
-      let ty = type_of q in
-      let klass = match Hashtbl.find_opt table (labeled_det_conf, ty) with
-        | Some klass ->
-          DetState.add q klass
-        | None ->
-          DetState.singleton q
-      in
-      Hashtbl.replace table (labeled_det_conf, ty) klass
-    in
-    (* TODO optimize the collect function, by not folding ALL transitions,
-       but only the transitions containing at least one state in a klass that has just been created.
-       If it does not, we already have visited this det-transitions. *)
-    let rec collect classes det_transitions =
-      fold_transitions (
-        fun conf label q () ->
-          match conf with
-          | Configuration.Cons (f, l) ->
-            let possibles_det_l = List.map (classes_of classes) (List.map Configuration.normalized l) in
-            DetStateSet.fold_inline_combinations (
-              fun det_l () ->
-                let labeled_det_conf = (DetConfiguration.Cons (f, List.map DetConfiguration.of_var det_l), label) in
-                add_state q labeled_det_conf
-            ) possibles_det_l ()
-          | Configuration.Var _ ->
-            raise (Invalid_argument "Input is not a NFTA.")
-      ) t ();
-      let new_det_transitions, new_classes = Hashtbl.fold (
-          fun ((det_conf, label), _) klass (det_transitions, classes) -> (* TODO *)
-            let new_det_transitions = DetTransitionSet.add (det_conf, label, klass) det_transitions in
-            let new_classes = DetStateSet.add klass classes in
-            new_det_transitions, new_classes
-        ) table (det_transitions, classes)
-      in
-      if DetTransitionSet.cardinal new_det_transitions = DetTransitionSet.cardinal det_transitions then
-        new_det_transitions, classes
-      else
-        begin
-          Hashtbl.clear table;
-          collect new_classes new_det_transitions
-        end
-    in
-    let is_empty q =
-      LabeledConfigurationSet.is_empty (configurations_for_state q t)
-    in
-    let init_classes = match init_classes with
-      | Some classes -> StateSet.fold (fun q det_states -> DetStateSet.add (DetState.singleton q) det_states) classes DetStateSet.empty
-      (* We put the empty states in their own classes. *)
-      | None -> StateSet.fold (fun q det_states -> DetStateSet.add (DetState.singleton q) det_states) (StateSet.filter is_empty (states t)) DetStateSet.empty
-    in
-    let det_transitions, classes = collect init_classes DetTransitionSet.empty in
-    (* mapping time *)
-    let map_table = Hashtbl.create (DetStateSet.cardinal classes) in
-    let mapped_class k =
-      match Hashtbl.find_opt map_table k with
-      | Some q -> q
-      | None ->
-        let states, ty = k in
-        let q = map_class states ty in
-        Hashtbl.replace map_table k q;
-        q
-    in
-    (* Format.printf "det transitions:\n%t@." (DetTransitionSet.print DetTransition.print "\n" det_transitions); *)
-    DetTransitionSet.fold (
-      fun (det_conf, label, klass) u ->
-        match det_conf with
-        | DetConfiguration.Cons (f, det_l) ->
-          let l = List.map mapped_class (List.map DetConfiguration.normalized det_l) in
-          let conf = Configuration.Cons (f, List.map Configuration.of_var l) in
-          let q = mapped_class klass in
-          add_transition conf label q u
-        | DetConfiguration.Var _ ->
-          failwith "deteminised automaton is not a NFTA. This is a bug."
-    ) det_transitions (clear t)
-
-  module StateUnionFind = UnionFind.Make (State) (StateSet)
-
-  exception Found_equiv of State.t * State.t
-
-  let find_equiv_opt filter t =
-    (* let open Log in *)
-    (* checks if [q'] is semi-equiv to [q]. *)
-    let semi_equiv q q' =
-      (* This function is used to map a set of states so that [q'] is mapped to [q]. *)
-      let reduced labeled_states =
-        LabeledStateSet.map (
-          function (q'', label) ->
-            let q'' = if State.equal q'' q' then q else q'' in
-            q'', label
-        ) labeled_states
-      in
-      let expected_states = Hashtbl.create 8 in
-      (* All the configurations in which q appears. *)
-      let q_confs = state_parents q t in
-      (* Now we compute all the configurations in which q' should appear. *)
-      let q'_confs = ConfigurationSet.map (
-          function
-          | Configuration.Cons (f, l) ->
-            let l' = List.map (
-                function
-                | Configuration.Var sub_q when State.equal q sub_q -> Configuration.Var q'
-                | Configuration.Var sub_q -> Configuration.Var sub_q
-                | _ -> raise (Invalid_argument "automaton must be normalized")
-              ) l
-            in
-            let conf' = Configuration.Cons (f, l') in
-            (* [states] contains all the states in which this configuration should appear. *)
-            let states = states_for_configuration (Configuration.Cons (f, l)) t in
-            Hashtbl.add expected_states conf' (reduced states);
-            conf'
-          | _ -> raise (Invalid_argument "automaton must be normalized")
-        ) q_confs
-      in
-      (* Check that those configurations indeed are in the automaton... *)
-      ConfigurationSet.equal q'_confs (state_parents q' t) &&
-      (* ...and that. *)
-      ConfigurationSet.for_all (
-        function conf' ->
-          let states' = states_for_configuration conf' t in
-          LabeledStateSet.equal (reduced states') (Hashtbl.find expected_states conf')
-      ) q'_confs
-    in
-    try
-      fold_states (
-        fun q () ->
-          fold_states (
-            fun q' () ->
-              if not (State.equal q q') && (filter q q') then
-                begin
-                  (* debug "min testing %t %t@." (State.print q) (State.print q'); *)
-                  if semi_equiv q q' && semi_equiv q' q then
-                    begin
-                      (* debug "eq@."; *)
-                      raise (Found_equiv (q, q'))
-                    end
-                end
-          ) t ()
-      ) t ();
-      None
-    with
-    | Found_equiv (q, q') -> Some (q, q') *)
-
-  (* Minimalise the automaton. *)
-  (*let rec minimalise ?(filter=fun _ _ -> true) t =
-    begin match find_equiv_opt filter t with
-      | Some (q, q') ->
-        let map_label l = l in
-        let map_state q'' = if State.equal q'' q' then q else q'' in
-        let t = map map_label map_state t in
-        minimalise ~filter t
-      | None ->
-        t
-    end*)
 
   let prune_useless (x:t)
     : t =
     let x = reduce x in
     let fs = final_states x in
-    let x = sub_automaton fs x in
+      let x = sub_automaton fs x in
     x
 
   type renaming = State.t StateMap.t
 
   exception Found of renaming
-
-  (*let rec state_renaming ?(knowledge=StateMap.empty) a b qa qb =
-    match StateMap.find_opt qb knowledge with
-    | Some q when State.equal qa q -> Some knowledge
-    | Some _ -> None
-    | None ->
-      begin
-        (* NOTE idea: Use MurmurHash to hash the structure of each state. *)
-        let match_confs (qa_conf, qa_label) (qb_conf, qb_label) knowledge =
-          if Label.equal qa_label qb_label then
-            match qa_conf, qb_conf with
-            | Configuration.Cons (fa, la), Configuration.Cons (fb, lb) when Sym.equal fa fb ->
-              begin
-                try
-                  let knowledge = List.fold_right2 (
-                      fun qa' qb' knowledge ->
-                        match state_renaming ~knowledge a b qa' qb' with
-                        | Some knowledge -> knowledge
-                        | None -> raise Not_found
-                    ) (List.map Configuration.normalized la) (List.map Configuration.normalized lb) knowledge
-                  in
-                  Some knowledge
-                with
-                | Not_found -> None
-              end
-            | Configuration.Var qa', Configuration.Var qb' ->
-              state_renaming ~knowledge a b qa' qb'
-            | _ -> None
-          else
-            None
-        in
-        try
-          let qa_confs = configurations_for_state qa a in
-          let qb_confs = configurations_for_state qb b in
-          if LabeledConfigurationSet.cardinal qa_confs = LabeledConfigurationSet.cardinal qb_confs then
-            try
-              let rec find_renaming qa_confs qb_confs knowledge =
-                if LabeledConfigurationSet.is_empty qa_confs then
-                  raise (Found knowledge)
-                else
-                  begin
-                    let qa_conf = LabeledConfigurationSet.choose qa_confs in
-                    LabeledConfigurationSet.iter (
-                      function qb_conf ->
-                      match match_confs qa_conf qb_conf knowledge with
-                      | Some knowledge ->
-                        begin
-                          let qa_confs = LabeledConfigurationSet.remove qa_conf qa_confs in
-                          let qb_confs = LabeledConfigurationSet.remove qb_conf qb_confs in
-                          try find_renaming qa_confs qb_confs knowledge with
-                          | Not_found -> ()
-                        end
-                      | None -> ()
-                    ) qb_confs;
-                    raise Not_found
-                  end
-              in
-              find_renaming qa_confs qb_confs (StateMap.add qb qa knowledge);
-              None
-            with
-            | Found knowledge -> Some knowledge
-          else
-            raise Not_found
-        with
-        | Not_found -> None
-      end*)
-
-  (*let of_term norm t data =
-    let (_, a) = add norm (Configuration.of_term t) (create data) in
-    a*)
-
-  (*let of_terms norm l data =
-    let add_term a term =
-      let (_, a) = add norm (Configuration.of_term term) a in
-      a
-    in
-    List.fold_left (add_term) (create data) l*)
-
-  (*let compare a b =
-    let c = StateSet.compare (final_states a) (final_states b) in
-    if c = 0 then StateMap.compare (LabeledConfigurationSet.compare) (configurations_for_states a) (configurations_for_states b) else c*)
 
   let print t out =
     let print_state_confs q confs =
@@ -1749,112 +1161,6 @@ module Extend (B: BASE) = struct
     | Some term -> term
     | None -> raise (Invalid_argument "Automaton.pick_term_in: empty state")
 
-  (*let fold_common_configurations ?(epsilon=true) g states t accu =
-    let states = StateSet.elements states in
-    let fold_configurations_for_state =
-      if epsilon then
-        fold_configurations_for_epsilon_state
-      else
-        fun f q t accu ->
-          let confs = configurations_for_state q t in
-          LabeledConfigurationSet.fold (
-            fun (conf, _) accu ->
-              f conf accu
-          ) confs accu
-    in
-    let transpose ll =
-      List.transpose (function l -> StateSet.of_list l) ll
-    in
-    begin match states with
-      | [] -> accu
-      | q::states ->
-        let rec fold_on_symbol f states subs accu =
-          begin match states with
-            | [] -> g f (transpose subs) accu
-            | q::states ->
-              fold_configurations_for_state (
-                fun conf accu ->
-                  match conf with
-                  | Configuration.Cons (f', l) when Sym.equal f f' ->
-                    let l = List.map Configuration.normalized l in
-                    fold_on_symbol f states (l::subs) accu
-                  | _ ->
-                    accu
-              ) q t accu
-          end
-        in
-        fold_configurations_for_state (
-          fun conf accu ->
-            match conf with
-            | Configuration.Cons (f, l) ->
-              let l = List.map Configuration.normalized l in
-              fold_on_symbol f states [l] accu
-            | _ ->
-              accu
-        ) q t accu
-    end
-
-  let iter_common_configurations ?(epsilon=true) g states t =
-    fold_common_configurations ~epsilon (fun f l () -> g f l) states t ()
-
-  let pick_term_in_intersection_opt ?(epsilon=true) states t =
-    let exception Found of Sym.t Term.term in
-    let module StateSetSet = HashSet.Make (StateSet) in
-    let already_found = Hashtbl.create 8 in
-    let rec pick visited states =
-      (* Format.eprintf "states: %t@." (StateSet.print State.print "," states); *)
-      if StateSetSet.mem states visited then
-        None
-      else
-        begin
-          match Hashtbl.find_opt already_found states with
-          | Some term -> Some term
-          | None ->
-            begin
-              let visited = StateSetSet.add states visited in
-              try iter_common_configurations ~epsilon (
-                  fun f l ->
-                    begin match List.map_opt (pick visited) l with
-                      | Some l ->
-                        let term = Term.Term (f, l) in
-                        Hashtbl.add already_found states term;
-                        raise (Found term)
-                      | None -> ()
-                    end
-                ) states t;
-                None
-              with
-              | Found term -> Some term
-            end
-        end
-    in
-    pick StateSetSet.empty states
-
-  let pick_term_in_intersection ?(epsilon=true) states t =
-    begin match pick_term_in_intersection_opt ~epsilon states t with
-      | Some term -> term
-      | None -> raise Not_found
-    end
-
-  (*let pick_term_opt ?(smallest=false) ?(epsilon=true) t =
-    let pick_in q = function
-      | Some term ->
-        if smallest then
-          begin
-            match pick_term_in_opt ~epsilon q t with
-            | Some other_term ->
-              if BoundTerm.size term < BoundTerm.size other_term then
-                Some term
-              else
-                Some other_term
-            | None -> Some term
-          end
-        else
-          Some term
-      | None -> pick_term_in_opt ~epsilon q t
-    in
-    StateSet.fold pick_in (final_states t) None*)*)
-
   let rec config_to_bt_opt
       (f:State.t -> BoundTerm.t option)
       (c:Configuration.t_node)
@@ -1875,22 +1181,23 @@ module Extend (B: BASE) = struct
   let config_to_bt_opt f c = config_to_bt_opt f (Configuration.node c)
 
   let reachable_values a =
+    let map = (StateMap.empty ()) in
     let retrieve_computed_value map c = StateMap.find_opt c map in
-    let rec find_reachables todos map =
+    let rec find_reachables todos =
       begin match todos with
         | [] -> map
         | (config,lbl_states)::todos ->
           let bto = config_to_bt_opt (retrieve_computed_value map) config in
           begin match bto with
-            | None -> find_reachables todos map
+            | None -> find_reachables todos
             | Some bt ->
-              let (map,new_todos) =
+              let (new_todos) =
                 LabeledStateSet.fold
-                  (fun (q,_) (map,new_todos) ->
+                  (fun (q,_) new_todos ->
                      begin match StateMap.find_opt q map with
-                       | Some _ -> (map,new_todos)
+                       | Some _ -> new_todos
                        | None ->
-                       let map = StateMap.add q bt map in
+                       StateMap.add q bt map;
                        let new_todos =
                          ConfigurationSet.fold
                            (fun c new_todos ->
@@ -1898,12 +1205,12 @@ module Extend (B: BASE) = struct
                            (state_parents q a)
                            new_todos
                        in
-                       (map,new_todos)
+                       new_todos
                      end)
                   lbl_states
-                  (map,[])
+                  []
               in
-              find_reachables (todos@new_todos) map
+              find_reachables (todos@new_todos)
           end
       end
     in
@@ -1913,7 +1220,7 @@ module Extend (B: BASE) = struct
         (states_for_configurations a)
         []
     in
-    find_reachables initial_todos (StateMap.empty)
+    find_reachables initial_todos
 
   type 'a picked_in =
     | NoSolution
@@ -2058,339 +1365,6 @@ module Extend (B: BASE) = struct
       | Some term -> term
       | None -> raise (Invalid_argument "Automaton.pick_term: empty automaton")
     end
-    (*match pick_term_opt ~smallest ~epsilon t with
-    | Some term -> term
-      | None -> raise (Invalid_argument "Automaton.pick_term: empty automaton")*)
-
-  (*module BoundPatterns (X : Pattern.VARIABLE) = struct
-    module BoundPattern = TypedPattern.Make (Sym) (X) (Binding)
-    module VarTable = Map.Make (X)
-
-    type bound_pattern = BoundPattern.t
-
-    let fold_pattern_instances ?(epsilon_f=None) ?(filter=NoFilter) g (pattern : bound_pattern) t x =
-      let compatible_labels a b =
-        match a, b with
-        | Some a, Some b -> Label.equal a b
-        | _, _ -> true
-      in
-      let rec fold filter g visited (pattern, ptyp) (conf, typ) sigma x =
-        let call_filter q label = match filter with
-          | Filter f -> f q label
-          | NoFilter -> true, NoFilter
-        in
-        (* if Binding.equal ptyp typ then *)
-        begin
-          let visit q =
-            match StateTable.find_opt q visited with
-            | Some () -> visited, false
-            | None -> (StateTable.set q () visited), true
-          in
-          let fold_states g x = match typ with
-            | (Some q, _) -> g q x
-            | (None, _) -> fold_states g t x
-          in
-          let epsilon = match epsilon_f with
-            | Some f -> f (pattern, ptyp)
-            | None -> true
-          in
-          let label = snd typ in
-          let plabel = snd ptyp in
-          let target_q = fst ptyp in
-          let fold_state q x =
-            let visited, proceed = visit q in
-            if proceed then
-              begin
-                match pattern, conf with
-                | BoundPattern.Cons (f, l), BoundConfiguration.Var _ ->
-                  let confs = configurations_for_state q t in
-                  let fold_conf (conf, label') x =
-                    let accept, new_filter = call_filter q label' in
-                    if accept then
-                      match conf with
-                      | Configuration.Cons (f', l') when Sym.equal f f'
-                                                      && state_typecheck q target_q
-                                                      && label_typecheck label' label
-                                                      && label_typecheck label' plabel ->
-                        let rec fold_list left l l' sigma x =
-                          match l, l' with
-                          | [], [] ->
-                            let term = BoundTerm.Term (f, List.rev left), (Some q, Some label') in
-                            g term sigma x
-                          | sub_pattern::l, sub_conf::l' ->
-                            let fold_sub_instance term sigma x =
-                              fold_list (term::left) l l' sigma x
-                            in
-                            fold new_filter fold_sub_instance (StateTable.create 8) sub_pattern (typed_configuration sub_conf) sigma x
-                          | _, _ -> raise (Invalid_argument "malformed term")
-                        in
-                        fold_list [] l l' sigma x
-                      | _ -> x
-                    else
-                      x (* filtered out *)
-                  in
-                  let fold_epsilon_conf (conf, label') x =
-                    let accept, new_filter = call_filter q label' in
-                    if accept then
-                      match conf with
-                      | Configuration.Var q' ->
-                        let fold_instance term sigma x =
-                          let term = BoundTerm.Cast term, (Some q, Some label') in
-                          g term sigma x
-                        in
-                        let new_target_q = if state_typecheck q target_q then None else target_q in
-                        let new_label = if label_typecheck label' label then None else label in
-                        let new_plabel = if label_typecheck label' plabel then None else plabel in
-                        fold new_filter fold_instance visited (pattern, (new_target_q, new_plabel)) (BoundConfiguration.Var (Var.of_int 0), (Some q', new_label)) sigma x
-                      | _ ->
-                        x (* incompatible configuration *)
-                    else
-                      x (* filtered out *)
-                  in
-                  let x = LabeledConfigurationSet.fold_random fold_conf confs x in
-                  if epsilon then
-                    LabeledConfigurationSet.fold fold_epsilon_conf confs x
-                  else
-                    x
-                | BoundPattern.Cast _, _ when not epsilon  ->
-                  x (* when not epsilon *)
-                | BoundPattern.Cast sub_pattern, BoundConfiguration.Var _ ->
-                  let confs = configurations_for_state q t in
-                  let fold_conf (conf, label') x =
-                    let accept, new_filter = call_filter q label' in
-                    if accept then
-                      match conf with
-                      | Configuration.Var q' when state_typecheck q target_q
-                                               && label_typecheck label' label
-                                               && label_typecheck label' plabel->
-                        let fold_instance term sigma x =
-                          let term = BoundTerm.Cast term, (Some q, Some label') in
-                          g term sigma x
-                        in
-                        fold new_filter fold_instance visited sub_pattern (BoundConfiguration.Var (Var.of_int 0), (Some q', None)) sigma x
-                      | Configuration.Var q' ->
-                        let fold_instance term sigma x =
-                          let term = BoundTerm.Cast term, (Some q, Some label') in
-                          g term sigma x
-                        in
-                        let new_target_q = if state_typecheck q target_q then None else target_q in
-                        let new_label = if label_typecheck label' label then None else label in
-                        let new_plabel = if label_typecheck label' plabel then None else plabel in
-                        fold new_filter fold_instance visited (pattern, (new_target_q, new_plabel)) (BoundConfiguration.Var (Var.of_int 0), (Some q', new_label)) sigma x
-                      | _ ->
-                        x (* incompatible configuration *)
-                    else
-                      x (* filtered out *)
-                  in
-                  LabeledConfigurationSet.fold_random fold_conf confs x
-                | BoundPattern.Var z, BoundConfiguration.Var z' ->
-                  begin
-                    if state_typecheck q target_q && compatible_labels label plabel then
-                      begin
-                        match VarTable.find_opt z sigma with
-                        | Some term -> (* TODO check type. [typ] may missmatch the type of [term]. *)
-                          g term sigma x
-                        | None ->
-                          begin
-                            let fold_type_inhabitant term x =
-                              let sigma = VarTable.set z term sigma in
-                              g term sigma x
-                            in
-                            let epsilon_f = match epsilon_f with
-                              | Some f ->  Some (function typ -> f (BoundPattern.Var z, typ))
-                              | None -> None
-                            in
-                            fold_type_inhabitants ~epsilon_f:epsilon_f ~filter fold_type_inhabitant (Some q, plabel) t x
-                          end
-                      end
-                    else
-                      begin
-                        let confs = configurations_for_state q t in
-                        let fold_conf (conf, label') x =
-                          let accept, new_filter = call_filter q label' in
-                          if accept then
-                            match conf with
-                            | Configuration.Var q' ->
-                              let fold_instance term sigma x =
-                                let term = BoundTerm.Cast term, (Some q, Some label') in
-                                g term sigma x
-                              in
-                              let new_target_q = if state_typecheck q target_q then None else target_q in
-                              let new_label = if label_typecheck label' label then None else label in
-                              let new_plabel = if label_typecheck label' plabel then None else plabel in
-                              fold new_filter fold_instance visited (pattern, (new_target_q, new_plabel)) (BoundConfiguration.Var z', (Some q', new_label)) sigma x
-                            | _ ->
-                              x (* incompatible configuration *)
-                          else
-                            x (* filtered out *)
-                        in
-                        LabeledConfigurationSet.fold_random fold_conf confs x
-                      end
-                  end
-                | _, BoundConfiguration.Cast _ ->
-                  raise (Invalid_argument "Casts are not allowed in typed configurations.")
-                | _, BoundConfiguration.Cons _ ->
-                  failwith "fold_pattern_instances: non normalized configurations not handled yet."
-              end
-            else x (* if the state has been visited already (epsilon-cycle) *)
-          in
-          fold_states fold_state x
-        end
-        (* else
-           x (* type missmatch *) *)
-      in
-      fold filter (fun term _ x -> g term x) (StateTable.create 8) pattern (BoundConfiguration.Var (Var.of_int 0), (snd pattern)) (VarTable.create 8) x
-
-    (* let rec fold_pattern_instances ?(epsilon=true) g pattern t x =
-       let rec fold g pat sigma x =
-        match pat with
-        | BoundPattern.Cons (f, l), typ ->
-          let rec fold_subpatterns left l sigma x =
-            match l with
-            | [] -> g (BoundTerm.Term (f, List.rev left), typ) sigma x
-            | sp::l ->
-              let fold_instance st sigma x =
-                fold_subpatterns (st::left) l sigma x
-              in
-              fold fold_instance sp sigma x
-          in
-          fold_subpatterns [] l sigma x
-        | BoundPattern.Cast pat, typ ->
-          let fold_subpattern term sigma x =
-            g (BoundTerm.Cast term, typ) sigma x
-          in
-          fold fold_subpattern pat sigma x
-        | BoundPattern.Var z, typ ->
-          begin
-            match VarTable.find_opt z sigma with
-            | Some term -> g term sigma x (* TODO check type. [typ] may missmatch the type of [term]. *)
-            | None ->
-              begin
-                let fold_type_inhabitant term x =
-                  let sigma = VarTable.set z term sigma in
-                  g term sigma x
-                in
-                fold_type_inhabitants ~epsilon fold_type_inhabitant typ t x
-              end
-          end
-       in
-       fold (fun term _ x -> g term x) pattern (VarTable.create 8) x *)
-
-    (* TODO use fold_pattern_instances to replace this implementation. *)
-    let instanciate_pattern_opt ?(epsilon=true) conf t =
-      let table = Hashtbl.create 8 in
-      let rec instanciate conf =
-        match conf with
-        | BoundPattern.Cons (f, l), typ ->
-          begin
-            match list_map_opt instanciate l with
-            | Some l -> Some (BoundTerm.Term (f, l), typ)
-            | None -> None
-          end
-        | BoundPattern.Cast conf, typ ->
-          begin
-            match instanciate conf with
-            | Some term -> Some (BoundTerm.Cast term, typ)
-            | None -> None
-          end
-        | BoundPattern.Var x, typ ->
-          begin
-            match Hashtbl.find_opt table x with
-            | Some term -> Some term (* TODO check type. [typ] may missmatch the type of [term]. *)
-            | None ->
-              begin
-                match pick_binding_inhabitant_opt ~epsilon typ t with
-                | Some term ->
-                  Hashtbl.add table x term;
-                  Some term
-                | None -> None
-              end
-          end
-      in
-      instanciate conf
-
-    let rec recognizes_bound_pattern_in_conf ?(debug=false) ?(epsilon=true) (conf, (q, label)) (pattern, (typ_q, typ_label)) t =
-      let recognizes typed_conf bound_pattern =
-        recognizes_bound_pattern_in_conf ~debug ~epsilon typed_conf bound_pattern t
-      in
-      let concrete a = function
-        | Some a -> a
-        | None -> a
-      in
-      let try_state q' =
-        (* if debug then
-           begin
-            debug_print "for ";
-            BoundConfiguration.format ppf (conf, (q, label));
-            debug_print "   with   ";
-            BoundPattern.format ppf (pattern, (typ_q, typ_label));
-            debug_print "\ntry state: ";
-            State.format ppf q';
-            debug_print "\n"
-           end; *)
-        match conf, pattern with
-        | _, BoundPattern.Var _ ->
-          begin
-            match instanciate_typed_configuration_opt ~epsilon (conf, (q, label)) t with
-            | Some _ -> true
-            | None -> false
-          end
-        | BoundConfiguration.Cast typed_conf, BoundPattern.Cast bound_pattern ->
-          recognizes typed_conf bound_pattern
-        | BoundConfiguration.Cons (f1, l1), BoundPattern.Cons (f2, l2) when Sym.equal f1 f2 ->
-          List.for_all2 recognizes l1 l2
-        | BoundConfiguration.Var _, _ ->
-          let confs = configurations_for_state q' t in
-          let fold_conf (conf', label') = function
-            | true -> true
-            | false ->
-              begin
-                match conf' with
-                | Configuration.Var _ -> false
-                | _ ->
-                  let label_checked = label_typecheck label' typ_label in
-                  (* if not label_checked then debug_print "label typecheck failed.\n"; *)
-                  label_checked &&
-                  recognizes (typed_transition conf' (concrete label' label) (concrete q' q)) (pattern, (typ_q, typ_label))
-              end
-          in
-          LabeledConfigurationSet.fold fold_conf confs false
-        | _ -> false
-      in
-      let recognizes_in q =
-        if epsilon then
-          let fold_state q' = function
-            | true -> true
-            | false ->
-              let r = try_state q' in
-              (* if r && debug then
-                 debug_print "found!\n"; *)
-              r
-          in
-          fold_epsilon_class_type fold_state q typ_q t false
-        else
-          begin
-            if state_typecheck q typ_q then
-              try_state q
-            else
-              false
-          end
-      in
-      match q with
-      | Some q -> recognizes_in q
-      | None ->
-        let fold_state q = function
-          | true -> true
-          | false -> recognizes_in q
-        in
-        fold_states fold_state t false
-
-    let recognizes_bound_pattern_in ?(debug=false) ?(epsilon=true) q bound_pattern t =
-      recognizes_bound_pattern_in_conf ~debug ~epsilon (BoundConfiguration.Var (Var.of_int 0), (Some q, None)) bound_pattern t
-
-    let recognizes_bound_pattern  ?(epsilon=true) pattern t =
-      StateSet.exists (function q -> recognizes_bound_pattern_in ~epsilon q pattern t) (final_states t)
-    end*)
 end
 
 module Make (F : Symbol.S) (Q : STATE) (L : LABEL) = struct

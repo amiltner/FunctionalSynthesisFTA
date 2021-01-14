@@ -7,3 +7,5 @@ module OUnitPlusPlus = struct
   include Ounit_general_extensions
 end
 module SimpleFile = SimpleFile
+module HashSet = HashSetWrapper
+module HashTable = HashtblWrapper
