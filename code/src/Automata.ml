@@ -48,7 +48,7 @@ sig
   val is_final_state : t -> State.t -> bool
   val add_final_state : t -> State.t -> unit
   val has_state : t -> State.t -> bool
-  val is_empty : t -> bool
+  (*val is_empty : t -> bool*)
   val accepts_term : t -> Term.t -> bool
   val accepting_term_state : t -> Term.t -> TermState.t option
   val transitions_from
@@ -89,15 +89,7 @@ module TimbukBuilder : AutomatonBuilder =
         let print a b = pp b a
       end
 
-      module Lb = struct
-        include UnitModule
-
-        let print a b = pp b a
-
-        let product _ _ = Some ()
-      end
-
-      include Timbuk.Automaton.Make(Symb)(St)(Lb)
+      include Timbuk.Automaton.Make(Symb)(St)
 
       let equal a1 a2 = is_equal (compare a1 a2)
       let pp a b = print b a
@@ -149,7 +141,6 @@ module TimbukBuilder : AutomatonBuilder =
            ,List.map
                ~f:(fun st -> A.Configuration.Var st)
                sts)))
-        ()
         st
         a
 
@@ -160,7 +151,6 @@ module TimbukBuilder : AutomatonBuilder =
            ,List.map
                ~f:(fun st -> A.Configuration.Var st)
                sts)))
-        ()
         st
         a
 
@@ -186,7 +176,7 @@ module TimbukBuilder : AutomatonBuilder =
       =
       A.StateSet.contains s (A.states a)
 
-    let is_empty a =
+    (*let is_empty a =
       Option.is_some
         (A.pick_term_opt
            a)
@@ -207,7 +197,7 @@ module TimbukBuilder : AutomatonBuilder =
           | _ -> failwith "ah"
         end
       in
-      c_bt bt
+      c_bt bt*)
 
     let transitions_from a s =
       let ps = A.state_parents s a in
@@ -215,7 +205,7 @@ module TimbukBuilder : AutomatonBuilder =
       List.concat_map
         ~f:(fun c ->
             let ss =
-              A.LabeledStateSet.as_list
+              A.StateSet.as_list
                 (A.states_for_configuration c a)
             in
             let (i,vs) =
@@ -234,7 +224,7 @@ module TimbukBuilder : AutomatonBuilder =
                   failwith "ah"
               end
             in
-            List.map ~f:(fun (s,_) -> (i,vs,s)) ss)
+            List.map ~f:(fun s -> (i,vs,s)) ss)
         cs
 
     let transitions_to
@@ -247,7 +237,7 @@ module TimbukBuilder : AutomatonBuilder =
           a
       in
       List.map
-        ~f:(fun (c,_) ->
+        ~f:(fun c ->
             begin match A.Configuration.node c with
               | A.Configuration.Cons (i,ps) ->
                 (i,
@@ -260,7 +250,7 @@ module TimbukBuilder : AutomatonBuilder =
                    ps)
               | _ -> failwith "shouldnt happen"
             end)
-        (A.LabeledConfigurationSet.as_list configs)
+        (A.ConfigurationSet.as_list configs)
 
     let transitions
         (c:t)
@@ -269,8 +259,8 @@ module TimbukBuilder : AutomatonBuilder =
       let ts =
         A.StateMap.fold
           (fun s cs ts ->
-             A.LabeledConfigurationSet.fold
-               (fun (c,_) ts ->
+             A.ConfigurationSet.fold
+               (fun c ts ->
                   begin match A.Configuration.node c with
                     | A.Configuration.Cons (i,ps) ->
                       (i

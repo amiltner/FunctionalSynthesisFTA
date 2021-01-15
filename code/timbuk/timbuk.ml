@@ -40,8 +40,6 @@ module IntState = IntState
 
 module StringState = StringState
 
-module NoLabel = NoLabel
-
 (** {1 Term rewriting systems} *)
 
 module Relation = Relation

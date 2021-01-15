@@ -272,10 +272,10 @@ module Make : AutomatonBuilder =
       : unit =
       (TimbukAut.add_final_state (get_aut x) s)
 
-    let is_empty
+    (*let is_empty
         (x:t)
       : bool =
-      TimbukAut.is_empty (get_aut x)
+      TimbukAut.is_empty (get_aut x)*)
 
     let accepts_term
         (x:t)
