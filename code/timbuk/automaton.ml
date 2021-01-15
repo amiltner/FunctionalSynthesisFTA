@@ -30,6 +30,7 @@ module type BASE = sig
   val final_states : t -> StateSet.t
   val configurations_for_states : t -> ConfigurationSet.t StateMap.t
   val configurations_for_state : State.t -> t -> ConfigurationSet.t
+  val configurations_for_state_nonmutate : State.t -> t -> ConfigurationSet.t
   val states_for_configurations : t -> StateSet.t ConfigurationMap.t
   val states_for_configuration : Configuration.t -> t -> StateSet.t
   val state_parents : State.t -> t -> ConfigurationSet.t
@@ -83,7 +84,7 @@ module type S = sig
   val pick_term_in_opt : ?epsilon:bool -> State.t -> t -> BoundTerm.t option
   val map : ?filter:(Configuration.t -> State.t -> t -> bool) -> (State.t -> State.t) -> t -> t
   val filter : (Configuration.t -> State.t -> bool) -> t -> t
-  val fold_states : (State.t -> 'a -> 'a) -> t -> 'a -> 'a
+  val fold_states : bool -> (State.t -> 'a -> 'a) -> t -> 'a -> 'a
   val fold_transitions : (Configuration.t -> State.t -> 'a -> 'a) -> t -> 'a -> 'a
   val label : ((State.t -> 'a) -> State.t -> 'a) -> (State.t -> 'a) -> t -> (State.t -> 'a)
   val inter : ?hook:(t -> State.t -> unit) -> (data -> data -> data) -> t -> t -> t
@@ -245,6 +246,12 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
       (fun _ -> ConfigurationSet.empty ())
       a.state_confs
 
+  let configurations_for_state_nonmutate q a =
+    begin match StateMap.find_opt q a.state_confs with
+      | None -> ConfigurationSet.create 0
+      | Some cs -> cs
+    end
+
   let states_for_configuration conf a =
     ConfigurationMap.find_or_add
       conf
@@ -364,7 +371,7 @@ module Extend (B: BASE) = struct
       | Some () -> x
       | None ->
         Hashtbl.add table q ();
-        ConfigurationSet.fold (fold_configuration) (configurations_for_state q a) (f q x)
+        ConfigurationSet.fold (fold_configuration) (configurations_for_state_nonmutate q a) (f q x)
     and fold_configuration conf x =
       let (_,ss) = Configuration.node conf in
       List.fold_right fold_state ss x
