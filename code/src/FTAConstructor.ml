@@ -1027,17 +1027,23 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     : int =
     A.size c.a
 
-  let accepts_term
+  (*let accepts_term
       (c:t)
       (t:A.Term.t)
     : bool =
     Consts.time
       Consts.accepts_term_time
-      (fun _ -> A.accepts_term c.a t)
+      (fun _ -> A.accepts_term c.a t)*)
 
   let size_compare
       (c1:t)
       (c2:t)
     : int =
     Int.compare (size c1) (size c2)
+
+  let accepts_term
+      (x:t)
+      (term)
+    : bool =
+    Option.is_some (A.accepting_term_state x.a term)
 end

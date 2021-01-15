@@ -277,12 +277,6 @@ module Make : AutomatonBuilder =
       : bool =
       TimbukAut.is_empty (get_aut x)*)
 
-    let accepts_term
-        (x:t)
-        (term)
-      : bool =
-      TimbukAut.accepts_term (get_aut x) (to_timbuk_term term)
-
     let transitions_from
         (x:t)
         (s:State.t)

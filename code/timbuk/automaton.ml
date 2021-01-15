@@ -3,10 +3,19 @@ open Collections
 module type STATE = Pattern.VARIABLE
 module type TYPE = TypedTerm.TYPE
 
+module type ConfigS = sig
+  include MyStdLib.Data
+
+  type t_node
+  val node : t -> t_node
+  val product : t -> t -> t option
+  val create : t_node -> t
+end
+
 module type BASE = sig
   module Sym : Symbol.S
   module State : STATE
-  module Configuration : Pattern.S with type Sym.t = Sym.t and type Var.t = State.t
+  module Configuration : ConfigS with type t = (Sym.t * State.t list) MyStdLib.hash_consed and type t_node = Sym.t * State.t list
   module StateSet : MyStdLib.HashSet.ImperativeSet with type elt = State.t
   module StateMap : MyStdLib.HashTable.ImperativeDict with type key = State.t
   module ConfigurationSet : MyStdLib.HashSet.ImperativeSet with type elt = Configuration.t
@@ -51,7 +60,6 @@ module type S = sig
   val state_count : t -> int
   val is_state_empty : State.t -> t -> bool
   val configurations_for_state : State.t -> t -> ConfigurationSet.t
-  val sub_states_of : t -> State.t -> StateSet.t
   val fold_configurations_for_binding : (Configuration.t -> State.t -> 'a -> 'a) -> Binding.t -> t -> 'a -> 'a
   val iter_configurations_for_binding : (Configuration.t -> State.t -> unit) -> Binding.t -> t -> unit
   val fold_configurations_for_epsilon_state : (Configuration.t -> 'a -> 'a) -> State.t -> t -> 'a -> 'a
@@ -125,12 +133,47 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
   end
 
   module Configuration =
-    (*struct
+  struct
     open MyStdLib
-    type t = Sym.t * State.t list
+    type t_node = Sym.t * State.t list
     [@@deriving hash, eq, ord, show]
-    end*)
-  Pattern.Make (Sym) (State)
+
+    type t = t_node hash_consed
+    [@@deriving hash, eq, ord, show]
+
+    let table = HashConsTable.create 1000
+
+    let create
+        (node:t_node)
+      : t =
+      HashConsTable.hashcons
+        hash_t_node
+        compare_t_node
+        table
+        node
+
+    let node
+        (v:t)
+      : t_node =
+      v.node
+
+    let product
+        (c1:t)
+        (c2:t)
+      : t option =
+      if equal c1 c2 then
+        Some c1
+      else
+        let (i1,ss1) = node c1 in
+        let (i2,ss2) = node c2 in
+        if Sym.equal i1 i2 then
+          begin match MyStdLib.distribute_option (List.map2_exn ~f:State.product ss1 ss2) with
+            | None -> None
+            | Some ss -> Some (create (i1,ss))
+          end
+        else
+          None
+  end
 
   module StateP = struct
     include State
@@ -139,18 +182,11 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
     let show = MyStdLib.show_of_pp pp
   end
 
-  module ConfigurationP = struct
-    include Configuration
-
-    let pp x y = print y x
-    let show = MyStdLib.show_of_pp pp
-  end
-
   module StateSet = MyStdLib.HashSet.HSWrapper (StateP)
   module StateMap = MyStdLib.HashTable.Make(StateP)
 
-  module ConfigurationSet = MyStdLib.HashSet.HSWrapper (ConfigurationP)
-  module ConfigurationMap = MyStdLib.HashTable.Make (ConfigurationP)
+  module ConfigurationSet = MyStdLib.HashSet.HSWrapper (Configuration)
+  module ConfigurationMap = MyStdLib.HashTable.Make (Configuration)
 
   type t = {
     mutable roots : StateSet.t; (* Final states. *)
@@ -215,8 +251,8 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
       (fun _ -> StateSet.empty ())
       a.conf_states
 
-  let add_transition conf q (a:t) =
-    let add_parent_to q () =
+  let add_transition (conf) q (a:t) =
+    let add_parent_to q =
       let cs = state_parents q a in
       ConfigurationSet.add
         conf
@@ -224,16 +260,16 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
     in
     ConfigurationSet.add (conf) (configurations_for_state q a);
     StateSet.add q (states_for_configuration conf a);
-    Configuration.fold add_parent_to conf ()
+    List.iter add_parent_to (snd (Configuration.node conf))
 
-  let remove_transition conf q (a:t) =
-    let remove_parent_from q () =
+  let remove_transition (conf) q (a:t) =
+    let remove_parent_from q =
       let cs = (state_parents q a) in
       (ConfigurationSet.remove conf cs);
     in
     ConfigurationSet.remove conf (configurations_for_state q a);
     StateSet.remove q (states_for_configuration conf a);
-    Configuration.fold remove_parent_from conf ()
+    List.iter remove_parent_from (snd (Configuration.node conf))
 end
 
 module Extend (B: BASE) = struct
@@ -307,100 +343,6 @@ module Extend (B: BASE) = struct
     let confs = configurations_for_state q a in
     ConfigurationSet.is_empty confs
 
-  let sub_states_of a q =
-    let sub_states = StateSet.empty () in
-    let confs = configurations_for_state q a in
-    ConfigurationSet.fold (
-      fun conf () ->
-        match Configuration.node conf with
-        | Configuration.Var q' ->
-          StateSet.add q' sub_states
-        | _ -> ()
-    ) confs ()
-
-  let typed_configuration conf =
-    let id = ref 0 in
-    let next_id () =
-      let i = !id in
-      id := i+1;
-      i
-    in
-    let rec type_configuration conf =
-      match conf with
-      | Configuration.Var q -> BoundConfiguration.Var (Var.of_int (next_id ())), (Some q, None)
-      | Configuration.Cons (f, l) -> BoundConfiguration.Cons (f, List.map type_configuration l), (None, None)
-    in
-    type_configuration conf
-
-  let typed_transition conf label q =
-    match conf with
-    | Configuration.Var _ ->
-      BoundConfiguration.Cast (typed_configuration conf), (Some q, Some label)
-    | _ ->
-      let typed_conf, _ = typed_configuration conf in
-      typed_conf, (Some q, Some label)
-
-  let rec untyped_configuration = function
-    | BoundConfiguration.Var _, (Some q, _) -> Configuration.Var q
-    | BoundConfiguration.Var _, _ -> failwith "Automaton.untyped_configuration: untyped variable"
-    | BoundConfiguration.Cast typed_conf, _ -> untyped_configuration typed_conf
-    | BoundConfiguration.Cons (f, l), _ -> Configuration.Cons (f, List.map untyped_configuration l)
-
-  (* fold_epsilon_class with a custom table. *)
-  let fold_epsilon_class_aux table f q a x =
-    let rec fold_state q x =
-      match Hashtbl.find_opt table q with
-      | Some () -> x
-      | None ->
-        Hashtbl.add table q ();
-        ConfigurationSet.fold fold_conf (configurations_for_state q a) (f q x)
-    and fold_conf conf x =
-      match Configuration.node conf with
-      | Configuration.Var q' ->
-        fold_state q' x
-      | _ -> x
-    in
-    fold_state q x
-
-  let fold_epsilon_class f q a x =
-    let table = Hashtbl.create 8 in
-    fold_epsilon_class_aux table f q a x
-
-  let state_typecheck q = function
-    | None -> true
-    | Some q' -> State.equal q q'
-
-  (* let typecheck (q, lbl) (q_typ, lbl_typ) =
-     state_typecheck q q_typ && label_typecheck lbl lbl_typ *)
-
-  let fold_epsilon_class_type f q q_typ a x =
-    let table = Hashtbl.create 8 in
-    let fold_q q x =
-      if state_typecheck q q_typ then
-        fold_epsilon_class_aux table f q a x
-      else
-        x
-    in
-    fold_epsilon_class fold_q q a x
-
-  let state_transitive_parents q a =
-    let set = ConfigurationSet.empty () in
-    let visited = Hashtbl.create 8 in
-    let rec fold_state q () =
-      match Hashtbl.find_opt visited q with
-      | Some () -> ()
-      | None ->
-        Hashtbl.add visited q ();
-        let fold_conf conf () =
-          match Configuration.node conf with
-          | Configuration.Var _ -> fold_state q ()
-          | _ -> ConfigurationSet.add conf set
-        in
-        ConfigurationSet.fold fold_conf (state_parents q a) ()
-    in
-    fold_state q ();
-    set
-
   let fold_transitions f a x =
     let fold_state_confs q confs x =
       let fold_labeled_confs conf = f conf q in
@@ -422,15 +364,12 @@ module Extend (B: BASE) = struct
       | Some () -> x
       | None ->
         Hashtbl.add table q ();
-        ConfigurationSet.fold (fold_labeled_configuration) (configurations_for_state q a) (f q x)
-    and fold_labeled_configuration conf =
-      fold_configuration (Configuration.node conf)
+        ConfigurationSet.fold (fold_configuration) (configurations_for_state q a) (f q x)
     and fold_configuration conf x =
-      match conf with
-      | Configuration.Cons (_, l) -> List.fold_right (fold_configuration) l x
-      | Configuration.Var q -> fold_state q x
+      let (_,ss) = Configuration.node conf in
+      List.fold_right fold_state ss x
     and fold_transition conf q x =
-      fold_configuration (Configuration.node conf) (uniq_f q x)
+      fold_configuration conf (uniq_f q x)
     in
     let x = StateSet.fold (uniq_f) (final_states a) x in
     fold_transitions (fold_transition) a x
@@ -479,27 +418,6 @@ module Extend (B: BASE) = struct
   let iter_configurations_for_binding f ty t =
     fold_configurations_for_binding (fun c q () -> f c q) ty t ()
 
-  let fold_configurations_for_epsilon_state func q a x =
-    let table = Hashtbl.create 8 in
-    let rec fold_state q x =
-      match Hashtbl.find_opt table q with
-      | Some () -> x
-      | None ->
-        Hashtbl.add table q ();
-        let fold_conf conf x =
-          match Configuration.node conf with
-          | Configuration.Var q' ->
-            let x = func conf x in
-            fold_state q' x
-          | _ -> func conf x
-        in
-        ConfigurationSet.fold (fold_conf) (configurations_for_state q a) x
-    in
-    fold_state q x
-
-  let iter_configurations_for_epsilon_state f q a =
-    fold_configurations_for_epsilon_state (fun c () -> f c) q a ()
-
   let list_map_opt f l =
     let for_each_element e = function
       | Some acc ->
@@ -527,131 +445,6 @@ module Extend (B: BASE) = struct
         | None -> None
       end
     | _, _ -> None
-
-  let rec type_term_in (q : State.t) term t =
-    (* let module Term = Term.Make (Sym) in *)
-    (* Format.printf "term %t" (Term.print term); *)
-
-    let visited = Hashtbl.create 8 in (* to avoid epsilon loops *)
-    let rec ignore_epsilon q (Term.Term (f, l)) =
-      match Hashtbl.find_opt visited q with
-      | Some () -> None
-      | None ->
-        let rec type_subterm conf (Term.Term (f, l)) =
-          match conf with
-          | Configuration.Cons (f', l') when Sym.compare f' f = 0 ->
-            begin
-              match list_map2_opt type_subterm l' l with
-              | Some l -> Some (BoundTerm.Term (f, l), (None))
-              | None -> None
-            end
-          | Configuration.Var q' ->
-            type_term_in q' (Term.Term (f, l)) t
-          | _ -> None
-        in
-        let fold_cons conf = function
-          | Some typed_term -> Some typed_term
-          | None ->
-            begin
-              match Configuration.node conf with
-              | Configuration.Cons (f', l') when Sym.compare f' f = 0 ->
-                begin
-                  match list_map2_opt type_subterm l' l with
-                  | Some l -> Some (BoundTerm.Term (f, l), (Some q))
-                  | None -> None
-                end
-              | _ -> None
-            end
-        in
-        let fold_epsilon conf = function
-          | Some typed_term -> Some typed_term
-          | None ->
-            begin
-              match Configuration.node conf with
-              | Configuration.Var q' ->
-                begin
-                  match ignore_epsilon q' (Term.Term (f, l)) with
-                  | Some typed_term -> Some (BoundTerm.Cast typed_term, (Some q))
-                  | None -> None
-                end
-              | _ -> None
-            end
-        in
-        Hashtbl.add visited q ();
-        let confs = configurations_for_state q t in
-        begin
-          match ConfigurationSet.fold fold_cons confs None with
-          | Some typed_term -> Some typed_term
-          | None -> ConfigurationSet.fold fold_epsilon confs None
-        end
-    in
-    ignore_epsilon q term
-
-  let rec recognizes_in q term t =
-    let visited = Hashtbl.create 8 in (* to avoid epsilon loops *)
-    let rec ignore_epsilon q (Term.Term (f, l)) =
-      match Hashtbl.find_opt visited q with
-      | Some () -> false
-      | None ->
-        let rec fold_subconf conf (Term.Term (f, l)) = function
-          | false -> false
-          | true ->
-            begin
-              match conf with
-              | Configuration.Var q' -> recognizes_in q' (Term.Term (f, l)) t
-              | Configuration.Cons (f', l') when Sym.compare f' f = 0 ->
-                List.fold_right2 (fold_subconf) l' l true
-              | _ -> false
-            end
-        in
-        let fold_conf conf = function
-          | true -> true
-          | false ->
-            begin
-              match Configuration.node conf with
-              | Configuration.Var q' -> ignore_epsilon q' (Term.Term (f, l))
-              | Configuration.Cons (f', l') when Sym.compare f' f = 0 ->
-                List.fold_right2 (fold_subconf) l' l true
-              | _ -> false
-            end
-        in
-        Hashtbl.add visited q ();
-        let confs = configurations_for_state q t in
-        ConfigurationSet.fold (fold_conf) confs false
-    in
-    ignore_epsilon q term
-
-  let recognizes_state_in q target t =
-    let visited = Hashtbl.create 8 in (* to avoid epsilon loops *)
-    let rec ignore_epsilon q =
-      if State.equal q target then true else
-        match Hashtbl.find_opt visited q with
-        | Some () -> false
-        | None ->
-          Hashtbl.add visited q ();
-          let fold_conf conf = function
-            | true -> true
-            | false ->
-              begin
-                match Configuration.node conf with
-                | Configuration.Var q' -> ignore_epsilon q'
-                | _ -> false
-              end
-          in
-          let confs = configurations_for_state q t in
-          ConfigurationSet.fold (fold_conf) confs false
-    in
-    ignore_epsilon q
-
-  let type_term term t =
-    let fold_state q = function
-      | Some typed_term -> Some typed_term
-      | None -> type_term_in q term t
-    in
-    StateSet.fold fold_state (final_states t) None
-
-  let recognizes term t =
-    List.exists (function q -> recognizes_in q term t) (StateSet.as_list (final_states t))
 
   let label f default _ = (* FIXME why is the automaton not used? *)
     let table = Hashtbl.create 8 in
@@ -700,10 +493,8 @@ module Extend (B: BASE) = struct
         ConfigurationSet.fold add_conf confs ()
     and visit_conf_internal conf () =
       match conf with
-      | Configuration.Cons (_, l) ->
-        List.fold_right visit_conf_internal l ()
-      | Configuration.Var q ->
-        visit_state q ()
+      | (_, l) ->
+        List.fold_right visit_state l ()
     and visit_conf x u = visit_conf_internal (Configuration.node x) ()
     in
     (set_final_states states u);
@@ -720,23 +511,7 @@ module Extend (B: BASE) = struct
         let labeled_conf_product ca cb () =
             match (Configuration.product ca cb) with
             | Some conf -> add_transition conf q aut
-            | None ->
-              begin
-                match Configuration.node ca, Configuration.node cb with
-                | Configuration.Var qa', _ ->
-                  begin
-                    match State.product qa' qb with
-                    | Some q' -> add_transition (Configuration.of_var q') q aut
-                    | None -> ()
-                  end
-                | _, Configuration.Var qb' ->
-                  begin
-                    match State.product qa qb' with
-                    | Some q' -> add_transition (Configuration.of_var q') q aut
-                    | None -> ()
-                  end
-                | _, _ -> ()
-              end
+            | None -> ()
           in
           ConfigurationSet.fold2 (labeled_conf_product) (qa_confs) (qb_confs) ();
           begin
@@ -756,13 +531,14 @@ module Extend (B: BASE) = struct
       StateSet.fold2 add_final (final_states a) (final_states b) ();
       aut
 
-  let reachable_states ?(epsilon=true) a =
+  let reachable_states a =
     let visited = Hashtbl.create 8 in
     let reachable set c = StateSet.contains c set in
     let set = StateSet.empty () in
     let rec reach_conf conf set =
       reach_conf_states conf (states_for_configuration conf a) set
     and reach_conf_states conf lbl_states () =
+      let (i,ss) = Configuration.node conf in
       let fold q () =
         match Hashtbl.find_opt visited q with
         | Some () -> ()
@@ -770,18 +546,20 @@ module Extend (B: BASE) = struct
           Hashtbl.add visited q ();
           ConfigurationSet.fold (reach_conf) (state_parents q a) (StateSet.add q set)
       in
-      if (epsilon || Configuration.is_cons conf) && (Configuration.for_all (reachable set) conf) then
+      if (List.for_all (reachable set) ss) then
         StateSet.fold (fold) lbl_states ()
       else ()
     in
     ConfigurationMap.fold (reach_conf_states) ((states_for_configurations a)) ();
     set
 
-  let reduce ?(epsilon=true) ?(from_finals=true) t =
+  let reduce ?(from_finals=true) t =
     let rt = empty () in
-    let reachable_states = reachable_states ~epsilon t in
+    let reachable_states = reachable_states t in
     let is_reachable_state q = StateSet.contains q reachable_states in
-    let is_reachable_conf = Configuration.for_all is_reachable_state in
+    let is_reachable_conf c =
+      let (_,ss) = Configuration.node c in
+      List.for_all is_reachable_state ss in
     let for_each_transition conf q () =
       if is_reachable_state q && is_reachable_conf conf then
         add_transition conf q rt
@@ -800,7 +578,7 @@ module Extend (B: BASE) = struct
       fold_states for_each_final_state t ());
     rt
 
-  let alphabet t =
+  (*let alphabet t =
     let rec fold_conf conf alphabet =
       match conf with
       | Configuration.Cons (f, l) ->
@@ -810,7 +588,7 @@ module Extend (B: BASE) = struct
     let fold_transition conf _ alphabet =
       fold_conf (Configuration.node conf) alphabet
     in
-    fold_transitions fold_transition t (SymSet.empty)
+    fold_transitions fold_transition t (SymSet.empty)*)
 
 
   let unepsilon _ =
@@ -830,7 +608,7 @@ module Extend (B: BASE) = struct
   let print t out =
     let print_state_confs q confs =
       let print_conf conf =
-        Format.fprintf out "%t -> %t\n" (Configuration.print conf) (State.print q)
+        Format.fprintf out "%t -> %t\n" (fun f -> Configuration.pp f conf) (State.print q)
       in
       ConfigurationSet.iter (print_conf) confs
     and print_state q =
@@ -843,317 +621,8 @@ module Extend (B: BASE) = struct
     Format.fprintf out "\n\nTransitions\n";
     StateMap.iter print_state_confs (configurations_for_states t)
 
-  module Patterns (X : Pattern.VARIABLE) = struct
-    module Pattern = Pattern.Make (Sym) (X)
-
-    type pattern = Pattern.t
-
-    let rec recognizes_pattern_in q pattern t =
-      let visited = Hashtbl.create 8 in (* to avoid epsilon loops *)
-      let rec ignore_epsilon q pattern =
-        match Hashtbl.find_opt visited q with
-        | Some () -> false
-        | None ->
-          begin
-            match pattern with
-            | Pattern.Var _ -> true
-            | Pattern.Cons (f, l) ->
-              let rec fold_subconf conf pattern = function
-                | false -> false
-                | true ->
-                  begin
-                    match pattern with
-                    | Pattern.Var _ -> true
-                    | Pattern.Cons (f, l) ->
-                      begin
-                        match conf with
-                        | Configuration.Var q' -> recognizes_pattern_in q' pattern t
-                        | Configuration.Cons (f', l') when Sym.compare f' f = 0 ->
-                          List.fold_right2 (fold_subconf) l' l true
-                        | _ -> false
-                      end
-                  end
-              in
-              let fold_conf conf = function
-                | true -> true
-                | false ->
-                  begin
-                    match Configuration.node conf with
-                    | Configuration.Var q' -> ignore_epsilon q' pattern
-                    | Configuration.Cons (f', l') when Sym.compare f' f = 0 ->
-                      List.fold_right2 (fold_subconf) l' l true
-                    | _ -> false
-                  end
-              in
-              Hashtbl.add visited q ();
-              let confs = configurations_for_state q t in
-              ConfigurationSet.fold (fold_conf) confs false
-          end
-      in
-      ignore_epsilon q pattern
-
     (*let recognizes_pattern pattern t =
       StateSet.exists (function q -> recognizes_pattern_in q pattern t) (final_states t)*)
-
-    let rec configuration_of_pattern state = function
-      | Pattern.Cons (f, l) -> Configuration.Cons (f, List.map (configuration_of_pattern state) l)
-      | Pattern.Var x -> Configuration.Var (state x)
-  end
-
-  module StateTable = HashTable.Make (State)
-
-  type dynamic_filter =
-    | NoFilter
-    | Filter of (State.t -> (bool * dynamic_filter))
-
-  let fold_type_inhabitants ?(epsilon_f=None) ?(filter=NoFilter) g typ t x =
-    let no_path_table = Hashtbl.create 8 in
-    let rec fold filter g visited typ x =
-      let call_filter q = match filter with
-        | Filter f -> f q
-        | NoFilter -> true, NoFilter
-      in
-      match Hashtbl.find_opt no_path_table typ with
-      | Some () -> x
-      | None ->
-        begin
-          let path_found = ref false in
-          let path_skipped = ref false in
-          let g t x =
-            path_found := true;
-            g t x
-          in
-          let epsilon = match epsilon_f with
-            | Some f -> f typ
-            | None -> true
-          in
-          let visit q =
-            match StateTable.find_opt q visited with
-            | Some () -> visited, false
-            | None -> (StateTable.set q () visited), true
-          in
-          let fold_conf conf q x =
-            let visited, proceed = visit q in
-            let accept, new_filter = call_filter q in
-            if proceed && accept then
-              begin
-                match Configuration.node conf with
-                | Configuration.Var _ -> x
-                | Configuration.Cons (f, l) ->
-                  let rec fold_conf_list g left l x =
-                    match l with
-                    | [] -> g (BoundTerm.Term (f, List.rev left), (Some q)) x
-                    | sc::l ->
-                      let fold_subterm st x =
-                        fold_conf_list g (st::left) l x
-                      in
-                      let rec fold_subconf g subconf x =
-                        match subconf with
-                        | Configuration.Cons (f', l') ->
-                          let rec fold_subconf_list g left' _ x =
-                            match l with
-                            | [] -> g (BoundTerm.Term (f', List.rev left'), (None)) x
-                            | sc::l' ->
-                              let fold_subsubconf st x =
-                                fold_subconf_list g (st::left') l' x
-                              in
-                              fold_subconf fold_subsubconf sc x
-                          in
-                          fold_subconf_list g [] l' x
-                        | Configuration.Var q' ->
-                          fold new_filter g visited (Some q') x
-                      in
-                      fold_subconf fold_subterm sc x
-                  in
-                  fold_conf_list g [] l x
-              end
-            else
-              begin
-                if not proceed then path_skipped := true;
-                x
-              end
-          in
-          let fold_epsilon_conf conf q x =
-            let visited, proceed = visit q in
-            let accept, new_filter = call_filter q in
-            if proceed && accept then
-              begin
-                match Configuration.node conf with
-                | Configuration.Var q' ->
-                  let fold_type_inhabitant term x =
-                    g (BoundTerm.Cast term, (Some q)) x
-                  in
-                  fold new_filter fold_type_inhabitant visited (Some q') x
-                | Configuration.Cons _ -> x
-              end
-            else x
-          in
-          let x = fold_configurations_for_binding fold_conf (typ,None) t x in
-          let x = if epsilon && not (!path_found)
-            then fold_configurations_for_binding fold_epsilon_conf (typ,None) t x
-            else x
-          in
-          if not (!path_found) && not (!path_skipped) then Hashtbl.add no_path_table typ (); (* FIXME TODO NO OVER! WARNING! NOTE! we must take into account the visited table. Maybe there is no path because we rejected some already visited states. *)
-          x
-        end
-    in
-    fold filter g (StateTable.create 8) typ x
-
-  (* TODO use fold_type_inhabitants to replace this implementation. *)
-  let pick_binding_inhabitant_opt ?(epsilon=true) typ t =
-    let rec pick_in visited typ =
-      let visit q =
-        match StateTable.find_opt q visited with
-        | Some () -> visited, false
-        | None -> (StateTable.set q () visited), true
-      in
-      let try_conf conf q = function
-        | Some term -> Some term
-        | None ->
-          let visited, proceed = visit q in
-          if proceed then
-            begin
-              match Configuration.node conf with
-              | Configuration.Var q' when epsilon ->
-                begin
-                  match pick_in visited (Some q') with
-                  | Some term -> Some (BoundTerm.Cast term, (Some q))
-                  | None -> None
-                end
-              | Configuration.Var _ -> None (* not epsilon *)
-              | Configuration.Cons (f, l) ->
-                begin
-                  let rec pick_subterm = function
-                    | Configuration.Cons (f', l') ->
-                      begin
-                        match list_map_opt pick_subterm l' with
-                        | Some l' -> Some (BoundTerm.Term (f', l'), (None))
-                        | None -> None
-                      end
-                    | Configuration.Var q' ->
-                      pick_in visited (Some q')
-                  in
-                  match list_map_opt pick_subterm l with
-                  | Some l -> Some (BoundTerm.Term (f, l), (Some q))
-                  | None -> None
-                end
-            end
-          else None
-      in
-      fold_configurations_for_binding try_conf (typ,None) t None
-    in
-    pick_in (StateTable.create 8) typ
-
-  let instanciate_typed_configuration_opt ?(epsilon=true) conf t =
-    let table = Hashtbl.create 8 in
-    let rec instanciate conf =
-      match conf with
-      | BoundConfiguration.Cons (f, l), typ ->
-        begin
-          match list_map_opt instanciate l with
-          | Some l -> Some (BoundTerm.Term (f, l), typ)
-          | None -> None
-        end
-      | BoundConfiguration.Cast conf, typ ->
-        begin
-          match instanciate conf with
-          | Some term -> Some (BoundTerm.Cast term, typ)
-          | None -> None
-        end
-      | BoundConfiguration.Var x, typ ->
-        begin
-          match Hashtbl.find_opt table x with
-          | Some term -> Some term
-          | None ->
-            begin
-              match pick_binding_inhabitant_opt ~epsilon typ t with
-              | Some term ->
-                Hashtbl.add table x term;
-                Some term
-              | None -> None
-            end
-        end
-    in
-    instanciate conf
-
-  let pick_binding_inhabitant ?(epsilon=true) typ t =
-    match pick_binding_inhabitant_opt ~epsilon typ t with
-    | Some term -> term
-    | None -> raise (Invalid_argument "Automaton.pick_term_in: empty type")
-
-  let pick_term_in_opt ?(epsilon=true) (q: State.t) t =
-    pick_binding_inhabitant_opt ~epsilon (Some q) t
-
-  let pick_term_in ?(epsilon=true) q t =
-    match pick_term_in_opt ~epsilon q t with
-    | Some term -> term
-    | None -> raise (Invalid_argument "Automaton.pick_term_in: empty state")
-
-  let rec config_to_bt_opt
-      (f:State.t -> BoundTerm.t option)
-      (c:Configuration.t_node)
-    : BoundTerm.t option =
-    begin match c with
-      | Var s -> f s
-      | Cons(l,cs) ->
-        let cs_opt =
-          list_map_opt
-            (config_to_bt_opt f)
-            cs
-        in
-        begin match cs_opt with
-          | None -> None
-          | Some bts -> Some (BoundTerm.Term (l,bts),(None))
-        end
-    end
-  let config_to_bt_opt f c = config_to_bt_opt f (Configuration.node c)
-
-  let reachable_values a =
-    let map = (StateMap.empty ()) in
-    let retrieve_computed_value map c = StateMap.find_opt c map in
-    let rec find_reachables todos =
-      begin match todos with
-        | [] -> map
-        | (config,lbl_states)::todos ->
-          let bto = config_to_bt_opt (retrieve_computed_value map) config in
-          begin match bto with
-            | None -> find_reachables todos
-            | Some bt ->
-              let (new_todos) =
-                StateSet.fold
-                  (fun q new_todos ->
-                     begin match StateMap.find_opt q map with
-                       | Some _ -> new_todos
-                       | None ->
-                       StateMap.add q bt map;
-                       let new_todos =
-                         ConfigurationSet.fold
-                           (fun c new_todos ->
-                              (c,states_for_configuration c a)::new_todos)
-                           (state_parents q a)
-                           new_todos
-                       in
-                       new_todos
-                     end)
-                  lbl_states
-                  []
-              in
-              find_reachables (todos@new_todos)
-          end
-      end
-    in
-    let initial_todos =
-      ConfigurationMap.fold
-        (fun c lbl_states acc -> (c,lbl_states)::acc)
-        (states_for_configurations a)
-        []
-    in
-    find_reachables initial_todos
-
-  type 'a picked_in =
-    | NoSolution
-    | NoSolutionYet
-    | Solution of 'a
 end
 
 module Make (F : Symbol.S) (Q : STATE) = struct

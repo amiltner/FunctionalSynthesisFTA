@@ -740,15 +740,19 @@ let option_bind
   end
 
 let distribute_option (l:('a option) list) : 'a list option =
-  (List.fold_left
-  ~f:(fun acc x ->
-    begin match (acc,x) with
-    | (None, _) -> None
-    | (_, None) -> None
-    | (Some acc', Some x') -> Some (x'::acc')
-    end)
-  ~init:(Some [])
-  (List.rev l))
+  let rec distribute_option_internal
+      (l:('a option) list)
+      (acc:'a list)
+    : 'a list option =
+    begin match l with
+      | None::_ -> None
+      | (Some h)::t ->
+        distribute_option_internal t (h::acc)
+      | [] ->
+        Some acc
+    end
+  in
+  Option.map ~f:List.rev (distribute_option_internal l [])
 
 
 let swap_double ((x,y):'a * 'b) : 'b * 'a =
