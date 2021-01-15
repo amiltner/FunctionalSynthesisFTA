@@ -215,7 +215,7 @@ module TimbukBuilder : AutomatonBuilder =
       List.concat_map
         ~f:(fun c ->
             let ss =
-              A.LabeledStateSet.elements
+              A.LabeledStateSet.as_list
                 (A.states_for_configuration c a)
             in
             let (i,vs) =
@@ -260,7 +260,7 @@ module TimbukBuilder : AutomatonBuilder =
                    ps)
               | _ -> failwith "shouldnt happen"
             end)
-        (A.LabeledConfigurationSet.elements configs)
+        (A.LabeledConfigurationSet.as_list configs)
 
     let transitions
         (c:t)

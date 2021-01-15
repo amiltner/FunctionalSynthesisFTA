@@ -13,6 +13,8 @@ sig
   val fold : (key -> 'a -> 'b -> 'b) -> 'a t -> 'b -> 'b
   val fold2 : (key -> 'a -> key -> 'b -> 'c -> 'c) -> 'a t -> 'b t -> 'c -> 'c
   val iter: (key -> 'a -> unit) -> 'a t -> unit
+  val copy: 'a t -> 'a t
+  val find_or_add : key -> (unit -> 'a) -> 'a t -> 'a
   (*val add : elt -> t -> unit
   val remove : elt -> t -> unit
   val size : t -> int
@@ -51,6 +53,13 @@ struct
       (s:'a t)
     : unit =
     Hashtbl.set s k v
+
+  let find_or_add
+      (k:key)
+      (default:unit -> 'a)
+      (s:'a t)
+    : 'a =
+    Hashtbl.find_or_add ~default s k
 
   let update
       (k:key)
@@ -171,4 +180,9 @@ struct
     Format.fprintf
       f
       "]"*)
+
+  let copy
+      (s:'a t)
+    : 'a t =
+    Hashtbl.copy s
 end

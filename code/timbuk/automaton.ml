@@ -25,9 +25,9 @@ module type BASE = sig
   module StateSet : MyStdLib.HashSet.ImperativeSet with type elt = State.t
   module StateMap : MyStdLib.HashTable.ImperativeDict with type key = State.t
   module ConfigurationSet : MyStdLib.HashSet.ImperativeSet with type elt = Configuration.t
-  module ConfigurationMap : Map.S with type key = Configuration.t
-  module LabeledConfigurationSet : Set.S with type elt = LabeledConfiguration.t
-  module LabeledStateSet : Set.S with type elt = LabeledState.t
+  module ConfigurationMap : MyStdLib.HashTable.ImperativeDict with type key = Configuration.t
+  module LabeledConfigurationSet : MyStdLib.HashSet.ImperativeSet with type elt = LabeledConfiguration.t
+  module LabeledStateSet : MyStdLib.HashSet.ImperativeSet with type elt = LabeledState.t
   type t
   type data
   val create : data -> t
@@ -37,7 +37,9 @@ module type BASE = sig
   val copy : t -> t
   val final_states : t -> StateSet.t
   val configurations_for_states : t -> LabeledConfigurationSet.t StateMap.t
+  val configurations_for_state : State.t -> t -> LabeledConfigurationSet.t
   val states_for_configurations : t -> LabeledStateSet.t ConfigurationMap.t
+  val states_for_configuration : Configuration.t -> t -> LabeledStateSet.t
   val state_parents : State.t -> t -> ConfigurationSet.t
   val add_final_state : State.t -> t -> unit
   val add_final_states : StateSet.t -> t -> unit
@@ -69,7 +71,6 @@ module type S = sig
   val state_count : t -> int
   val is_state_empty : State.t -> t -> bool
   val configurations_for_state : State.t -> t -> LabeledConfigurationSet.t
-  val states_for_configuration : Configuration.t -> t -> LabeledStateSet.t
   val sub_states_of : t -> State.t -> StateSet.t
   val fold_configurations_for_binding : (LabeledConfiguration.t -> State.t -> 'a -> 'a) -> Binding.t -> t -> 'a -> 'a
   val iter_configurations_for_binding : (LabeledConfiguration.t -> State.t -> unit) -> Binding.t -> t -> unit
@@ -148,10 +149,14 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
 
     let equal (a,la) (b,lb) =
       (Label.equal la lb) && (Configuration.equal a b)
+
+    let pp x y = print y x
+    let show = MyStdLib.show_of_pp pp
   end
 
   module LabeledState = struct
     type t = State.t * Label.t
+    [@@deriving hash]
 
     let product (a, la) (b, lb) =
       match State.product a b, Label.product la lb with
@@ -167,30 +172,33 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
     let print (q, l) out =
       Label.print l out;
       State.print q out
+
+    let pp x y = print y x
+    let show = MyStdLib.show_of_pp pp
   end
 
   module StateP = struct
     include State
 
-    let pp _ _ = failwith "no"
-    let show _ = failwith "no"
+    let pp x y = print y x
+    let show = MyStdLib.show_of_pp pp
   end
 
   module ConfigurationP = struct
     include Configuration
 
-    let pp _ _ = failwith "no"
-    let show _ = failwith "no"
+    let pp x y = print y x
+    let show = MyStdLib.show_of_pp pp
   end
 
   module StateSet = MyStdLib.HashSet.HSWrapper (StateP)
   module StateMap = MyStdLib.HashTable.Make(StateP)
 
   module ConfigurationSet = MyStdLib.HashSet.HSWrapper (ConfigurationP)
-  module ConfigurationMap = Map.Make (Configuration)
+  module ConfigurationMap = MyStdLib.HashTable.Make (ConfigurationP)
 
-  module LabeledStateSet = Set.Make (LabeledState)
-  module LabeledConfigurationSet = Set.Make (LabeledConfiguration)
+  module LabeledStateSet = MyStdLib.HashSet.HSWrapper (LabeledState)
+  module LabeledConfigurationSet = MyStdLib.HashSet.HSWrapper (LabeledConfiguration)
 
   type t = {
     mutable roots : StateSet.t; (* Final states. *)
@@ -204,7 +212,7 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
   let empty () = {
     roots = (StateSet.empty ());
     state_confs = StateMap.empty ();
-    conf_states = ConfigurationMap.empty;
+    conf_states = ConfigurationMap.create 50;
     state_parents = StateMap.empty () ;
   }
 
@@ -225,12 +233,10 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
     a.conf_states
 
   let state_parents q a =
-    match StateMap.find_opt q a.state_parents with
-    | Some set -> set
-    | None ->
-      let p = (ConfigurationSet.empty ()) in
-      StateMap.add q p a.state_parents;
-      p
+    StateMap.find_or_add
+      q
+      (fun () -> (ConfigurationSet.empty ()))
+      a.state_parents
 
   let add_final_state q a =
     StateSet.add q a.roots
@@ -246,31 +252,45 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
   type hook = Configuration.t -> Label.t -> State.t -> unit
 
   let configurations_for_state q a =
-    match StateMap.find_opt q a.state_confs with
-    | Some set -> set
-    | None -> (LabeledConfigurationSet.empty)
+    StateMap.find_or_add
+      q
+      (fun _ -> LabeledConfigurationSet.empty ())
+      a.state_confs
 
   let states_for_configuration conf a =
-    match ConfigurationMap.find_opt conf a.conf_states with
-    | Some set -> set
-    | None -> (LabeledStateSet.empty)
+    ConfigurationMap.find_or_add
+      conf
+      (fun _ -> LabeledStateSet.empty ())
+      a.conf_states
 
   let add_transition ?hook conf label q (a:t) =
     let add_parent_to q () =
-      let cs = (state_parents q a) in
-      (ConfigurationSet.add conf cs)
+      let cs = state_parents q a in
+      ConfigurationSet.add
+        conf
+        cs;
     in
-    StateMap.add q (LabeledConfigurationSet.add (conf, label) (configurations_for_state q a)) a.state_confs;
-    a.conf_states <- ConfigurationMap.add conf (LabeledStateSet.add (q, label) (states_for_configuration conf a)) a.conf_states;
+    LabeledConfigurationSet.add (conf, label) (configurations_for_state q a);
+    LabeledStateSet.add (q, label) (states_for_configuration conf a);
     Configuration.fold add_parent_to conf ()
 
   let add_transition_unchecked conf label q (a:t) =
     let add_parent_to q () =
-      let cs = (state_parents q a) in
-      (ConfigurationSet.add conf cs);
+      StateMap.update
+        q
+        (fun so -> begin match so with
+             | None ->
+               ConfigurationSet.singleton conf
+             | Some s ->
+               ConfigurationSet.add
+                 conf
+                 s;
+               s
+           end)
+        a.state_parents
     in
-    StateMap.add q (LabeledConfigurationSet.add (conf, label) (configurations_for_state q a)) a.state_confs;
-    a.conf_states <- ConfigurationMap.add conf (LabeledStateSet.add (q, label) (states_for_configuration conf a)) a.conf_states;
+    LabeledConfigurationSet.add (conf, label) (configurations_for_state q a);
+    LabeledStateSet.add (q, label) (states_for_configuration conf a);
     Configuration.fold add_parent_to conf ()
 
   let remove_transition conf label q (a:t) =
@@ -278,8 +298,8 @@ module MakeBase (F : Symbol.S) (Q : STATE) (L : LABEL) = struct
       let cs = (state_parents q a) in
       (ConfigurationSet.remove conf cs);
     in
-    StateMap.add q (LabeledConfigurationSet.remove (conf, label) (configurations_for_state q a)) a.state_confs;
-    a.conf_states <- ConfigurationMap.add conf (LabeledStateSet.remove (q, label) (states_for_configuration conf a)) a.conf_states;
+    LabeledConfigurationSet.remove (conf, label) (configurations_for_state q a);
+    LabeledStateSet.remove (q, label) (states_for_configuration conf a);
     Configuration.fold remove_parent_from conf ()
 end
 
@@ -351,20 +371,9 @@ module Extend (B: BASE) = struct
   module BoundTerm = TypedTerm.Make (Sym) (Binding)
   module BoundConfiguration = TypedPattern.Make (Sym) (Var) (Binding)
 
-  let configurations_for_state q a =
-    match StateMap.find_opt q (configurations_for_states a) with
-    | Some set -> set
-    | None ->
-      LabeledConfigurationSet.empty
-
   let is_state_empty q a =
     let confs = configurations_for_state q a in
     LabeledConfigurationSet.is_empty confs
-
-  let states_for_configuration conf a =
-    match ConfigurationMap.find_opt conf (states_for_configurations a) with
-    | Some set -> set
-    | None -> LabeledStateSet.empty
 
   let sub_states_of a q =
     let sub_states = StateSet.empty () in
@@ -511,7 +520,7 @@ module Extend (B: BASE) = struct
 
   let mem conf label state a =
     let states = states_for_configuration conf a in
-    LabeledStateSet.mem (state, label) states
+    LabeledStateSet.contains (state, label) states
 
   let mem_configuration conf a =
     begin match ConfigurationMap.find_opt conf (states_for_configurations a) with

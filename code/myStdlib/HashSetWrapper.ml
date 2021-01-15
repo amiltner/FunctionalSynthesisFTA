@@ -8,6 +8,7 @@ sig
 
   val create : int -> t
   val empty : unit -> t
+  val singleton : elt -> t
   val add : elt -> t -> unit
   val remove : elt -> t -> unit
   val size : t -> int
@@ -39,6 +40,12 @@ struct
 
   let empty _ =
     Hash_set.create (module D)
+
+  let singleton v =
+    Hash_set.of_list (module D) [v]
+
+  let singleton_sized size v =
+    Hash_set.of_list ~size (module D) [v]
 
   let add
       (elt:D.t)
