@@ -117,6 +117,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (valid_ios:Value.t -> Value.t -> bool)
       (num_applications:int)
     : C.t =
+    print_endline "start";
     Consts.time
       Consts.initial_creation_time
       (fun _ ->
@@ -153,6 +154,33 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                  [(FTAConstructor.Transition.FunctionApp i,evaluation,ins,(out,TermClassification.Elimination))
                  ;(FTAConstructor.Transition.FunctionApp i,evaluation,ins,(out,TermClassification.Introduction))])
              context.evals
+         in
+         let eval_conversion =
+           List.concat_map
+             ~f:(fun t ->
+                 match Type.node t with
+                 | Type.Arrow (t1,t2) ->
+                   let evaluate vs =
+                     begin match vs with
+                       | [f;e] ->
+                         let f = Value.to_exp f in
+                         let e = Value.to_exp e in
+                         [Eval.evaluate (Expr.mk_app f e)]
+                       | _ -> failwith "bad"
+                     end
+                   in
+                   [(FTAConstructor.Transition.Apply
+                    ,evaluate
+                    ,[(t,TermClassification.Elimination)
+                     ;(t1,TermClassification.Introduction)]
+                    ,(t2,TermClassification.Elimination))
+                   ;(FTAConstructor.Transition.Apply
+                    ,evaluate
+                    ,[(t,TermClassification.Elimination)
+                     ;(t1,TermClassification.Introduction)]
+                    ,(t2,TermClassification.Introduction))]
+                 | _ -> [])
+           (C.get_all_types c)
          in
          let variant_construct_conversions =
            List.concat_map
@@ -271,6 +299,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
            context_conversions
            @ variant_construct_conversions
            @ tuple_constructors
+           @ eval_conversion
            @ tuple_destructors
            @ rec_call_conversions
            @ variant_unsafe_destruct_conversions
@@ -278,6 +307,10 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
          let destruct_conversions =
            tuple_destructors
            @ variant_unsafe_destruct_conversions
+         in
+         let construct_conversions =
+           tuple_constructors
+           @ variant_construct_conversions
          in
          (*let subvalues =
            subvalues_full_of_same_type
@@ -305,17 +338,22 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
              subvalues
          in
            let c = C.add_states c subcall_sites in*)
+         print_endline "Adding";
            List.iter
              ~f:(fun _ ->
-                 C.update_from_conversions c destruct_conversions;
+                 C.update_from_conversions c variant_unsafe_destruct_conversions;
+                 C.update_from_conversions c tuple_destructors;
                  C.update_from_conversions c conversions)
              (range 0 num_applications);
-         C.update_from_conversions c conversions ~ensure_state:false;
+         print_endline "DoneAdding";
+         (*C.update_from_conversions c (destruct_conversions) ~ensure_state:false;*)
+         print_endline "Merge";
            C.add_destructors c;
+         print_endline "Destruct";
            (*print_endline "here";
              print_endline (C.show c);
              print_endline (string_of_bool (Option.is_some (C.min_term_state c)));*)
-           let c = C.minimize c in
+         let c = C.minimize c in
            (*print_endline (C.show c);
              print_endline "there";*)
          c)

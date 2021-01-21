@@ -43,6 +43,7 @@ module Transition =
 struct
   type id =
     | FunctionApp of Id.t
+    | Apply
     | VariantConstruct of Id.t
     | UnsafeVariantDestruct of Id.t
     | TupleConstruct of int
@@ -80,7 +81,7 @@ struct
 
   let print_id id =
     match id with
-    | FunctionApp x -> MyStdLib.Id.to_string x
+    | FunctionApp x -> Id.show x
     | VariantConstruct x -> "Variant(" ^ MyStdLib.Id.to_string x ^ ")"
     | TupleConstruct i -> "Tuple(" ^ (string_of_int i) ^ ")"
     | Var -> "Var"
@@ -95,8 +96,9 @@ struct
       ^ ")"
     | VariantSwitch (bs) ->
       "SwitchOn(" ^ (String.concat ~sep:"," (List.map ~f:Id.to_string bs)) ^ ")"
-  let pp b (a:t) = Format.fprintf b "%s:%d " (print_id (fst a.node)) (snd a.node)
-  let print a b = pp b a
+    | Apply ->
+      "Apply"
+  
 
   let rec_ = create (Rec,1)
 
@@ -183,13 +185,21 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (Term (t,ts):A.term)
     : Expr.t =
     begin match Transition.id t with
-      | FunctionApp i ->
+      | Apply ->
+        begin match ts with
+          | [t1;t2] ->
+            let e1 = term_to_exp_internals t1 in
+            let e2 = term_to_exp_internals t2 in
+            Expr.mk_app e1 e2
+          | _ -> failwith "not permitted"
+        end
+      | FunctionApp e ->
         List.fold
           ~f:(fun acc bt ->
               Expr.mk_app
                 acc
                 (term_to_exp_internals bt))
-          ~init:(Expr.mk_var i)
+          ~init:(Expr.mk_var e)
           ts
       | VariantConstruct c ->
         begin match ts with
@@ -534,11 +544,9 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     : TypeDS.t =
     let all_types =
       List.dedup_and_sort ~compare:Type.compare
-        (List.filter
-           ~f:(Option.is_none % Type.destruct_arr)
-           (List.concat_map
-              ~f:(Typecheck.all_subtypes context.tc)
-              ts))
+        (List.concat_map
+           ~f:(Typecheck.all_subtypes context.tc)
+           ts)
 
     in
     TypeDS.create_from_list
@@ -551,11 +559,9 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     : TypeDS.t =
     let all_types =
       List.dedup_and_sort ~compare:Type.compare
-        (List.filter
-           ~f:(Option.is_none % Type.destruct_arr)
-           (List.concat_map
-              ~f:(Typecheck.all_subtypes problem.tc)
-              ts))
+        (List.concat_map
+           ~f:(Typecheck.all_subtypes problem.tc)
+           ts)
 
     in
     TypeDS.create_from_list
@@ -571,11 +577,9 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     : t =
     let all_types =
       List.dedup_and_sort ~compare:Type.compare
-        (List.filter
-           ~f:(Option.is_none % Type.destruct_arr)
-           (List.concat_map
-              ~f:(Typecheck.all_subtypes context.tc)
-              ts))
+        (List.concat_map
+           ~f:(Typecheck.all_subtypes context.tc)
+           ts)
 
     in
     let ds = create_ds_from_t_list_context ~context ts in
@@ -629,11 +633,9 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     : t =
     let all_types =
       List.dedup_and_sort ~compare:Type.compare
-        (List.filter
-           ~f:(Option.is_none % Type.destruct_arr)
-           (List.concat_map
-              ~f:(Typecheck.all_subtypes problem.tc)
-              ts))
+        (List.concat_map
+           ~f:(Typecheck.all_subtypes problem.tc)
+           ts)
 
     in
     let ds = create_ds_from_t_list ~problem ts in
