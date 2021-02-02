@@ -78,3 +78,12 @@ let rec safe_evaluate
     Some (evaluate e)
   with _ ->
     None
+
+let rec safe_evaluate_with_holes
+    ~(eval_context:(Id.t * Expr.t) list)
+    (e:Expr.t)
+  : Value.t option =
+  try
+    Some (evaluate_with_holes ~eval_context e)
+  with _ ->
+    None

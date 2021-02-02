@@ -128,10 +128,13 @@ module VerifiedPredicate = struct
           (inputs:Value.t list)
         : Expr.t =
         let (sacc,cand) = S.synth sacc inputs checker in
+        Consts.log (fun _ -> "Candidate Found: " ^ (Expr.show cand));
         let cex_o = V.satisfies_post ~context ~tin ~tout ~cand ~checker in
         begin match cex_o with
           | None -> cand
-          | Some cex -> synth_internal sacc (cex::inputs)
+          | Some cex ->
+            Consts.log (fun _ -> "CEx Found: " ^ (Value.show cex));
+            synth_internal sacc (cex::inputs)
         end
       in
       synth_internal (S.init ~context ~tin ~tout) []

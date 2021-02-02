@@ -1,0 +1,90 @@
+type nat =
+  | O
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+type llist =
+  | LNil
+  | LCons of list * llist
+
+let append =
+  fix (append : list -> list -> list) =
+    fun (l1 : list) ->
+      fun (l2 : list) ->
+        match l1 binding l1p with
+        | Nil -> l2
+        | Cons -> Cons(l1p.0,append l1p.1 l2)
+;;
+
+synth llist -> list satisfying
+
+type bool =
+  | True
+  | False
+
+let size =
+  fix (size : list -> nat) =
+    fun (x:list) ->
+      match x binding xp with
+        | Nil -> O
+        | Cons -> S (size (xp.1))
+;;
+
+let plus =
+  fix (plus : nat -> nat -> nat) =
+    fun (x1:nat) ->
+      fun (x2:nat) ->
+        match x1 binding x1p with
+        | O -> x2
+        | S -> S (plus x1p x2)
+;;
+
+let nat_eq =
+  fix (nat_eq : nat -> nat -> bool) =
+    fun (x1:nat) -> (fun (x2:nat) ->
+      match x1 binding x1p with
+      | O -> (match x2 binding x2p with
+              | O -> True
+              | S -> False)
+      | S -> (match x2 binding x2p with
+              | O -> False
+              | S -> nat_eq x1p x2p))
+;;
+
+let and =
+  fun (b1:bool) ->
+    fun (b2:bool) ->
+      match b1 binding b1p with
+      | True -> b2
+      | False -> False
+;;
+
+let fold =
+  fix (fold : llist -> (nat -> list -> nat) -> nat -> nat) =
+    fun (l1:llist) ->
+      fun (f:nat -> list -> nat) ->
+        fun (acc:nat) ->
+          match l1 binding l1p with
+          | LNil -> acc
+          | LCons -> fold l1p.1 f (f acc l1p.0)
+;;
+
+let add =
+  fix (add : nat -> nat -> nat) =
+    fun (n1 : nat) ->
+      fun (n2 : nat) ->
+        match n1 binding n1p with
+        | O -> n2
+        | S -> S (add n1p n2)
+;;
+
+let fullsize =
+  fun (y:llist) ->
+    (fold y (fun (n:nat) -> (fun (l:list) -> (add n (size l)))) 0)
+;;
+
+fun (in:llist) -> (fun (out : list) ->
+    (nat_eq (size out) (fullsize in)))

@@ -86,7 +86,7 @@ let synthesize_satisfying_postcondition
     in
     (module CrazyFTASynthesizer.Create(val builder) : Synthesizers.PredicateSynth.S)
   in
-  let module S = Synthesizers.VerifiedPredicate.Make(val synth)(QuickCheckVerifier.T) in
+  let module S = Synthesizers.VerifiedPredicate.Make(val synth)(EnumerativeVerifier.T) in
   S.synth ~context ~tin ~tout post
 
 let synthesize_satisfying_ioes

@@ -111,8 +111,8 @@ let rec typecheck_exp
                   ^ " instead of "
                   ^ (Type.show t11))
     | Func ((i,t),e) ->
-      let ec = Context.set ec ~key:i ~data:t
-       in Type.mk_arrow t (typecheck_exp ec tc vc e)
+      let ec = Context.set ec ~key:i ~data:t in
+       Type.mk_arrow t (typecheck_exp ec tc vc e)
     | Ctor (i,e) ->
       let t = typecheck_simple e in
       let its = Context.find_exn vc i in

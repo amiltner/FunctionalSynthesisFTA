@@ -58,8 +58,8 @@ let rec appify (e:Expr.t) (es:Expr.t list) : Expr.t =
 %%
 
 unprocessed_problem:
-    | ids=imports_decls SYNTH st=typ SATISFYING s=spec EOF
-      { (fst ids,snd ids,st,s) }
+    | ids=imports_decls SYNTH st=typ SATISFYING ds=decl_list s=spec EOF
+      { (fst ids,snd ids,st,ds,s) }
 
 imports_decls_start:
     | ids=imports_decls EOF

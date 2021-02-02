@@ -117,7 +117,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (valid_ios:Value.t -> Value.t -> bool)
       (num_applications:int)
     : C.t =
-    print_endline "start";
     Consts.time
       Consts.initial_creation_time
       (fun _ ->
@@ -338,18 +337,14 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
              subvalues
          in
            let c = C.add_states c subcall_sites in*)
-         print_endline "Adding";
            List.iter
              ~f:(fun _ ->
                  C.update_from_conversions c variant_unsafe_destruct_conversions;
                  C.update_from_conversions c tuple_destructors;
                  C.update_from_conversions c conversions)
              (range 0 num_applications);
-         print_endline "DoneAdding";
          (*C.update_from_conversions c (destruct_conversions) ~ensure_state:false;*)
-         print_endline "Merge";
            C.add_destructors c;
-         print_endline "Destruct";
            (*print_endline "here";
              print_endline (C.show c);
              print_endline (string_of_bool (Option.is_some (C.min_term_state c)));*)
@@ -741,6 +736,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     : bool option =
     (*None means unsafe restriction, Some true means restricts outputs, false means no restricts outputs*)
     let vouts = C.get_final_values c inchoice in
+    let vouts = List.dedup_and_sort ~compare:Value.compare vouts in
     if List.mem ~equal:Value.equal vouts restriction then
       Some (List.length vouts = 1)
     else
@@ -756,7 +752,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     : bool option =
     if ValueSet.member inset inchoice then
       begin match io with
-        | None -> safely_restricts_in_c pqe.c inchoice restriction
+        | None ->
+          safely_restricts_in_c pqe.c inchoice restriction
         | Some i ->
           safely_restricts_in_c (List.nth_exn pqe.to_intersect i) inchoice restriction
       end
@@ -907,6 +904,13 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                          List.to_string
                            ~f:(string_of_pair Value.show Value.show)
                            new_constraints);
+                    Consts.log (fun _ -> "old constraints: ");
+                    Consts.log
+                      (fun _ ->
+                         Constraints.show
+                           pqe.constraints);
+                    Consts.log (fun _ -> "inputs");
+                    Consts.log (fun _ -> ValueSet.show pqe.inputs);
                     let inputs =
                       ValueSet.insert_all
                         pqe.inputs
@@ -925,7 +929,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                     in
                     let qe =
                       PQE.make
-                        ~inputs:pqe.inputs
+                        ~inputs
                         ~cs
                         ~constraints:merged_constraints
                         ~nonpermitted:StatePairSet.empty

@@ -148,7 +148,7 @@ module DSToMyth = struct
     (List.rev ds, tt)
 
   let to_myth_exp_with_problem ~(problem:Problem.t) (e:Expr.t) : MythLang.exp =
-    let (_,decls,_,_) = problem.unprocessed in
+    let (_,decls,_,_,_) = problem.unprocessed in
     let (_,tt) = convert_decl_list_to_myth problem.ec decls in
     to_myth_exp tt e
 
@@ -196,7 +196,7 @@ module DSToMyth = struct
     : MythLang.decl list
       * MythLang.exp list
       * MythLang.typ =
-    let (_,decls,desired_t,examples) = p.unprocessed in
+    let (_,decls,desired_t,_,examples) = p.unprocessed in
     let examples =
       begin match examples with
         | UIOEs vs -> vs

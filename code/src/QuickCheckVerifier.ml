@@ -51,7 +51,7 @@ module T = struct
     let io_seq =
       Sequence.map
         ~f:(fun v ->
-            (v,Eval.safe_evaluate (Expr.mk_app cand (Value.to_exp v))))
+            (v,Eval.safe_evaluate_with_holes ~eval_context:context.evals (Expr.mk_app cand (Value.to_exp v))))
         generator
     in
     let io_finite =

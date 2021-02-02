@@ -18,6 +18,7 @@ type spec =
 type t_unprocessed = string list
                      * Declaration.t list
                      * Type.t
+                     * Declaration.t list
                      * unprocessed_spec
 [@@deriving show]
 
@@ -29,25 +30,25 @@ let update_import_base
   List.map ~f:((^) (dir ^ "/")) ss
 
 let update_all_import_bases
-    ((ss,ds,t,ios):t_unprocessed)
+    ((ss,ds,t,dss,ios):t_unprocessed)
     (fname:string)
   : t_unprocessed =
   let ss = update_import_base ss fname in
-  (ss,ds,t,ios)
+  (ss,ds,t,dss,ios)
 
 let extract_file
-    ((ss,ds,t,ios):t_unprocessed)
+    ((ss,ds,t,dss,ios):t_unprocessed)
   : (string * t_unprocessed) option =
   begin match ss with
     | [] -> None
-    | h::ss -> Some (h,(ss,ds,t,ios))
+    | h::ss -> Some (h,(ss,ds,t,dss,ios))
   end
 
 let merge_unprocessed
-    ((ss,ds,t,ios):t_unprocessed)
+    ((ss,ds,t,dss,ios):t_unprocessed)
     ((imports,decls):string list * Declaration.t list)
   : t_unprocessed =
-  (imports@ss,decls@ds,t,ios)
+  (imports@ss,decls@ds,t,dss,ios)
 
 type t = {
   synth_type   : Type.t * Type.t          ;
@@ -58,6 +59,10 @@ type t = {
   i     : (Value.t * Value.t) list ;
   eval_context : (Id.t * Expr.t) list     ;
   unprocessed  : t_unprocessed            ;
+  full_ec           : Context.Exprs.t          ;
+  full_tc           : Context.Types.t          ;
+  full_vc           : Context.Variants.t       ;
+  full_eval_context : (Id.t * Expr.t) list     ;
 }
 [@@deriving make]
 
@@ -84,11 +89,12 @@ let process_decl_list
     (ec:Context.Exprs.t)
     (tc:Context.Types.t)
     (vc:Context.Variants.t)
+    (i_e:(Id.t * Expr.t) list)
     (ds:Declaration.t list)
-  : (Context.Exprs.t * Context.Types.t * Context.Variants.t * (Id.t * Expr.t) list) =
-  fst
+  : (Context.Exprs.t * Context.Types.t * Context.Variants.t * (Id.t * Expr.t) list)
+    * (Context.Exprs.t * Context.Types.t * Context.Variants.t * (Id.t * Expr.t) list) =
     (List.fold_left
-       ~f:(fun ((new_ec,new_tc,new_vc,i_e),(ec,tc,vc)) decl ->
+       ~f:(fun ((new_ec,new_tc,new_vc,new_i_e),(ec,tc,vc,i_e)) decl ->
            Declaration.fold
              ~type_f:(fun i t ->
                  let all_variants = extract_variants t in
@@ -98,27 +104,29 @@ let process_decl_list
                       ~f:(fun vc (k,v) -> Context.set vc ~key:k ~data:v)
                       ~init:new_vc
                       all_variants
-                  ,i_e)
+                  ,new_i_e)
                  ,(ec
                   ,Context.set tc ~key:i ~data:t
                   ,List.fold_left
                       ~f:(fun vc (k,v) -> Context.set vc ~key:k ~data:v)
                       ~init:vc
-                      all_variants))
+                      all_variants
+                  ,i_e))
                )
              ~expr_f:(fun i e ->
                  let t = typecheck_exp ec tc vc e in
                  ((Context.set new_ec ~key:i ~data:t
                   ,new_tc
                   ,new_vc
-                  ,(i,e)::i_e)
+                  ,(i,e)::new_i_e)
                  ,(Context.set ec ~key:i ~data:t
                   ,tc
-                  ,vc))
+                  ,vc
+                  ,(i,e)::i_e))
                )
              decl)
        ~init:(((Context.empty,Context.empty,Context.empty,[])
-              ,(ec,tc,vc)))
+              ,(ec,tc,vc,i_e)))
        ds)
 
 let st_to_pair
@@ -209,24 +217,33 @@ let process_spec
            let e1 = Value.to_exp v1 in
            let e2 = Value.to_exp v2 in
            let full_exp = Expr.mk_app (Expr.mk_app e e1) e2 in
-           let vout = Eval.evaluate full_exp in
+           let vout = Eval.evaluate_with_holes ~eval_context:i_e full_exp in
            Value.equal vout Value.true_)
   end
 
 let rec process (unprocessed : t_unprocessed) : t =
-  let (_,decs,synth_type,uspec) = unprocessed in
-  let (ec,tc,vc,i_e) =
-    process_decl_list
-      Context.empty
-      Context.empty
-      Context.empty
-      decs
+  let (_,decs,synth_type,dss,uspec) = unprocessed in
+  let (ec,tc,vc,eval_context) =
+    fst
+      (process_decl_list
+         Context.empty
+         Context.empty
+         Context.empty
+         []
+         decs)
   in
-  let eval_context =
-    i_e
-  in
-  let spec = process_spec ec tc vc i_e synth_type uspec in
+  let st = synth_type in
   let synth_type = st_to_pair synth_type in
+  let (full_ec,full_tc,full_vc,full_eval_context) =
+    snd
+      (process_decl_list
+         ec
+         tc
+         vc
+         eval_context
+         dss)
+  in
+  let spec = process_spec full_ec full_tc full_vc full_eval_context st uspec in
   make
     ~ec
     ~tc
@@ -235,6 +252,10 @@ let rec process (unprocessed : t_unprocessed) : t =
     ~unprocessed
     ~synth_type
     ~spec
+    ~full_ec
+    ~full_tc
+    ~full_vc
+    ~full_eval_context
     ()
 
 let extract_context
