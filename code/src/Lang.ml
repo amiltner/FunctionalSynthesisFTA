@@ -2,6 +2,7 @@ open MyStdLib
 
 type 'a e_node_maker =
   | Var of Id.t
+  | Wildcard
   | App of 'a e_maker * 'a e_maker
   | Func of Param.t * 'a e_maker
   | Ctor of Id.t * 'a e_maker
@@ -22,6 +23,7 @@ type v_node =
   | Func of Param.t * expr
   | Ctor of Id.t * value
   | Tuple of value list
+  | Wildcard
 and v_l =
   {
     v_node : v_node ;
@@ -63,6 +65,8 @@ module Expr = struct
   let mk_var (i:Id.t) : t =
     create (Var i)
 
+  let mk_wildcard : t = create Wildcard
+
   let fold (type a)
       ~(var_f:Id.t -> a)
       ~(app_f:a -> a -> a)
@@ -73,6 +77,7 @@ module Expr = struct
       ~(fix_f:Id.t -> Type.t -> a -> a)
       ~(tuple_f:a list -> a)
       ~(proj_f:int -> a -> a)
+      ~(wildcard_f:a)
       (e:t)
     : a =
     let rec fold_internal (e:t) : a =
@@ -92,6 +97,7 @@ module Expr = struct
         -> proj_f i (fold_internal e)
       | Unctor (i,e)
         -> unctor_f i (fold_internal e)
+      | Wildcard -> wildcard_f
     in fold_internal e
 
   let mk_app (e1:t) (e2:t) : t =
@@ -299,6 +305,7 @@ module Expr = struct
     : t =
     let replace_simple = replace i e_with in
     begin match node e with
+      | Wildcard -> e
       | Var i' ->
         if Id.equal i i' then
           e_with
@@ -386,6 +393,7 @@ module Expr = struct
     : bool =
     let contains_var_simple = contains_var v in
     begin match node e with
+      | Wildcard -> false
       | Var i -> Id.equal i v
       | App (e1,e2) -> contains_var_simple e1 || contains_var_simple e2
       | Func ((i,_),e) ->
@@ -416,6 +424,7 @@ module Expr = struct
       (e:t)
     : t =
     begin match node e with
+      | Wildcard -> e
       | Var _ -> e
       | App (e1,e2) ->
         mk_app (simplify e1) (simplify e2)
@@ -487,6 +496,7 @@ module Expr = struct
       ~fix_f:(fun _ t s -> 1 + (Type.size t) + s)
       ~tuple_f:(List.fold_left ~f:(+) ~init:1)
       ~proj_f:(fun _ i -> i+2)
+      ~wildcard_f:1
 
   let pp f e =
     (*This code heavily taken from Myth*)
@@ -520,6 +530,7 @@ module Expr = struct
       | Tuple _       -> 700
       | Match  _      -> 200
       | Var _         -> 1000
+      | Wildcard         -> 1000
     in
     let rec fpf_branch ppf ((lvl, (i,e)):int * (Id.t * t)) =
       fpf ppf "@[<2>| %a -> %a@]" Id.pp i pp_internal (lvl, e)
@@ -573,6 +584,7 @@ module Expr = struct
               Type.pp t
               pp_internal (this_lvl, e)
           | Tuple es -> fpf ppf "@[<2>(%a)@]" fpf_exp_list es
+          | Wildcard -> fpf ppf "@[_@]"
         end;
         (if this_lvl < lvl then fpf ppf ")")
     in
@@ -701,16 +713,21 @@ module Value = struct
 
   let mk_false : t = mk_ctor (Id.create "False") (mk_tuple [])
 
-  let rec fold ~(func_f:Param.t -> Expr.t -> 'a)
+  let mk_wildcard : t = create Wildcard
+
+  let rec fold
+      ~(func_f:Param.t -> Expr.t -> 'a)
       ~(ctor_f:Id.t -> 'a -> 'a)
       ~(tuple_f:'a list -> 'a)
+      ~(wildcard_f:'a)
       (v:t)
     : 'a =
-    let fold_simple = fold ~func_f ~ctor_f ~tuple_f
+    let fold_simple = fold ~func_f ~ctor_f ~tuple_f ~wildcard_f
     in match node v with
     | Func (a,e) -> func_f a e
     | Ctor (i,v) -> ctor_f i (fold_simple v)
     | Tuple vs -> tuple_f (List.map ~f:fold_simple vs)
+    | Wildcard -> wildcard_f
 
   let to_exp
       (v:t)
@@ -719,6 +736,7 @@ module Value = struct
       ~func_f:Expr.mk_func
       ~ctor_f:Expr.mk_ctor
       ~tuple_f:Expr.mk_tuple
+      ~wildcard_f:Expr.mk_wildcard
       v
 
   let rec from_exp (e:Expr.t) : t option =
@@ -729,6 +747,7 @@ module Value = struct
       -> Option.map ~f:(mk_ctor i) (from_exp e)
     | Tuple es
       -> Option.map ~f:mk_tuple (Some (List.filter_map es ~f:from_exp))
+    | Wildcard -> Some mk_wildcard
     | Var _
     | App _
     | Proj _
@@ -745,6 +764,7 @@ module Value = struct
       | Func _ -> []
       | Ctor (_,v) -> subvalues v
       | Tuple vs -> List.concat_map ~f:subvalues vs
+      | Wildcard -> []
     end
 
   let strict_subvalues (e:t) : t list =
@@ -768,6 +788,7 @@ module Value = struct
           let all_subs = List.concat vssubs in
           let combos = List.map ~f:mk_tuple (combinations vssubs) in
           all_subs@combos
+        | Wildcard -> [v]
       end
 
   let strict_functional_subvalues
@@ -786,6 +807,7 @@ module Value = struct
       ~func_f:(fun (_,t) e -> 1 + (Type.size t) + (Expr.size e))
       ~ctor_f:(fun _ i -> i+1)
       ~tuple_f:(fun is -> List.fold ~f:(+) ~init:1 is)
+      ~wildcard_f:1
 
   let unit_ = create (Tuple [])
   let true_ = create (Ctor (Id.create "True",unit_))

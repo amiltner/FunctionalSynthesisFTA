@@ -84,7 +84,8 @@ struct
         fun v1 v2 ->
           begin match List.Assoc.find ~equal:Value.equal ios v1 with
             | None -> true
-            | Some v2' -> Value.equal v2 v2'
+            | Some v2' ->
+              Predicate.(v2' => v2)
           end
       in
       let ins = List.map ~f:fst ios in

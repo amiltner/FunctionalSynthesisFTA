@@ -39,9 +39,9 @@ let update_all_import_bases
 let extract_file
     ((ss,ds,t,dss,ios):t_unprocessed)
   : (string * t_unprocessed) option =
-  begin match ss with
-    | [] -> None
-    | h::ss -> Some (h,(ss,ds,t,dss,ios))
+  begin match split_by_last ss with
+    | None -> None
+    | Some (ss,h) -> Some (h,(ss,ds,t,dss,ios))
   end
 
 let merge_unprocessed

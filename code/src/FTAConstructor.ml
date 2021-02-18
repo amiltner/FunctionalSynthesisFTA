@@ -4,13 +4,13 @@ open Lang
 module State =
 struct
   type t =
-    | Vals of (Value.t * Value.t) list * ClassifiedType.t
+    | Vals of (Value.t * Predicate.t) list * ClassifiedType.t
     | Top
   [@@deriving eq, hash, ord, show]
 
   let destruct_vals
       (x:t)
-    : ((Value.t * Value.t) list * ClassifiedType.t) option =
+    : ((Value.t * Predicate.t) list * ClassifiedType.t) option =
     begin match x with
       | Vals (vs,t) -> Some (vs,t)
       | _ -> None
@@ -18,7 +18,7 @@ struct
 
   let destruct_vals_exn
       (x:t)
-    : ((Value.t * Value.t) list * ClassifiedType.t) =
+    : ((Value.t * Predicate.t) list * ClassifiedType.t) =
     Option.value_exn (destruct_vals x)
 
   let top = Top
@@ -53,10 +53,61 @@ struct
     | Rec
     | VariantSwitch of Id.t list
   [@@deriving eq, hash, ord, show]
-  type t_node = (id * int)
+  type t_node = (id * Type.t * int)
   [@@deriving eq, hash, ord, show]
   type t = t_node hash_consed
   [@@deriving eq, hash, ord, show]
+
+  let to_expr
+      (t:t)
+      (es:AngelicEval.expr list)
+    : AngelicEval.expr =
+    begin match fst3 t.node with
+      | FunctionApp i -> AngelicEval.Var i
+      | Apply ->
+        begin match es with
+          | [e1;e2] -> AngelicEval.App (e1,e2)
+          | _ -> failwith "bad"
+        end
+      | VariantConstruct i ->
+        begin match es with
+          | [e] -> AngelicEval.Ctor (i,e)
+          | _ -> failwith "bad"
+        end
+      | UnsafeVariantDestruct i ->
+        begin match es with
+          | [e] -> AngelicEval.Unctor (i,e)
+          | _ -> failwith "bad"
+        end
+      | TupleConstruct _ ->
+        AngelicEval.Tuple es
+      | TupleDestruct (_,i) ->
+        begin match es with
+          | [e] -> AngelicEval.Proj (i,e)
+          | _ -> failwith "bad"
+        end
+      | Var -> AngelicEval.Var (Id.create "x")
+      | LetIn -> failwith "idk"
+      | Rec ->
+        begin match es with
+          | [e] ->
+            AngelicEval.AngelicF e
+          | _ ->
+            failwith "bad"
+        end
+      | VariantSwitch ids ->
+        begin match es with
+          | e::es ->
+            let branches =
+              List.map2_exn
+                ~f:(fun i e -> (i,e))
+                ids
+                es
+            in
+            AngelicEval.Match (e,Id.create "_",branches)
+          | _ -> failwith "bad"
+        end
+    end
 
   let table = HashConsTable.create 1000
 
@@ -77,7 +128,12 @@ struct
   let id
       (v:t)
     : id =
-    fst (node v)
+    fst3 (node v)
+
+  let get_type
+      (v:t)
+    : Type.t =
+    snd3 (node v)
 
   let print_id id =
     match id with
@@ -100,9 +156,9 @@ struct
       "Apply"
   
 
-  let rec_ = create (Rec,1)
+  (*let rec_ = create (Rec,1)*)
 
-  let arity = snd % node
+  let arity = trd3 % node
 end
 
 module Make(A : Automata.Automaton with module Symbol := Transition and module State := State) = struct
@@ -162,6 +218,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       mutable up_to_date : bool                       ;
       input_type         : Type.t                     ;
       output_type        : Type.t                     ;
+      abstraction        : Abstraction.t              ;
       mutable all_states : StateSet.t                 ;
       mutable min_term_state : A.TermState.t option option ;
     }
@@ -254,8 +311,78 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (Type.mk_arrow tin tout)
       (Expr.mk_func (xid,tin) internal)
 
+  let term_to_angelic_exp
+      (tin:Type.t)
+      (t:A.term)
+    : AngelicEval.expr =
+    let rec term_to_angelic_exp
+        (Term (t,ts):A.term)
+      : AngelicEval.expr =
+      AngelicEval.(begin match Transition.id t with
+          | Apply ->
+            begin match ts with
+              | [t1;t2] ->
+                let e1 = term_to_angelic_exp t1 in
+                let e2 = term_to_angelic_exp t2 in
+                App (e1,e2)
+              | _ -> failwith "not permitted"
+            end
+          | FunctionApp e ->
+            List.fold
+              ~f:(fun acc bt ->
+                  App
+                    (acc
+                    ,(term_to_angelic_exp bt)))
+              ~init:(AngelicEval.Var e)
+              ts
+          | VariantConstruct c ->
+            begin match ts with
+              | [t] ->
+                Ctor (c,term_to_angelic_exp t)
+              | _ -> failwith "incorrect setup"
+            end
+          | UnsafeVariantDestruct c ->
+            begin match ts with
+              | [t] ->
+                Unctor
+                  (c
+                  ,term_to_angelic_exp t)
+              | _ -> failwith "incorrect setup"
+            end
+          | TupleConstruct _ ->
+            Tuple
+              (List.map
+                 ~f:term_to_angelic_exp
+                 ts)
+          | Var ->
+            Var xid
+          | Rec ->
+            begin match ts with
+              | [t] ->
+                AngelicF (term_to_angelic_exp t)
+              | _ -> failwith "incorrect"
+            end
+          | VariantSwitch is ->
+            begin match ts with
+              | t::ts ->
+                (* TODO, make destructors *)
+                let e = term_to_angelic_exp t in
+                let its = List.zip_exn is ts in
+                let ies = List.map ~f:(fun (i,t) -> (i,term_to_angelic_exp t)) its in
+                Match (e,(Id.wildcard),ies)
+              | [] -> failwith "cannot happen"
+            end
+          | TupleDestruct (_,i) ->
+            Proj (i,(term_to_angelic_exp (List.hd_exn ts)))
+          | _ -> failwith "not permitted"
+        end)
+    in
+    Func
+      ((xid,tin)
+      ,term_to_angelic_exp t)
+
   module EasyTerm = struct
-    type t =
+    type t_node =
       | App of string * t list
       | VC of string * t
       | UVD of string * t
@@ -264,16 +391,17 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       | Var
       | Rec of t
       | VSwitch of string list * t list
+    and t = (Type.t * t_node)
 
     let rec to_term
-        (e:t)
+        ((ty,e):t)
       : A.Term.t =
       let mk_term
           (id:Transition.id)
           (children:A.Term.t list)
         : A.Term.t =
         let s = List.length children in
-        A.Term (Transition.create (id,s),children)
+        A.Term (Transition.create (id,ty,s),children)
       in
       begin match e with
         | Var ->
@@ -296,7 +424,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
           let ts = List.map ~f:to_term ets in
           mk_term (Transition.VariantSwitch (List.map ~f:Id.create ids)) ts
       end
-  end
+    end
 
   let get_type_rep
       (c:t)
@@ -324,7 +452,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   let get_final_values
       (c:t)
       (vin:Value.t)
-    : Value.t list =
+    : Predicate.t list =
     let final_states = A.final_states c.a in
     List.concat_map
       ~f:(fun s ->
@@ -355,15 +483,20 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let val_state
       (c:t)
-      (vinsvouts:(Value.t * Value.t) list)
+      (vinsvouts:(Value.t * Predicate.t) list)
       ((t,cl):ClassifiedType.t)
     : State.t =
     let t = get_type_rep c t in
+    let vinsvouts =
+      List.map
+        ~f:(fun (vin,vout) -> (vin,Abstraction.abstract c.abstraction vout t))
+        vinsvouts
+    in
     State.vals vinsvouts (t,cl)
 
   let add_state
       (c:t)
-      (vinsvouts:(Value.t * Value.t) list)
+      (vinsvouts:(Value.t * Predicate.t) list)
       ((t,cl):ClassifiedType.t)
     : unit =
     let t = get_type_rep c t in
@@ -419,11 +552,13 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (trans_id:Transition.id)
       (sins:State.t list)
       (sout:State.t)
+      (tout:Type.t)
       (ensure_state:bool)
     : unit =
+    let tout = get_type_rep c tout in
     update_tset
       c
-      (Transition.create (trans_id,List.length sins));
+      (Transition.create (trans_id,tout,List.length sins));
     if ensure_state then
       begin
         begin match sout with
@@ -433,7 +568,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         end;
         A.add_transition
           c.a
-          (Transition.create (trans_id,List.length sins))
+          (Transition.create (trans_id,tout,List.length sins))
           sins
           sout;
         invalidate_computations c
@@ -442,7 +577,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       begin
         A.add_transition
           c.a
-          (Transition.create (trans_id,List.length sins))
+          (Transition.create (trans_id,tout,List.length sins))
           sins
           sout;
         invalidate_computations c;
@@ -461,7 +596,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let evaluate
       (c:t)
-      (input:Value.t list)
+      (input:Predicate.t list)
       (f:Value.t list -> Value.t list)
       (args:State.t list)
       ((t,cl):ClassifiedType.t)
@@ -522,19 +657,20 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                     ~f:(fun ins ->
                         let outs = evaluate c input e ins tout in
                         List.map
-                          ~f:(fun out -> (i,ins,out))
+                          ~f:(fun out -> (i,ins,out,fst tout))
                           outs)
                     args_list)
               c.inputs)
         conversions
     in
     List.iter
-      ~f:(fun (i,ins,out) ->
+      ~f:(fun (i,ins,out,tout) ->
           add_transition
             c
             i
             ins
             out
+            tout
             ensure_state)
       ids_ins_outs
 
@@ -570,6 +706,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let initialize_context
       ~(context:Context.t)
+      ~(abstraction:Abstraction.t)
       (ts:Type.t list)
       (inputs:Value.t list)
       ((input_type,output_type):Type.t * Type.t)
@@ -605,6 +742,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         output_type       ;
         min_term_state = None;
         all_states        ;
+        abstraction       ;
       }
     in
     List.iter
@@ -614,18 +752,21 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             Var
             []
             (val_state c [(i,i)] (input_type,TermClassification.Elimination))
+            input_type
             true;
           add_transition
             c
             Var
             []
             (val_state c [(i,i)] (input_type,TermClassification.Introduction))
+            input_type
             true;)
       input_vals;
     c
 
   let initialize
       ~(problem:Problem.t)
+      ~(abstraction:Abstraction.t)
       (ts:Type.t list)
       (inputs:Value.t list)
       ((input_type,output_type):Type.t * Type.t)
@@ -661,6 +802,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         output_type       ;
         min_term_state = None;
         all_states        ;
+        abstraction       ;
       }
     in
     List.iter
@@ -670,12 +812,14 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             Var
             []
             (val_state c [(i,i)] (input_type,TermClassification.Elimination))
+            input_type
             true;
           add_transition
             c
             Var
             []
             (val_state c [(i,i)] (input_type,TermClassification.Introduction))
+            input_type
             true;)
       input_vals;
     c
@@ -685,7 +829,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     : Type.t list =
     c.all_types
 
-  let add_let_ins
+  (*let add_let_ins
       (c:t)
     : unit =
     List.iter
@@ -706,7 +850,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                 ()
             | _ -> ()
           end)
-      (List.cartesian_product (A.states c.a) (A.states c.a))
+      (List.cartesian_product (A.states c.a) (A.states c.a))*)
 
   let add_final_state
       (c:t)
@@ -728,12 +872,12 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (c:t)
     : unit =
     let all_transformations =
-      cartesian_filter_map
+      cartesian_concat_map
         ~f:(fun (s1:State.t) (s2:State.t) ->
             begin match s1 with
               | Vals ([i1,v],(t,cl)) ->
                 begin match (Type.node t,cl) with
-                  | (Variant branches,TermClassification.Introduction) ->
+                  | (Variant branches,TermClassification.Elimination) ->
                     begin match Value.node v with
                       | Ctor (i,_) ->
                         let branch_ids = List.map ~f:fst branches in
@@ -751,16 +895,40 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                                   branches
                               in
                               let tid = Transition.VariantSwitch branch_ids in
-                              Some (tid,ins,s2)
+                              [(tid,ins,s2)]
                             else
-                              None
-                          | _ -> None
+                              []
+                          | _ -> []
                         end
-                      | _ -> None
+                      | Wildcard ->
+                        let branch_ids = List.map ~f:fst branches in
+                        begin match s2 with
+                          | Vals ([i2,_],_) ->
+                            if Value.equal i1 i2 && A.is_final_state c.a s2 then
+                              let tid = Transition.VariantSwitch branch_ids in
+                              List.mapi
+                                ~f:(fun i1 _ ->
+                                    let ins =
+                                      s1::
+                                      List.mapi
+                                        ~f:(fun i2 _ ->
+                                            if i1 = i2 then
+                                              s2
+                                            else
+                                              State.top)
+                                        branches
+                                    in
+                                    (tid,ins,s2))
+                                branches
+                            else
+                              []
+                          | _ -> []
+                        end
+                      | _ -> failwith "no"
                     end
-                  | _ -> None
+                  | _ -> []
                 end
-              | _ -> None
+              | _ -> []
             end)
         (A.states c.a)
         (A.states c.a)
@@ -772,6 +940,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             t
             ins
             out
+            c.output_type
             true)
       all_transformations
 
@@ -838,6 +1007,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             Transition.Rec
             [sarg]
             target
+            c.output_type
             true)
       adds
 
@@ -853,15 +1023,20 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
              (c2:TransitionSet.t)
            : TransitionSet.t =
            let merged = TransitionSet.union c1 c2 in
-           let all_ts_by_id =
+           (*let all_ts_by_id =
              group_by
                ~key:(Transition.id)
                ~equal:Transition.equal_id
                (TransitionSet.as_list merged)
            in
            List.iter
-             ~f:(fun l -> assert (List.length l = 1))
-             all_ts_by_id;
+             ~f:(fun l ->
+                 print_endline "here";
+                 List.iter
+                   ~f:(fun l -> print_endline @$ Transition.show l)
+                   l;
+                 assert (List.length l = 1))
+             all_ts_by_id;*)
            merged
          in
          let ts =
@@ -1048,4 +1223,9 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (term)
     : bool =
     Option.is_some (A.accepting_term_state x.a term)
+
+  let rec_
+      (c:t)
+    : Transition.t =
+    Transition.create (Transition.Rec, c.output_type, 1)
 end

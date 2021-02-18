@@ -642,6 +642,17 @@ let cartesian_filter
     l1
     l2
 
+let cartesian_concat_map
+    ~f:(f:'a -> 'b -> 'c list)
+    (l1:'a list)
+    (l2:'b list)
+  : 'c list =
+  List.concat
+    (cartesian_map
+       ~f:f
+       l1
+       l2)
+
 let remove_all_elements
     (l:'a list)
   : ('a * 'a list) list =
@@ -800,6 +811,10 @@ let split_by_first_exn (l:'a list) : ('a * 'a list) =
 let split_by_last_exn (l:'a list) : 'a list * 'a =
   let (h,t) = split_by_first_exn (List.rev l) in
   (List.rev t, h)
+
+let split_by_last (l:'a list) : ('a list * 'a) option =
+  let hto = split_by_first (List.rev l) in
+  Option.map ~f:(fun (h,t) -> (List.rev t, h)) hto
 
 let split_by_first_last_exn (l:'a list) : 'a * 'a list * 'a =
   let (h,t) = split_by_first_exn l in

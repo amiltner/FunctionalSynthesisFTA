@@ -9,6 +9,7 @@ let rec evaluate
     | None ->
       let ans =
         match Expr.node e with
+        | Wildcard -> Value.mk_wildcard
         | Var i -> failwith ("unbound variable " ^ (Id.show i))
         | App (e1,e2) ->
           let (v1) = evaluate e1 in
@@ -27,21 +28,25 @@ let rec evaluate
           Value.mk_ctor i v
         | Match (e,i,branches) as match_expr ->
           let v = evaluate e in
-          let (choice,v) = Value.destruct_ctor_exn v in
-          let branch_o = List.Assoc.find ~equal:Id.equal branches choice in
-          let branch =
-            begin match branch_o with
-              | None ->
-                failwith
-                  ("constructor "
-                   ^ (Id.show choice)
-                   ^ " not matched: \n "
-                   ^ (Expr.show_t_node match_expr))
-              | Some b -> b
-            end
-          in
-          let v = evaluate (Expr.replace i (Value.to_exp v) branch) in
-          v
+          begin match Value.node v with
+            | Wildcard -> Value.mk_wildcard
+            | Ctor (choice,v) ->
+              let branch_o = List.Assoc.find ~equal:Id.equal branches choice in
+              let branch =
+                begin match branch_o with
+                  | None ->
+                    failwith
+                      ("constructor "
+                       ^ (Id.show choice)
+                       ^ " not matched: \n "
+                       ^ (Expr.show_t_node match_expr))
+                  | Some b -> b
+                end
+              in
+              let v = evaluate (Expr.replace i (Value.to_exp v) branch) in
+              v
+            | _ -> failwith "no soln"
+          end
         | Fix (i,_,e') ->
           evaluate (Expr.replace i e e')
         | Tuple es ->
@@ -51,7 +56,11 @@ let rec evaluate
           Value.mk_tuple vs
         | Proj (i,e) ->
           let v = evaluate e in
-          (List.nth_exn (Value.destruct_tuple_exn v) i)
+          begin match Value.node v with
+            | Wildcard -> Value.mk_wildcard
+            | Tuple vs -> List.nth_exn vs i
+            | _ -> failwith "bad"
+          end
         | Unctor (i,e) ->
           let v = evaluate e in
           let (i',e) = Value.destruct_ctor_exn v in

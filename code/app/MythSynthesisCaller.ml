@@ -81,6 +81,7 @@ module DSToMyth = struct
     : MythLang.exp =
     let to_myth_exp = to_myth_exp tt in
     (begin match Expr.node e with
+       | Wildcard -> failwith "no conversion"
        | Var i -> MythLang.EVar (Id.to_string i)
        | Unctor _ -> failwith "no conversion"
        | App (e1,e2) -> MythLang.EApp (to_myth_exp e1, to_myth_exp e2)

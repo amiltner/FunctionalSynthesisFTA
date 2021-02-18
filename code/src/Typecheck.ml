@@ -96,6 +96,7 @@ let rec typecheck_exp
   : Type.t =
   let typecheck_simple = typecheck_exp ec tc vc in
   begin match Expr.node e with
+    | Wildcard -> failwith "not typeable"
     | Unctor _ -> failwith "not typeable"
     | Var v ->
       Context.find_exn ec v
@@ -252,6 +253,7 @@ let rec typecheck_value
   : Type.t =
   let typecheck_simple = typecheck_value ec tc vc in
   begin match Value.node v with
+    | Wildcard -> failwith "not typeable"
     | Ctor (i,e) ->
       let t = typecheck_simple e in
       let its = Context.find_exn vc i in
