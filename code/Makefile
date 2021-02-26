@@ -26,12 +26,12 @@ documentation:
 	jbuilder build @docs
 
 generate-data: all
-	$(GENERATE_DATA) ./HanoiCmdLine.exe benchmarks benchmarks-no-helper/vfa/tree_::_priqueue.ds benchmarks-no-helper/vfa/tree_::_priqueue+binfuncs.ds benchmarks/coq/bst_::_set.ds
+	$(GENERATE_DATA) ./ToolCmdLine.exe benchmarks/trace_complete benchmarks/incremental benchmarks/postconditional
 
 generate-outs: all
-	$(CREATE_DEFAULT_ANSWERS) ./HanoiCmdLine.exe benchmarks
+	$(CREATE_DEFAULT_ANSWERS) ./ToolCmdLine.exe benchmarks
 
 generate-all: all
-	$(GENERATE_DATA) ./HanoiCmdLine.exe benchmarks benchmarks-no-helper/vfa/tree_::_priqueue.ds benchmarks-no-helper/vfa/tree_::_priqueue+binfuncs.ds benchmarks/coq/bst_::_set.ds
+	$(GENERATE_DATA) ./ToolCmdLine.exe benchmarks/incremental benchmarks/postconditional benchmarks/trace_complete
 	$(GENERATE_GRAPHS) generated_data/generated_data.csv
 

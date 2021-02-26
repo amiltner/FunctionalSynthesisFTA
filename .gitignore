@@ -43,6 +43,9 @@ ocamlprof.dump
 gmon.out
 _tags
 
+# experiment files
+*.csv
+
 
 
 # - - -
