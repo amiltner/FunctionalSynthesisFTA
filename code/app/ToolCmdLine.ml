@@ -28,7 +28,7 @@ let get_ioe_synthesizer
     ~(use_myth:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
-    ~(use_timbuk:bool)
+    ~(use_vata:bool)
   : (module Synthesizers.IOSynth.S) =
   let synth =
     if use_myth then
@@ -37,10 +37,10 @@ let get_ioe_synthesizer
       (module L2SynthesisCaller : Synthesizers.IOSynth.S)
     else
       let builder =
-        if use_timbuk then
-          (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
-        else
+        if use_vata then
           (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
+        else
+          (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
       in
       (module Synthesizers.IOSynth.OfPredSynth(CrazyFTASynthesizer.Create(val builder)) : Synthesizers.IOSynth.S)
   in
@@ -58,9 +58,9 @@ let synthesize_satisfying_verified_equiv
     ~(use_myth:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
-    ~(use_timbuk:bool)
+    ~(use_vata:bool)
   : Expr.t =
-  let synth = get_ioe_synthesizer ~use_myth ~use_l2 ~tc_synth ~use_timbuk in
+  let synth = get_ioe_synthesizer ~use_myth ~use_l2 ~tc_synth ~use_vata in
   let module S = Synthesizers.VerifiedEquiv.Make(val synth)(QuickCheckVerifier.T) in
   S.synth ~context ~tin ~tout equiv
 
@@ -72,17 +72,17 @@ let synthesize_satisfying_postcondition
     ~(use_myth:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
-    ~(use_timbuk:bool)
+    ~(use_vata:bool)
   : Expr.t =
   if use_myth then failwith "invalid synthesizer for postconditions";
   if use_l2 then failwith "invalid synthesizer for postconditions";
   if tc_synth then failwith "invalid synthesizer for postconditions";
   let synth =
     let builder =
-      if use_timbuk then
-        (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
-      else
+      if use_vata then
         (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
+      else
+        (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
     in
     (module CrazyFTASynthesizer.Create(val builder) : Synthesizers.PredicateSynth.S)
   in
@@ -97,9 +97,9 @@ let synthesize_satisfying_ioes
     ~(use_myth:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
-    ~(use_timbuk:bool)
+    ~(use_vata:bool)
   : Expr.t =
-  let synth = get_ioe_synthesizer ~use_myth ~use_l2 ~tc_synth ~use_timbuk in
+  let synth = get_ioe_synthesizer ~use_myth ~use_l2 ~tc_synth ~use_vata in
   let module S = (val synth) in
   let sa = S.init ~context ~tin ~tout in
   snd (S.synth sa ioes)
@@ -111,7 +111,7 @@ let synthesize_solution
     (log:bool)
     (print_times:bool)
     (tc_synth:bool)
-    (use_timbuk:bool)
+    (use_vata:bool)
     (print_mapping:bool)
   : unit =
   (*rd_aut ();*)
@@ -161,7 +161,7 @@ let synthesize_solution
           ~use_myth
           ~use_l2
           ~tc_synth
-          ~use_timbuk
+          ~use_vata
       | Post post ->
         let context = Problem.extract_context problem in
         let (tin,tout) = problem.synth_type in
@@ -173,7 +173,7 @@ let synthesize_solution
           ~use_myth
           ~use_l2
           ~tc_synth
-          ~use_timbuk
+          ~use_vata
       | Equiv equiv ->
         let context = Problem.extract_context problem in
         let (tin,tout) = problem.synth_type in
@@ -185,7 +185,7 @@ let synthesize_solution
           ~use_myth
           ~use_l2
           ~tc_synth
-          ~use_timbuk
+          ~use_vata
     end
   in
   print_endline (Expr.show e);
@@ -213,7 +213,7 @@ let param =
       and use_l2   = flag "use-l2" no_arg ~doc:"Solve using the l2 synthesis engine"
       and print_times   = flag "print-times" no_arg ~doc:"print the times to run various components"
       and tc_synth   = flag "tc-synth" no_arg ~doc:"use the FTA synthesizer with trace complete examples"
-      and use_timbuk   = flag "use-timbuk" no_arg ~doc:"use the timbuk to synthesize"
+      and use_vata   = flag "use-vata" no_arg ~doc:"use vata to synthesize"
       and print_mapping   = flag "print-mapping" no_arg ~doc:"print timbuk to vata mapping"
       (*and no_grammar_output   = flag "no-grammar-output" no_arg ~doc:"do not output the discovered grammar"
       and log_progress   = flag "log-progress" no_arg ~doc:"output the progress log"
@@ -232,7 +232,7 @@ let param =
           log
           print_times
           tc_synth
-          use_timbuk
+          use_vata
           print_mapping
     ]
 

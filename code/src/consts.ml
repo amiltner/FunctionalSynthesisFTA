@@ -1,6 +1,7 @@
 let logging = ref false
 let print_mapping = ref false
 let pretty_ctors = ref true
+let use_abstraction = ref false
 
 let log thunk =
   if !logging then

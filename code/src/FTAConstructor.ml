@@ -650,7 +650,11 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let t = get_type_rep c t in
     let vinsvouts =
       List.map
-        ~f:(fun (vin,vout) -> (vin,Abstraction.abstract c.abstraction vout t))
+        ~f:(fun (vin,vout) ->
+            if !Consts.use_abstraction then
+              (vin,Abstraction.abstract c.abstraction vout t)
+            else
+              (vin,vout))
         vinsvouts
     in
     State.vals vinsvouts (t,cl)
