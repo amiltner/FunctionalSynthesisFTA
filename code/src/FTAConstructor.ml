@@ -67,33 +67,33 @@ struct
       | Apply ->
         begin match es with
           | [e1;e2] -> AngelicEval.App (e1,e2)
-          | _ -> failwith "bad"
+          | _ -> failwith "bad1"
         end
       | VariantConstruct i ->
         begin match es with
           | [e] -> AngelicEval.Ctor (i,e)
-          | _ -> failwith "bad"
+          | _ -> failwith ("bad2:" ^ (string_of_list AngelicEval.show_expr es))
         end
       | UnsafeVariantDestruct i ->
         begin match es with
           | [e] -> AngelicEval.Unctor (i,e)
-          | _ -> failwith "bad"
+          | _ -> failwith "bad3"
         end
       | TupleConstruct _ ->
         AngelicEval.Tuple es
       | TupleDestruct (_,i) ->
         begin match es with
           | [e] -> AngelicEval.Proj (i,e)
-          | _ -> failwith "bad"
+          | _ -> failwith "bad4"
         end
       | Var -> AngelicEval.Var (Id.create "x")
-      | LetIn -> failwith "idk"
+      | LetIn -> failwith "bad5"
       | Rec ->
         begin match es with
           | [e] ->
             AngelicEval.AngelicF e
           | _ ->
-            failwith "bad"
+            failwith "bad6"
         end
       | VariantSwitch ids ->
         begin match es with
@@ -105,7 +105,7 @@ struct
                 es
             in
             AngelicEval.Match (e,Id.create "_",branches)
-          | _ -> failwith "bad"
+          | _ -> failwith "bad7"
         end
     end
 
@@ -381,6 +381,167 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       ((xid,tin)
       ,term_to_angelic_exp t)
 
+  let rec term_of_type ds t =
+    let (desired_t,_) = TypeDS.find_representative ds t in
+    begin match Type.node desired_t with
+      | Named i -> failwith "ah"
+      | Arrow (t1,t2) -> failwith "ah"
+      | Tuple ts ->
+        let eso = List.map ~f:(term_of_type ds) ts in
+        begin match distribute_option eso with
+          | None -> None
+          | Some es ->
+            Some
+              (A.Term
+                 (Transition.create
+                    (Transition.TupleConstruct (List.length es)
+                    ,desired_t
+                    ,List.length es)
+                 ,es))
+        end
+      | Mu (_,t) ->
+        term_of_type ds t
+      | Variant branches ->
+        List.fold
+          ~f:(fun acco (i,t) ->
+              begin match acco with
+                | None ->
+                  let eo = term_of_type ds t in
+                  Option.map
+                    ~f:(fun e ->
+                        A.Term
+                          (Transition.create
+                             (Transition.VariantConstruct i
+                             ,desired_t
+                             ,1)
+                          ,[e]))
+                    eo
+                | Some e -> Some e
+              end)
+          ~init:None
+          branches
+    end
+
+  let term_of_type_exn
+      (ds:TypeDS.t)
+      (x:Type.t)
+    : A.Term.t =
+    Option.value_exn (term_of_type ds x)
+
+
+  let rec extract_unbranched_switches
+      (Term (t,ts):A.term)
+    : (A.term * Id.t) list =
+    begin match Transition.id t with
+       | Apply ->
+         begin match ts with
+           | [t1;t2] ->
+             let l1 = extract_unbranched_switches t1 in
+             let l2 = extract_unbranched_switches t2 in
+             l1@l2
+           | _ -> failwith "not permitted"
+         end
+       | FunctionApp _ ->
+         List.concat_map ~f:extract_unbranched_switches ts
+       | VariantConstruct c ->
+         begin match ts with
+           | [t] ->
+             extract_unbranched_switches t
+           | _ -> failwith "incorrect setup"
+         end
+       | UnsafeVariantDestruct i ->
+         begin match ts with
+           | [t] ->
+             let l = extract_unbranched_switches t in
+             (t,i)::l
+           | _ -> failwith "incorrect setup"
+         end
+       | TupleConstruct _ ->
+         List.concat_map ~f:extract_unbranched_switches ts
+       | Var ->
+         []
+       | Rec ->
+         begin match ts with
+           | [t] ->
+             extract_unbranched_switches t
+           | _ -> failwith "incorrect"
+         end
+       | VariantSwitch is ->
+         begin match ts with
+           | t::ts ->
+             let matched_t = t in
+             let l = extract_unbranched_switches t in
+             l@
+             (List.concat_map
+                ~f:(fun t ->
+                    let l = extract_unbranched_switches t in
+                    List.filter ~f:(fun (t,_) -> not (A.Term.equal t matched_t)) l)
+                ts)
+           | [] -> failwith "cannot happen"
+         end
+       | TupleDestruct _ ->
+         begin match ts with
+           | [t] ->
+             extract_unbranched_switches t
+           | _ -> failwith "not permitted"
+         end
+       | LetIn -> failwith "not permitted"
+      end
+
+  let rec ensure_switches
+      (ds:TypeDS.t)
+      (context:Context.t)
+      (e:A.Term.t)
+      (desired_type:Type.t)
+    : A.Term.t =
+    let unbranched = extract_unbranched_switches e in
+    let all_ts_by_exp =
+      group_by
+        ~key:(fst)
+        ~equal:A.Term.equal
+        unbranched
+    in
+    if List.is_empty all_ts_by_exp then
+      e
+    else
+      let e =
+        List.fold
+          ~f:(fun t tbis ->
+              let t_orig = t in
+              begin match tbis with
+                | (tb,i)::_ ->
+                  let i_orig = i in
+                  let vc = context.vc in
+                  let its = Context.find_exn vc i in
+                  let (t,_) = TypeDS.find_representative ds (Type.mk_variant its) in
+                  let its = Type.destruct_variant_exn t in
+                  let ts =
+                    List.map
+                      ~f:(fun (i,_) ->
+                          if Id.equal i i_orig then
+                            t_orig
+                          else
+                            term_of_type_exn ds desired_type)
+                      its
+                  in
+                  let is = List.map ~f:fst its in
+                  A.Term
+                    (Transition.create
+                       (Transition.VariantSwitch is
+                       ,t
+                       ,1+(List.length is))
+                    ,tb::ts)
+                | _ -> failwith "bad"
+              end)
+          ~init:e
+          all_ts_by_exp
+      in
+      ensure_switches
+        ds
+        context
+        e
+        desired_type
+
   module EasyTerm = struct
     type t_node =
       | App of string * t list
@@ -545,7 +706,6 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         c.tset <- TransitionSet.insert trans c.tset;
         invalidate_computations c
       end
-
 
   let add_transition
       (c:t)
@@ -829,6 +989,25 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     : Type.t list =
     c.all_types
 
+  let get_all_state_pairs
+      (c:t)
+    : (Value.t list) list =
+    let all_states = A.states c.a in
+    let all_pairs =
+      List.filter_map
+        ~f:(fun s ->
+            begin match State.destruct_vals s with
+              | Some (vsps,_) ->
+                Some (List.map ~f:fst vsps)
+              | _ ->
+                None
+            end)
+        all_states
+    in
+    List.dedup_and_sort
+      ~compare:(compare_list ~cmp:Value.compare)
+      all_pairs
+
   (*let add_let_ins
       (c:t)
     : unit =
@@ -863,7 +1042,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (c:t)
     : t =
     Consts.time
-      Consts.minify_time
+      Consts.minify_times
       (fun _ ->
          let a = A.minimize c.a in
          { c with a ; up_to_date=false })
@@ -1015,8 +1194,10 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (c1:t)
       (c2:t)
     : t =
+    (*print_endline @$ string_of_int (A.size c1.a);
+      print_endline @$ string_of_int (A.size c2.a);*)
     Consts.time
-      Consts.isect_time
+      Consts.isect_times
       (fun () ->
          let merge_tset
              (c1:TransitionSet.t)
@@ -1049,7 +1230,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
          List.iter
            ~f:(update_tset c2)
            ts;
-         let a = A.intersect c1.a c2.a in
+         let ts_initial = List.filter ~f:(fun t -> Transition.arity t = 0) ts in
+         let a = A.intersect ts_initial c1.a c2.a in
          let c = { c1 with a } in
          invalidate_computations c;
          c)
@@ -1176,12 +1358,28 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     (Transition.equal_id (Transition.id t) Transition.Var)
     || (List.exists ~f:contains_var ts)
 
+  let rec contains_rec
+      (Term (t,ts):A.Term.t)
+    : bool =
+    (Transition.equal_id (Transition.id t) Transition.Rec)
+    || (List.exists ~f:contains_rec ts)
+
   let rec is_valid_term
       (Term (t,ts):A.Term.t)
     : bool =
     begin match Transition.id t with
       | Rec ->
-        List.exists ~f:contains_var ts
+        (List.exists ~f:contains_var ts) && not (List.exists ~f:contains_rec ts)
+      | VariantConstruct i ->
+        begin match ts with
+        | [Term (t,_)] ->
+          begin match Transition.id t with
+            | UnsafeVariantDestruct i' ->
+            not (Id.equal i i')
+          | _ -> true
+          end
+        | _ -> true
+        end
       | _ -> true
     end
 
@@ -1193,7 +1391,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       | None ->
         let mts =
           Consts.time
-            Consts.min_elt_time
+            Consts.min_elt_times
             (fun _ -> A.min_term_state c.a (is_valid_term % A.TermState.to_term))
         in
         c.min_term_state <- Some mts;

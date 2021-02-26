@@ -10,14 +10,21 @@ let log thunk =
 
 let path_to_vata = ref "../../libvata/build/cli/vata"
 
-let isect_time = ref 0.0
-let minify_time = ref 0.0
-let min_elt_time = ref 0.0
-let initial_creation_time = ref 0.0
-let accepts_term_time = ref 0.0
+let isect_times = ref (0.0,0.0)
+let minify_times = ref (0.0,0.0)
+let min_elt_times = ref (0.0,0.0)
+let initial_creation_times = ref (0.0,0.0)
+let accepts_term_times = ref (0.0,0.0)
 
 let time t f =
+  let (ttot,tmax) = !t in
   let init = Sys.time () in
   let ans = f () in
-  t := (!t +. (Sys.time() -. init));
+  let time_taken = (Sys.time() -. init) in
+  let ttot = (ttot +. time_taken) in
+  let tmax = max time_taken tmax in
+  t := (ttot,tmax);
   ans
+
+let total t = fst !t
+let max t = snd !t

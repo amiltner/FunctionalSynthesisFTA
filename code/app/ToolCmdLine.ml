@@ -191,11 +191,16 @@ let synthesize_solution
   print_endline (Expr.show e);
   if print_times then
     begin
-      print_endline ("Intersection Time: " ^ (Float.to_string !Consts.isect_time));
-      print_endline ("Minify Time: " ^ (Float.to_string !Consts.minify_time));
-      print_endline ("Min-elt Time: " ^ (Float.to_string !Consts.min_elt_time));
-      print_endline ("Initial Creation Time: " ^ (Float.to_string !Consts.initial_creation_time));
-      print_endline ("Accepts Term Time: " ^ (Float.to_string !Consts.accepts_term_time));
+      print_endline ("Total Intersection Time: " ^ (Float.to_string (Consts.total Consts.isect_times)));
+      print_endline ("Max Intersection Time: " ^ (Float.to_string (Consts.max Consts.isect_times)));
+      print_endline ("Total Minify Time: " ^ (Float.to_string (Consts.total Consts.minify_times)));
+      print_endline ("Max Minify Time: " ^ (Float.to_string (Consts.max Consts.minify_times)));
+      print_endline ("Total Min-elt Time: " ^ (Float.to_string (Consts.total Consts.min_elt_times)));
+      print_endline ("Max Min-elt Time: " ^ (Float.to_string (Consts.max Consts.min_elt_times)));
+      print_endline ("Total Initial Creation Time: " ^ (Float.to_string (Consts.total Consts.initial_creation_times)));
+      print_endline ("Max Initial Creation Time: " ^ (Float.to_string (Consts.max Consts.initial_creation_times)));
+      print_endline ("Total Accepts Term Time: " ^ (Float.to_string (Consts.total Consts.accepts_term_times)));
+        print_endline ("Max Accepts Term Time: " ^ (Float.to_string (Consts.max Consts.accepts_term_times));)
     end
 
 open MyStdLib.Command.Let_syntax

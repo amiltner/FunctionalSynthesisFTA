@@ -12,11 +12,13 @@ type expr =
   | Tuple of expr list
   | Proj of int * expr
   | AngelicF of expr
+  | Wildcard
 
 and value =
   | Func of Param.t * expr
   | Ctor of Id.t * value
   | Tuple of value list
+  | Wildcard
 [@@deriving eq, show]
 
 let mk_value_ctor (i:Id.t) (v:value) : value = Ctor (i,v)
@@ -32,7 +34,7 @@ let from_exp =
     ~tuple_f:(fun es -> Tuple es)
     ~proj_f:(fun i e -> Proj(i,e))
     ~fix_f:(fun i t e -> Fix (i,t,e))
-    ~wildcard_f:(Tuple [])
+    ~wildcard_f:(Wildcard)
 
 let from_value : Value.t -> value =
   Value.fold
@@ -45,6 +47,7 @@ let rec to_exp
     (e:expr)
   : Expr.t =
   begin match e with
+    | Wildcard -> Expr.mk_wildcard
     | Var i -> Expr.mk_var i
     | App (e1,e2) -> Expr.mk_app (to_exp e1) (to_exp e2)
     | Func (p,e) ->
@@ -74,6 +77,7 @@ let rec to_value
         (to_exp e)
     | Ctor (i,e) -> Value.mk_ctor i (to_value e)
     | Tuple es -> Value.mk_tuple (List.map ~f:to_value es)
+    | Wildcard -> Value.mk_wildcard
   end
 
 
@@ -84,6 +88,7 @@ let rec value_to_exp
     | Func (p,e) -> Func (p,e)
     | Ctor (i,v) -> Ctor (i,value_to_exp v)
     | Tuple vs -> Tuple (List.map ~f:value_to_exp vs)
+    | Wildcard -> Wildcard
   end
 
 
@@ -131,18 +136,19 @@ let rec replace
         e
       else
         Fix (i',t,replace_simple e')
+    | Wildcard -> Wildcard
   end
 
 let rec evaluate
     (angelics : (value * value) list)
     (e : expr)
-  : (value list * value) =
+  : ((value * value) list * value) =
   let evaluate = evaluate angelics in
   begin match e with
     | AngelicF e ->
       let (vs,inv) = evaluate e in
       let outv = List.Assoc.find_exn ~equal:equal_value angelics inv in
-      (inv::vs,outv)
+      ((inv , outv)::vs,outv)
     | Var i -> failwith ("unbound variable " ^ (Id.show i))
     | App (e1,e2) ->
       let (vins1,v1) = evaluate e1 in
@@ -182,6 +188,7 @@ let rec evaluate
           in
           let (vcalls',v) = evaluate (replace i (value_to_exp v) branch) in
           (vcalls@vcalls',v)
+        | Wildcard -> (vcalls,Wildcard)
         | _ -> failwith "no soln"
       end
     | Tuple es ->
@@ -194,6 +201,7 @@ let rec evaluate
       let (vcalls,v) = evaluate e in
       begin match v with
         | Tuple vs -> (vcalls,List.nth_exn vs i)
+        | Wildcard -> (vcalls,Wildcard)
         | _ -> failwith "bad"
       end
     | Unctor (i,e) ->
@@ -202,8 +210,10 @@ let rec evaluate
         | Ctor (i',e) ->
           assert (Id.equal i  i');
           (vcalls,e)
+        | Wildcard -> (vcalls,Wildcard)
         | _ -> failwith "ah"
       end
+    | Wildcard -> ([],Wildcard)
   end
 
 let replace_holes
@@ -219,6 +229,6 @@ let evaluate_with_holes
     ~eval_context:(i_e:(Id.t * expr) list)
     (ios:(value * value) list)
     (e:expr)
-  : value list * value =
+  : (value * value) list * value =
   let e = replace_holes ~i_e e in
   evaluate ios e

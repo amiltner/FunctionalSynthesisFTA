@@ -87,7 +87,7 @@ module type S = sig
   val fold_states : bool -> (State.t -> 'a -> 'a) -> t -> 'a -> 'a
   val fold_transitions : (Configuration.t -> State.t -> 'a -> 'a) -> t -> 'a -> 'a
   val label : ((State.t -> 'a) -> State.t -> 'a) -> (State.t -> 'a) -> t -> (State.t -> 'a)
-  val inter : ?hook:(t -> State.t -> unit) -> (data -> data -> data) -> t -> t -> t
+  val inter : Sym.t list -> t -> t -> t
   val reachable_states : ?epsilon:bool -> t -> StateSet.t
   val reachable_values : t -> BoundTerm.t StateMap.t
   val reduce : ?epsilon:bool -> ?from_finals:bool -> t -> t
@@ -508,35 +508,97 @@ module Extend (B: BASE) = struct
     StateSet.fold visit_state states ();
     u
 
-  let inter ?hook data_product a b =
+  let inter initials a b =
     let aut = empty () in
-    (*		let map = Hashtbl.create 8 in (* 8: arbitrary size *)*)
-    (*		let state_product a b = find_or_create (function (a, b) -> State.product a b) map (a, b) in*)
-    let product qa qa_confs qb qb_confs () =
-      match State.product qa qb with
-      | Some q ->
-        let labeled_conf_product ca cb () =
-            match (Configuration.product ca cb) with
-            | Some conf -> add_transition conf q aut
-            | None -> ()
-          in
-          ConfigurationSet.fold2 (labeled_conf_product) (qa_confs) (qb_confs) ();
-          begin
-            match hook with
-            | Some h -> h aut q
-            | None -> ()
-          end;
-          ()
-        | None -> ()
-      in
-      let add_final qa qb () =
-        match State.product qa qb with
-        | Some q -> add_final_state q aut
-        | None -> ()
-      in
-      StateMap.fold2 product (configurations_for_states a) (configurations_for_states b) ();
-      StateSet.fold2 add_final (final_states a) (final_states b) ();
-      aut
+    let added_states = StateSet.empty () in
+    let processed_configs = ConfigurationSet.empty () in
+    let initial_configs =
+      List.concat_map
+        (fun t ->
+           let config = Configuration.create (t,[]) in
+           let full_ss =
+             StateSet.fold2
+               (fun a_state b_state ss -> (a_state,b_state)::ss)
+               (states_for_configuration config a)
+               (states_for_configuration config b)
+               []
+           in
+           List.map
+             (fun (a,b) -> (config,a,b))
+             full_ss)
+        initials
+    in
+    let rec add_configs
+        (configs)
+      =
+      begin match configs with
+        | [] -> ()
+        | (config,s1,s2)::t ->
+          begin match State.product s1 s2 with
+            | None -> add_configs t
+            | Some s ->
+              add_transition config s aut;
+              if StateSet.contains s added_states then
+                add_configs t
+              else
+                begin
+                  StateSet.add s added_states;
+                  let configs =
+                    ConfigurationSet.fold2
+                      (fun c1 c2 cs ->
+                         begin match Configuration.product c1 c2 with
+                           | None -> cs
+                           | Some p -> (c1,c2,p)::cs
+                         end)
+                      (state_parents s1 a)
+                      (state_parents s2 b)
+                      []
+                  in
+                  let configs_output =
+                    List.concat_map
+                      (fun (c1,c2,c) ->
+                         if ConfigurationSet.contains c processed_configs then
+                           []
+                         else
+                           let (t,ss) = Configuration.node c in
+                           if List.for_all
+                               (fun s -> StateSet.contains s added_states)
+                               ss
+                           then
+                             begin
+                               ConfigurationSet.add c processed_configs;
+                               StateSet.fold2
+                                 (fun s1 s2 sps ->
+                                    (c,s1,s2)::sps
+                                 )
+                                 (states_for_configuration c1 a)
+                                 (states_for_configuration c2 b)
+                                 []
+                             end
+                           else
+                             [])
+                      configs
+                  in
+                  add_configs (configs_output@t)
+                end
+          end
+      end
+    in
+    add_configs initial_configs;
+    StateSet.fold2
+      (fun s1 s2 () ->
+         begin match State.product s1 s2 with
+           | None -> ()
+           | Some s ->
+             if StateSet.contains s added_states then
+               add_final_state s aut
+             else
+               ()
+         end)
+      (final_states a)
+      (final_states b)
+      ();
+    aut
 
   let reachable_states a =
     let visited = Hashtbl.create 8 in
@@ -603,7 +665,7 @@ module Extend (B: BASE) = struct
 
   let prune_useless (x:t)
     : t =
-    let x = reduce x in
+    (*let x = reduce x in*)
     let fs = final_states x in
       let x = sub_automaton fs x in
     x

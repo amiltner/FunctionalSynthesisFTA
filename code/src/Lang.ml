@@ -630,6 +630,37 @@ module Expr = struct
           ~init:None
           branches
     end
+
+  let rec extract_unbranched_switches
+      (e:t)
+    : (t * Id.t) list =
+    begin match node e with
+      | Var _ -> []
+      | App (e1,e2) -> (extract_unbranched_switches e1)@(extract_unbranched_switches e2)
+      | Func (_,e) -> extract_unbranched_switches e
+      | Ctor (_,e) -> extract_unbranched_switches e
+      | Unctor (i,e) ->
+        let l = extract_unbranched_switches e in
+        (e,i)::l
+      | Match (e,_,branches) ->
+        let matched_e = e in
+        let l1 = extract_unbranched_switches e in
+        l1@
+        (List.concat_map
+           ~f:(fun (_,e) ->
+               let l = extract_unbranched_switches e in
+               List.filter ~f:(fun (e,_) -> not (equal e matched_e)) l)
+           branches)
+      | Wildcard -> []
+      | Fix _ -> failwith "not doing"
+      | Tuple es -> List.concat_map ~f:extract_unbranched_switches es
+      | Proj (i,e) -> extract_unbranched_switches e
+    end
+
+  let ensure_switches
+      (e:t)
+    : t =
+    failwith "ah"
 end
 
 module Value = struct

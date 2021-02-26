@@ -274,3 +274,35 @@ let rec typecheck_value
       let ec = Context.set ec ~key:i ~data:t
       in Type.mk_arrow t (typecheck_exp ec tc vc e)
   end
+
+let rec is_singleton
+    (tc:Context.Types.t)
+    (t:Type.t)
+  : bool =
+  begin match Type.node t with
+    | Named i ->
+      begin match Context.find tc i with
+        | None -> true
+        | Some t -> is_singleton tc t
+      end
+    | Tuple ts ->
+      List.for_all ~f:(is_singleton tc) ts
+    | Arrow _ -> false (*not technically correct*)
+    | Mu (i,t) -> is_singleton tc t
+    | Variant _ -> false (*not technically correct*)
+  end
+
+let rec extract_singleton
+    (tc:Context.Types.t)
+    (t:Type.t)
+  : Value.t =
+  begin match Type.node t with
+    | Named i ->
+      extract_singleton tc (Context.find_exn tc i)
+    | Tuple ts ->
+      Value.mk_tuple
+        (List.map ~f:(extract_singleton tc) ts)
+    | Arrow _ -> failwith "ah"
+    | Mu (_,t) -> extract_singleton tc t
+    | Variant _ -> failwith "ah"
+  end

@@ -14,12 +14,14 @@ let rec evaluate
         | App (e1,e2) ->
           let (v1) = evaluate e1 in
           let e1 = Value.to_exp v1 in
-          begin match Expr.destruct_func e1 with
-            | Some ((i,_),e1) ->
+          begin match Expr.node e1 with
+            | Func ((i,_),e1) ->
               let (v2) = evaluate e2 in
               let e2 = Value.to_exp v2 in
               evaluate (Expr.replace i e2 e1)
-            | None -> failwith "nonfunc applied"
+            | Wildcard ->
+              Value.mk_wildcard
+            | _ -> failwith "nonfunc applied"
           end
         | Func (a,e) ->
           Value.mk_func a e

@@ -356,6 +356,7 @@ module Make : AutomatonBuilder =
       end
 
     let intersect
+      inits
         (a1:t)
         (a2:t)
       : t =

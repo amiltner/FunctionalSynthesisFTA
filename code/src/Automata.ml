@@ -39,7 +39,7 @@ sig
   val equal : t equality_check
 
   val empty : unit -> t
-  val intersect : t -> t -> t
+  val intersect : Symbol.t list -> t -> t -> t
   val copy : t -> t
   val add_transition : t -> Symbol.t -> State.t list -> State.t -> unit
   val remove_transition : t -> Symbol.t -> State.t list -> State.t -> unit
@@ -132,7 +132,8 @@ module TimbukBuilder : AutomatonBuilder =
 
     let copy = A.copy
 
-    let intersect a1 a2 = A.inter (fun _ _ -> ()) a1 a2
+    let intersect s a1 a2 =
+      A.inter s a1 a2
 
     let add_transition a s sts st =
       A.add_transition

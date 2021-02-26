@@ -67,3 +67,15 @@ let rec (=>)
     | _ ->
       false
   end
+
+
+let implied_by_strict_functional_subvalue ~(break:t -> bool) (e1:t) (e2:t) : bool =
+  List.exists ~f:(fun v -> v => e1) (Value.strict_functional_subvalues ~break e2)
+
+let is_concrete
+  : t -> bool =
+  Value.fold
+    ~func_f:(fun _ _ -> true)
+    ~ctor_f:(fun _ b -> b)
+    ~tuple_f:(fun bs -> List.for_all ~f:ident bs)
+    ~wildcard_f:false
