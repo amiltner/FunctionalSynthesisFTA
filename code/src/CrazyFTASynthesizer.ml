@@ -541,15 +541,20 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (sout:FTAConstructor.State.t)
       (io:int option)
     : (Value.t * Value.t * Value.t * int option * A.Term.t) list =
-    begin match (FTAConstructor.State.destruct_vals (A.TermState.get_state sin),FTAConstructor.State.destruct_vals sout) with
-      | (Some (vvsin,_), Some (vvsout,_)) ->
+    begin match ((A.TermState.get_state sin),sout) with
+      | ((vvsin,_), (vvsout,_)) ->
         let t = A.TermState.to_term sin in
         let outs = List.map ~f:snd vvsout in
         let inouts = List.zip_exn vvsin outs in
-        List.map ~f:(fun ((exv,vsin),vsout) -> (exv,vsin,vsout,io,t)) inouts
-      | (None, None) ->
-        []
-      | _ -> failwith "when would this happen?"
+        List.filter_map
+          ~f:(fun ((exv,vsino),vsouto) ->
+              begin match (vsino,vsouto) with
+                | (Some vsin, Some vsout) ->
+                  Some (exv,vsin,vsout,io,t)
+                | _ ->
+                  None
+              end)
+          inouts
     end
 
   let get_all_sorted_inputs_of_same_type
@@ -643,6 +648,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
             ~f:(extract_recursive_calls c)
             [source_ts]
       | TS (_,_,tss) ->
+        (*TODO: no rec calls on unprocessed branches*)
         List.concat_map
           ~f:(extract_recursive_calls c)
           tss

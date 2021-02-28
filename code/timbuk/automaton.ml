@@ -15,7 +15,7 @@ end
 module type BASE = sig
   module Sym : Symbol.S
   module State : STATE
-  module Configuration : ConfigS with type t = (Sym.t * State.t list) MyStdLib.hash_consed and type t_node = Sym.t * State.t list
+  module Configuration : ConfigS with type t = (Sym.t * State.t list) (*MyStdLib.hash_consed*) and type t_node = Sym.t * State.t list
   module StateSet : MyStdLib.HashSet.ImperativeSet with type elt = State.t
   module StateMap : MyStdLib.HashTable.ImperativeDict with type key = State.t
   module ConfigurationSet : MyStdLib.HashSet.ImperativeSet with type elt = Configuration.t
@@ -139,24 +139,24 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
     type t_node = Sym.t * State.t list
     [@@deriving hash, eq, ord, show]
 
-    type t = t_node hash_consed
+    type t = t_node (*hash_consed*)
     [@@deriving hash, eq, ord, show]
 
-    let table = HashConsTable.create 1000
+    (*let table = HashConsTable.create 1000*)
 
     let create
         (node:t_node)
       : t =
-      HashConsTable.hashcons
+      (*HashConsTable.hashcons
         hash_t_node
         compare_t_node
-        table
+        table*)
         node
 
     let node
         (v:t)
       : t_node =
-      v.node
+      v(*.node*)
 
     let product
         (c1:t)

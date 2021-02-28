@@ -110,11 +110,13 @@ let synthesize_solution
     ~(use_l2:bool)
     ~(log:bool)
     ~(run_experiments:bool)
+    ~(use_abstraction:bool)
     ~(print_times:bool)
     ~(tc_synth:bool)
     ~(use_vata:bool)
     ~(print_mapping:bool)
   : unit =
+  Consts.use_abstraction := use_abstraction;
   print_endline (string_of_bool print_times);
   (*rd_aut ();*)
   Consts.logging := log;
@@ -241,6 +243,7 @@ let param =
       and log   = flag "log" no_arg ~doc:"log process"
       and use_l2   = flag "use-l2" no_arg ~doc:"Solve using the l2 synthesis engine"
       and print_times   = flag "print-times" no_arg ~doc:"print the times to run various components"
+      and use_abstraction = flag "use-abstraction" no_arg ~doc:"use abstraction during synthesis"
       and run_experiments   = flag "run-experiments" no_arg ~doc:"print the times to run various components"
       and tc_synth   = flag "tc-synth" no_arg ~doc:"use the FTA synthesizer with trace complete examples"
       and use_vata   = flag "use-vata" no_arg ~doc:"use vata to synthesize"
@@ -262,6 +265,7 @@ let param =
           ~log
           ~print_times
           ~run_experiments
+          ~use_abstraction
           ~tc_synth
           ~use_vata
           ~print_mapping
