@@ -1822,3 +1822,31 @@ let hash_fold_from_hash
   (h:a hasher)
   : Base__Hash.state -> a -> Base__Hash.state =
   fun s x -> Base__Hash.fold_int s (h x)
+
+let list_index
+    (type a)
+    (l:a list)
+    (v:a)
+    ~(equal:a -> a -> bool)
+  : int option =
+  List.find_mapi
+    ~f:(fun i x ->
+        if equal x v then
+          Some i
+        else
+          None)
+    l
+
+let list_index_exn
+    (type a)
+    (l:a list)
+    (v:a)
+    ~(equal:a -> a -> bool)
+  : int =
+  List.find_mapi_exn
+    ~f:(fun i x ->
+        if equal x v then
+          Some i
+        else
+          None)
+    l

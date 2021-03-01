@@ -182,7 +182,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   end
 
   module StateSet = SetOf(State)
-  module InputsAndTypeToStates = DictOf(PairOf(ListOf(Value))(ClassifiedType))(StateSet)
+  module InputsAndTypeToStates = DictOf(ClassifiedType)(StateSet)
   module TransitionSet = SetOf(Transition)
 
   type t =
@@ -190,14 +190,14 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       a                  : A.t                        ;
       mutable d          : InputsAndTypeToStates.t    ;
       ds                 : TypeDS.t                   ;
-      inputs             : Value.t list list          ;
+      inputs             : Value.t list               ;
       mutable tset       : TransitionSet.t            ;
       final_candidates   : Value.t -> Value.t -> bool ;
       all_types          : Type.t list                ;
       mutable up_to_date : bool                       ;
       input_type         : Type.t                     ;
       output_type        : Type.t                     ;
-      abstraction        : Abstraction.t              ;
+      abstraction        : AbstractionDict.t             ;
       mutable all_states : StateSet.t                 ;
       mutable min_term_state : A.TermState.t option option ;
     }
@@ -615,9 +615,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
   let get_states
       (c:t)
       ((t,cl):ClassifiedType.t)
-      (inputs:Value.t list)
     : State.t list =
-    begin match InputsAndTypeToStates.lookup c.d (inputs,(get_type_rep c t,cl)) with
+    begin match InputsAndTypeToStates.lookup c.d (get_type_rep c t,cl) with
       | None -> []
       | Some ss -> StateSet.as_list ss
     end
@@ -635,7 +634,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
               | None -> (vin, None)
               | Some vout ->
                 if !Consts.use_abstraction then
-                  (vin,Some (Abstraction.abstract c.abstraction vout t))
+                  (vin,Some (AbstractionDict.abstract c.abstraction vin vout t))
                 else
                   (vin,Some vout)
             end)
@@ -649,10 +648,9 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       ((t,cl):ClassifiedType.t)
     : unit =
     let t = get_type_rep c t in
-    let vins = List.map ~f:fst vinsvouts in
     let s = val_state c vinsvouts (t,cl) in
     let to_add =
-      begin match InputsAndTypeToStates.lookup c.d (vins,(t,cl)) with
+      begin match InputsAndTypeToStates.lookup c.d (t,cl) with
         | None ->
           StateSet.singleton s
         | Some ss ->
@@ -663,7 +661,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let d =
       InputsAndTypeToStates.insert
         c.d
-        (vins,(t,cl))
+        (t,cl)
         to_add
     in
     begin
@@ -783,36 +781,114 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     in
       let outs = List.map ~f:Eval.evaluate full_exps in*)
 
+  let evaluate
+      (c:t)
+      (input:Predicate.t list)
+      (f:Value.t list -> Value.t list)
+      (args:State.t list)
+      ((t,cl):ClassifiedType.t)
+    : State.t list =
+    let vs = List.map ~f:(List.map ~f:snd % fst) args in
+    let args =
+      begin match vs with
+        | [] -> List.init ~f:(func_of []) (List.length input)
+        | _ -> List.transpose_exn vs
+      end
+    in
+    let outs =
+      List.map
+        ~f:(fun vins ->
+            begin match distribute_option vins with
+              | None -> [None]
+              | Some vs ->
+                begin match f vs with
+                  | [] -> [None]
+                  | x -> List.map ~f:Option.some x
+                end
+            end)
+        args
+    in
+    let outsl = List.transpose_exn outs in
+    List.map
+      ~f:(fun outs ->
+          let in_outs = List.zip_exn input outs in
+          val_state c in_outs (t,cl))
+      outsl
+    (*let args =
+      List.map
+        ~f:(List.map
+              ~f:Value.to_exp)
+        args
+      in
+    let full_exps =
+      List.map
+        ~f:(List.fold
+              ~f:Expr.mk_app
+              ~init:e)
+        args
+    in
+      let outs = List.map ~f:Eval.evaluate full_exps in*)
+
+  let evaluate_full
+      (c:t)
+      (input:Predicate.t list)
+      (f:Value.t -> (Value.t option) list -> (Value.t option) list)
+      (args:State.t list)
+      ((t,cl):ClassifiedType.t)
+    : State.t list =
+    let vs = List.map ~f:(List.map ~f:snd % fst) args in
+    let args =
+      begin match vs with
+        | [] -> List.map ~f:(fun input -> (input,[])) input
+        | _ ->
+          List.zip_exn
+            input
+            (List.transpose_exn vs)
+      end
+    in
+    let outs =
+      List.map
+        ~f:(fun (input,vins) ->
+            List.dedup_and_sort
+              ~compare:(option_compare Value.compare)
+              (f input vins))
+        args
+    in
+    let outsl = combinations outs in
+    List.map
+      ~f:(fun outs ->
+          let in_outs = List.zip_exn input outs in
+          val_state c in_outs (t,cl))
+      outsl
+
   let update_from_conversions
       ?(ensure_state:bool = true)
       (c:t)
       (conversions:
          ((Transition.id
-           * (Value.t list -> Value.t list)
+           * (Value.t -> (Value.t option) list -> (Value.t option) list)
            * (ClassifiedType.t list) * ClassifiedType.t) list))
     : unit =
     let ids_ins_outs =
       List.concat_map
         ~f:(fun (i,e,tins,tout) ->
+            let inputs = c.inputs in
+            let args_choices =
+              List.map
+                ~f:(fun t -> get_states c t)
+                tins
+            in
+            let args_list =
+              combinations
+                args_choices
+            in
             List.concat_map
-              ~f:(fun input ->
-                  let args_choices =
-                    List.map
-                      ~f:(fun t -> get_states c t input)
-                      tins
-                  in
-                  let args_list =
-                    combinations
-                      args_choices
-                  in
-                  List.concat_map
-                    ~f:(fun ins ->
-                        let outs = evaluate c input e ins tout in
-                        List.map
-                          ~f:(fun out -> (i,ins,out,fst tout))
-                          outs)
-                    args_list)
-              c.inputs)
+              ~f:(fun ins ->
+                  let outs = evaluate_full c inputs e ins tout in
+                  List.map
+                    ~f:(fun out -> (i,ins,out,fst tout))
+                    outs)
+              args_list)
         conversions
     in
     List.iter
@@ -825,6 +901,33 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             tout
             ensure_state)
       ids_ins_outs
+
+  let update_from_simple_conversions
+      ?(ensure_state:bool = true)
+      (c:t)
+      (conversions:
+         ((Transition.id
+           * (Value.t -> Value.t list -> Value.t list)
+           * (ClassifiedType.t list) * ClassifiedType.t) list))
+    : unit =
+    let update_value_conversion f =
+      fun input vins ->
+        begin match distribute_option vins with
+          | None -> [None]
+          | Some vs ->
+            begin match f input vs with
+              | [] -> [None]
+              | x -> List.map ~f:Option.some x
+            end
+        end
+    in
+    let conversions =
+      List.map
+        ~f:(fun (tid,f,cts,ct) ->
+            (tid,update_value_conversion f,cts,ct))
+        conversions
+    in
+    update_from_conversions ~ensure_state c conversions
 
   let create_ds_from_t_list_context
       ~(context:Context.t)
@@ -858,7 +961,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let initialize_context
       ~(context:Context.t)
-      ~(abstraction:Abstraction.t)
+      ~(abstraction:AbstractionDict.t)
       (ts:Type.t list)
       (inputs:Value.t list)
       ((input_type,output_type):Type.t * Type.t)
@@ -875,7 +978,6 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let a = A.empty () in
     let d = InputsAndTypeToStates.empty in
     let input_vals = inputs in
-    let inputs = List.map ~f:(fun i -> [i]) inputs in
     let tset = TransitionSet.empty in
     let (input_type,_) = TypeDS.find_representative ds input_type in
     let (output_type,_) = TypeDS.find_representative ds output_type in
@@ -897,28 +999,25 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         abstraction       ;
       }
     in
-    List.iter
-      ~f:(fun i ->
-          add_transition
-            c
-            Var
-            []
-            (val_state c [(i,Some i)] (input_type,TermClassification.Elimination))
-            input_type
-            true;
-          add_transition
-            c
-            Var
-            []
-            (val_state c [(i,Some i)] (input_type,TermClassification.Introduction))
-            input_type
-            true;)
-      input_vals;
+    add_transition
+      c
+      Var
+      []
+      (val_state c (List.map ~f:(fun i -> (i,Some i)) input_vals) (input_type,TermClassification.Elimination))
+      input_type
+      true;
+    add_transition
+      c
+      Var
+      []
+      (val_state c (List.map ~f:(fun i -> (i,Some i)) input_vals) (input_type,TermClassification.Elimination))
+      input_type
+      true;
     c
 
   let initialize
       ~(problem:Problem.t)
-      ~(abstraction:Abstraction.t)
+      ~(abstraction:AbstractionDict.t)
       (ts:Type.t list)
       (inputs:Value.t list)
       ((input_type,output_type):Type.t * Type.t)
@@ -935,7 +1034,6 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let a = A.empty () in
     let d = InputsAndTypeToStates.empty in
     let input_vals = inputs in
-    let inputs = List.map ~f:(fun i -> [i]) inputs in
     let tset = TransitionSet.empty in
     let (input_type,_) = TypeDS.find_representative ds input_type in
     let (output_type,_) = TypeDS.find_representative ds output_type in
@@ -957,23 +1055,20 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         abstraction       ;
       }
     in
-    List.iter
-      ~f:(fun i ->
-          add_transition
-            c
-            Var
-            []
-            (val_state c [(i,Some i)] (input_type,TermClassification.Elimination))
-            input_type
-            true;
-          add_transition
-            c
-            Var
-            []
-            (val_state c [(i,Some i)] (input_type,TermClassification.Introduction))
-            input_type
-            true;)
-      input_vals;
+    add_transition
+      c
+      Var
+      []
+      (val_state c (List.map ~f:(fun i -> (i,Some i)) input_vals) (input_type,TermClassification.Elimination))
+      input_type
+      true;
+    add_transition
+      c
+      Var
+      []
+      (val_state c (List.map ~f:(fun i -> (i,Some i)) input_vals) (input_type,TermClassification.Elimination))
+      input_type
+      true;
     c
 
   let get_all_types
@@ -1041,6 +1136,55 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (c:t)
     : unit =
     let all_variant_reps =
+      List.dedup_and_sort
+        ~compare:Type.compare
+        (List.filter
+           ~f:(Option.is_some % Type.destruct_variant)
+           (List.map
+              ~f:(fst % TypeDS.find_representative c.ds)
+              c.all_types))
+    in
+    let conversions =
+      List.map
+        ~f:(fun vt ->
+            let ids = List.map ~f:fst (Type.destruct_variant_exn vt) in
+            let tid = Transition.VariantSwitch ids in
+            let output_type = (c.output_type,TermClassification.Introduction) in
+            let input_types =
+              (vt,TermClassification.Elimination)::
+              (List.map
+                 ~f:(func_of output_type)
+                 ids)
+            in
+            let conversion =
+              fun _ vso ->
+                begin match vso with
+                  | (Some inv)::vso ->
+                    begin match Value.node inv with
+                      | Wildcard -> [Some Value.mk_wildcard]
+                      | Ctor (i,v) ->
+                        let index =
+                          list_index_exn
+                            ~equal:Id.equal
+                            ids
+                            i
+                        in
+                        [List.nth_exn vso index]
+                      | _ -> failwith "ah"
+                    end
+                  | None::_ ->
+                    [None]
+                  | _ ->
+                    failwith "ah"
+                end
+            in
+            (tid,conversion,input_types,output_type))
+        all_variant_reps
+    in
+    update_from_conversions
+      c
+      conversions
+    (*let all_variant_reps =
       List.dedup_and_sort
         ~compare:Type.compare
         (List.filter
@@ -1238,7 +1382,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             out
             c.output_type
             true)
-      all_transformations*)
+      all_transformations*)*)
 
 
   let add_states

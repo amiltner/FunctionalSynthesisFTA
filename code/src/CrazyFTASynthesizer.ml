@@ -5,29 +5,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
   module A = B(FTAConstructor.Transition)(FTAConstructor.State)
   module C = FTAConstructor.Make(A)
 
-  module AbstractionDict =
-  struct
-    include DictOf(Value)(Abstraction)
-
-    let lookup
-        (d:t)
-        (k:key)
-      : value =
-      lookup_default ~default:Abstraction.init d k
-
-    let integrate_refinement
-        (ad:t)
-        (vps:(Value.t * Type.t * Predicate.t) list)
-      : t =
-      List.fold
-        ~f:(fun ad (v,t,p) ->
-            let va = lookup ad v in
-            let va = Abstraction.add va t p in
-            insert ad v va)
-        ~init:ad
-        vps
-  end
-
   type t =
     {
       context : Context.t ;
@@ -132,11 +109,11 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
 
   let construct_single_fta
       ~(context:Context.t)
-      ~(abstraction:Abstraction.t)
+      ~(abstraction:AbstractionDict.t)
       ~(tin:Type.t)
       ~(tout:Type.t)
-      (sub_calls:Value.t -> Value.t list)
-      (input:Value.t)
+      (sub_calls:Value.t -> Value.t -> Value.t list)
+      (inputs:Value.t list)
       (valid_ios:Value.t -> Value.t -> bool)
       (num_applications:int)
     : C.t =
@@ -150,8 +127,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
              ([tin;tout]
               @(List.map ~f:Type.mk_named (Context.keys context.tc))
               @(Context.data context.ec)
-              @(List.map ~f:(Typecheck.typecheck_value context.ec context.tc context.vc) (Value.subvalues input)))
-             [input]
+              @(List.map ~f:(Typecheck.typecheck_value context.ec context.tc context.vc) (List.concat_map ~f:Value.subvalues inputs)))
+             inputs
              (tin,tout)
              valid_ios
          in
@@ -166,7 +143,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                      ins
                  in
                  let e = Expr.replace_holes ~i_e:context.evals e in
-                 let evaluation vs =
+                 let evaluation _ vs =
                    let es = List.map ~f:Value.to_exp vs in
                    [Eval.evaluate
                       (List.fold
@@ -183,7 +160,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
              ~f:(fun t ->
                  match Type.node t with
                  | Type.Arrow (t1,t2) ->
-                   let evaluate vs =
+                   let evaluate _ vs =
                      begin match vs with
                        | [f;e] ->
                          let f = Value.to_exp f in
@@ -213,7 +190,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                    List.map
                      ~f:(fun (i,t') ->
                          (FTAConstructor.Transition.VariantConstruct i
-                         ,(fun vs -> [Value.mk_ctor i (List.hd_exn vs)])
+                         ,(fun _ vs -> [Value.mk_ctor i (List.hd_exn vs)])
                          ,[(t',TermClassification.Introduction)]
                          ,(t,TermClassification.Introduction)))
                      l
@@ -228,7 +205,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                    List.concat_map
                      ~f:(fun (i,t') ->
                          [(FTAConstructor.Transition.UnsafeVariantDestruct i,
-                           (fun vs ->
+                           (fun _ vs ->
                               match Value.destruct_ctor (List.hd_exn vs) with
                               | Some (i',v) ->
                                 if Id.equal i i' then [v] else []
@@ -236,7 +213,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                           ,[(t,TermClassification.Elimination)]
                           ,(t',TermClassification.Elimination))
                          ;(FTAConstructor.Transition.UnsafeVariantDestruct i,
-                           (fun vs ->
+                           (fun _ vs ->
                               match Value.destruct_ctor (List.hd_exn vs) with
                               | Some (i',v) ->
                                 if Id.equal i i' then [v] else []
@@ -258,7 +235,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                        ts
                    in
                    Some (FTAConstructor.Transition.TupleConstruct (List.length ts)
-                        ,(fun vs -> [Value.mk_tuple vs])
+                        ,(fun _ vs -> [Value.mk_tuple vs])
                         ,ts
                         ,(t,TermClassification.Introduction))
                  | _ -> None)
@@ -272,7 +249,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                      List.concat_mapi
                        ~f:(fun i tout ->
                            [(FTAConstructor.Transition.TupleDestruct (List.length ts,i)
-                            ,(fun vs ->
+                            ,(fun _ vs ->
                                [begin match Value.node (List.hd_exn vs) with
                                   | Tuple vs ->
                                     List.nth_exn vs i
@@ -283,7 +260,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                             ,[(t,TermClassification.Elimination)]
                             ,(tout,TermClassification.Elimination))
                            ;(FTAConstructor.Transition.TupleDestruct (List.length ts,i)
-                            ,(fun vs ->
+                            ,(fun _ vs ->
                                [begin match Value.node (List.hd_exn vs) with
                                   | Tuple vs ->
                                     List.nth_exn vs i
@@ -299,7 +276,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
              (C.get_all_types c)
          in
          let rec_call_conversions =
-           let evaluation vs =
+           let evaluation input vs =
              begin match vs with
                | [v1] ->
                  let break = fun v ->
@@ -315,7 +292,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                        t
                  in
                  if Predicate.implied_by_strict_functional_subvalue ~break v1 input then
-                   sub_calls v1
+                   sub_calls input v1
                  else
                    []
                | _ -> failwith "invalid"
@@ -375,9 +352,9 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
            let c = C.add_states c subcall_sites in*)
            List.iter
              ~f:(fun _ ->
-                 C.update_from_conversions c variant_unsafe_destruct_conversions;
-                 C.update_from_conversions c tuple_destructors;
-                 C.update_from_conversions c conversions)
+                 C.update_from_simple_conversions c variant_unsafe_destruct_conversions;
+                 C.update_from_simple_conversions c tuple_destructors;
+                 C.update_from_simple_conversions c conversions)
              (range 0 num_applications);
          (*C.update_from_conversions c (destruct_conversions) ~ensure_state:false;*)
            C.add_destructors c;
@@ -465,6 +442,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       ~(tin:Type.t)
       ~(tout:Type.t)
       ~(checker:Value.t -> Value.t -> bool)
+      ~(ds:C.TypeDS.t)
       (all_ins:Value.t list)
       (required_vs:ValueSet.t)
       (constraints:Constraints.t)
@@ -481,25 +459,37 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     (*print_endline (string_of_list Value.show all_ins);*)
     (*print_endline @$ Expr.show (C.term_to_exp_internals desired_term);
       print_endline @$ string_of_int @$ Expr.size (C.term_to_exp_internals desired_term);*)
+    let break = (fun v ->
+        let t =
+          Typecheck.typecheck_value
+            context.ec
+            context.tc
+            context.vc
+            v
+        in
+        C.TypeDS.is_recursive_type
+          ds
+          t)
+    in
     let inmap =
       List.fold
         ~f:(fun inmap v ->
-            let abstraction =
-              AbstractionDict.lookup
-                abstractions
-                v
-            in
             let res =
               construct_single_fta
-                ~abstraction
+                ~abstraction:abstractions
                 ~context
                 ~tin
                 ~tout
-                (fun v ->
+                (fun input v ->
                    let vc = ValToC.as_kvp_list inmap in
                    let all_valids = List.filter ~f:(fun (v',_) -> Predicate.(=>) v' v) vc in
+                   let all_valids =
+                     List.filter
+                       ~f:(fun (v',_) -> Value.strict_functional_subvalue ~break v' input)
+                       all_valids
+                   in
                    List.concat_map ~f:(fun (v,c) -> C.get_final_values c v) all_valids)
-                v
+                [v]
                 checker
                 size
             in
@@ -692,6 +682,13 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         rep_o
 
     let intersect
+        ~(context:Context.t)
+        ~(break:Value.t -> bool)
+        ~(abstraction:AbstractionDict.t)
+        ~(tin:Type.t)
+        ~(tout:Type.t)
+        ~(checker:Value.t -> Value.t -> bool)
+        ~(size:int)
         (pqe:t)
       : t option option =
       let min_unsat =
@@ -711,11 +708,30 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         | None -> None
         | Some (min,to_intersect) ->
           (*print_endline "intersect start";*)
-          Consts.log (fun _ -> "Now intersecting: " ^ (Value.show (List.hd_exn (List.hd_exn (min.inputs)))));
-          let c = C.intersect min pqe.c in
-          Consts.log (fun _ -> "Now minimizing: " ^ (Value.show (List.hd_exn (List.hd_exn (c.inputs)))));
+          Consts.log (fun _ -> "Now intersecting: " ^ (Value.show (List.hd_exn (min.inputs))));
+          let c =
+            (*C.intersect min pqe.c*)
+            construct_single_fta
+              ~context
+              ~abstraction
+              ~tin
+              ~tout
+              (fun input v ->
+                 let vc = ValToC.as_kvp_list pqe.v_to_c in
+                 let all_valids = List.filter ~f:(fun (v',_) -> Predicate.(=>) v' v) vc in
+                 let all_valids =
+                   List.filter
+                     ~f:(fun (v',_) -> Value.strict_functional_subvalue ~break v' input)
+                     all_valids
+                 in
+                 List.concat_map ~f:(fun (v,c) -> C.get_final_values c v) all_valids)
+              (min.inputs@pqe.c.inputs)
+              checker
+              size
+          in
+          Consts.log (fun _ -> "Now minimizing: " ^ (Value.show (List.hd_exn (c.inputs))));
           let c = C.minimize c in
-          Consts.log (fun _ -> string_of_float (Consts.max Consts.isect_times));
+          Consts.log (fun _ -> string_of_float (Consts.max Consts.initial_creation_times));
           (*print_endline (string_of_int (A.size c.a));*)
           (*print_endline "intersect end";*)
           let inputs = pqe.inputs in
@@ -938,8 +954,17 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       Consts.log (fun _ -> "\n\nPopped:");
       Consts.log (fun _ -> PQE.to_string_legible pqe);
       (*print_endline (string_of_bool @$ (C.accepts_term pqe.c desired_term));*)
-      begin match PQE.intersect pqe with
-        | Some pqeo ->
+      begin match
+          PQE.intersect
+            ~context
+            ~abstraction:abstractions
+            ~break
+            ~tin
+            ~tout
+            ~checker:pred
+            ~size
+            pqe with
+      | Some pqeo ->
           NewQEs (Option.to_list pqeo)
         | None ->
           Consts.log (fun _ -> "\n\nDone Intersecting!");
@@ -1024,6 +1049,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                         in
                         let (cs,v_to_c) =
                           construct_full
+                            ~ds
                             ~abstractions
                             ~context
                             ~tin
@@ -1093,6 +1119,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     let inputs = ValueSet.from_list inputs in
     let (cs,v_to_c) =
       construct_full
+        ~ds
         ~abstractions
         ~context
         ~tin
@@ -1369,7 +1396,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         all_sorted_ios
     in
     let bads =
-      List.filter_map
+      List.find_map
         ~f:(fun inv ->
             (*print_endline (Value.show inv);*)
             let outv =
@@ -1398,7 +1425,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           in
           tps
           (*List.map ~f:(fun (t,p) -> (vin,t,p)) tps*))
-      bads
+      (Option.to_list bads)
 
   let rec synthesize_abstraction
       ~(context:Context.t)
