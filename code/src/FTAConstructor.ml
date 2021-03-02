@@ -615,6 +615,11 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (vin:Value.t)
     : Predicate.t list =
     let final_states = A.final_states c.a in
+    (*print_endline "hey fs";
+    List.iter
+      ~f:(fun fs ->
+          print_endline (State.show fs))
+      final_states;*)
     List.concat_map
       ~f:(fun s ->
           begin match s with
@@ -1236,7 +1241,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
            ts;
          let ts_initial = List.filter ~f:(fun t -> Transition.arity t = 0) ts in
          let a = A.intersect ts_initial c1.a c2.a in
-         let c = { c1 with a } in
+         let inputs = c1.inputs@c2.inputs in
+         let c = { c1 with a; inputs } in
          invalidate_computations c;
          c)
 

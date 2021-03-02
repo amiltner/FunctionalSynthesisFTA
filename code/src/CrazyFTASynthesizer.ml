@@ -840,8 +840,11 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (restriction:Value.t)
     : bool option =
     (*None means unsafe restriction, Some true means restricts outputs, false means no restricts outputs*)
+    (*print_endline (Value.show inchoice);*)
     let vouts = C.get_final_values c inchoice in
     let vouts = List.dedup_and_sort ~compare:Value.compare vouts in
+    (*print_endline (string_of_list Value.show vouts);
+      print_endline "\n\n";*)
     if List.mem ~equal:Value.equal vouts restriction then
       Some (List.length vouts = 1)
     else
@@ -856,12 +859,10 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         (io:int option)
     : bool option =
     if ValueSet.member inset inchoice then
-      begin match io with
-        | None ->
-          safely_restricts_in_c pqe.c inchoice restriction
-        | Some i ->
-          safely_restricts_in_c (List.nth_exn pqe.to_intersect i) inchoice restriction
-      end
+      if List.mem ~equal:(is_equal %% (compare_list ~cmp:Value.compare)) pqe.c.inputs [inchoice] then
+        safely_restricts_in_c pqe.c inchoice restriction
+      else
+        safely_restricts_in_c (ValToC.lookup_exn vtoc inchoice) inchoice restriction
     else
       safely_restricts_in_c
         (ValToC.lookup_exn vtoc inchoice)
@@ -960,6 +961,24 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                         (safely_restricts_outputs pqe pqe.inputs pqe.v_to_c v1 v2 io))
                   rrs
               in
+              (*print_endline
+                (string_of_list
+                   (fun (v1,v2,v3,io,_) ->
+                      (Value.show v1) ^ "," ^
+                      (Value.show v2) ^ "," ^
+                      (Value.show v3) ^ "," ^
+                      (string_of_option Int.to_string io)
+                   )
+                   rrs);
+              print_endline
+                (string_of_list
+                   (string_of_option
+                      (string_of_pair
+                         string_of_bool
+                         (string_of_pair
+                            Value.show
+                            Value.show)))
+                  approvals);*)
               let possible =
                 distribute_option
                   approvals
@@ -985,10 +1004,14 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                         pqe.constraints
                         new_constraints
                     in
+                    (*print_endline
+                      (string_of_list
+                         (string_of_pair Value.show Value.show)
+                         new_constraints);*)
                     (*print_endline "here2";*)
                     begin match merged_constraints_o with
                       | None ->
-                        Consts.log (fun _ -> "popped value was found impossible");
+                        Consts.log (fun _ -> "popped value was found impossible1");
                         NewQEs
                           (List.filter_map
                              ~f:(fun r ->
@@ -1044,7 +1067,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                                                             r)
                                                       rcs))
                           | None ->
-                            Consts.log (fun _ -> "popped value was found impossible");
+                            Consts.log (fun _ -> "popped value was found impossible2");
                             NewQEs
                               (List.filter_map
                                  ~f:(fun r ->
@@ -1055,7 +1078,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                         end
                     end
                 | None ->
-                  Consts.log (fun _ -> "popped value was found impossible");
+                  Consts.log (fun _ -> "popped value was found impossible3");
                   NewQEs
                     (List.filter_map
                        ~f:(fun r ->

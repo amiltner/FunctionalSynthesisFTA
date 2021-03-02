@@ -115,7 +115,6 @@ let synthesize_solution
     ~(use_vata:bool)
     ~(print_mapping:bool)
   : unit =
-  print_endline (string_of_bool print_times);
   (*rd_aut ();*)
   Consts.logging := log;
   Consts.print_mapping := print_mapping;
