@@ -44,6 +44,34 @@ let conjunct_exn
   : t =
   Option.value_exn (conjunct p1 p2)
 
+let rec join
+    (p1:t)
+    (p2:t)
+  : t =
+  begin match (Value.node p1,Value.node p2) with
+    | (Wildcard,_) -> p1
+    | (_,Wildcard) -> p2
+    | (Func _, Func _) ->
+      if Value.equal p1 p2 then
+        p1
+      else
+        Value.mk_wildcard
+    | (Ctor (i1,v1),Ctor (i2,v2)) ->
+      if Id.equal i1 i2 then
+        Value.mk_ctor i1 (join v1 v2)
+      else
+        Value.mk_wildcard
+    | (Tuple vs1, Tuple vs2) ->
+      begin match List.map2 ~f:join vs1 vs2 with
+        | Ok vs ->
+          Value.mk_tuple vs
+        | Unequal_lengths ->
+          failwith "shouldnt occur"
+      end
+    | _ ->
+      failwith "shouldn't occur"
+  end
+
 let rec (=>)
     (p1:t)
     (p2:t)

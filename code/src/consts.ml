@@ -17,6 +17,11 @@ let min_elt_times = ref (0.0,0.0)
 let initial_creation_times = ref (0.0,0.0)
 let accepts_term_times = ref (0.0,0.0)
 
+let counter = ref 0
+let incr_counter () = counter := !counter+1
+let get_counter () = !counter
+let reset_counter () = counter := 0
+
 let time t f =
   let (ttot,tmax) = !t in
   let init = Sys.time () in

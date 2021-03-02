@@ -697,6 +697,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (tout:Type.t)
       (ensure_state:bool)
     : unit =
+    Consts.incr_counter ();
     let tout = get_type_rep c tout in
     update_tset
       c
@@ -862,8 +863,10 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       outsl
 
   let update_from_conversions
+    ?(print:bool=false)
       ?(ensure_state:bool = true)
       (c:t)
+      (filter:State.t list -> bool)
       (conversions:
          ((Transition.id
            * (Value.t -> (Value.t option) list -> (Value.t option) list)
@@ -872,14 +875,30 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     let ids_ins_outs =
       List.concat_map
         ~f:(fun (i,e,tins,tout) ->
+            if Type.equal (fst tout) Type._unit then
+              []
+            else
             let inputs = c.inputs in
             let args_choices =
               List.map
                 ~f:(fun t -> get_states c t)
                 tins
             in
-            let args_list =
-              combinations
+            if print then
+              begin
+                List.iter
+                  ~f:(fun (tin,acs) ->
+                      print_endline (ClassifiedType.show tin);
+                      print_endline (string_of_int (List.length acs));
+                      List.iter
+                        ~f:(fun s -> print_endline (State.show s))
+                        acs;
+                      print_endline "\n")
+                  (List.zip_exn tins args_choices);
+                  print_endline "\n\n\n"
+              end;
+           let args_list =
+             combinations
                 args_choices
             in
             List.concat_map
@@ -927,7 +946,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             (tid,update_value_conversion f,cts,ct))
         conversions
     in
-    update_from_conversions ~ensure_state c conversions
+    update_from_conversions ~ensure_state c (fun _ -> true) conversions
 
   let create_ds_from_t_list_context
       ~(context:Context.t)
@@ -1161,7 +1180,21 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                 begin match vso with
                   | (Some inv)::vso ->
                     begin match Value.node inv with
-                      | Wildcard -> [Some Value.mk_wildcard]
+                      | Wildcard ->
+                        let valids =
+                          List.filter_map
+                            ~f:ident
+                            vso
+                        in
+                        begin match valids with
+                          | [] -> [None]
+                          | _ ->
+                            [Some Value.mk_wildcard]
+                            (*[Some
+                               (fold_on_head_exn
+                                  ~f:Predicate.join
+                                  valids)]*)
+                        end
                       | Ctor (i,v) ->
                         let index =
                           list_index_exn
@@ -1182,7 +1215,15 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         all_variant_reps
     in
     update_from_conversions
+      ~print:false
       c
+      (fun ss ->
+         begin match ss with
+           | (vs,_)::_ ->
+             let outs = List.map ~f:snd vs in
+             List.length (List.dedup_and_sort ~compare:(option_compare Value.compare) outs) <> 1
+           | _ -> failwith "invalid"
+         end)
       conversions
     (*let all_variant_reps =
       List.dedup_and_sort

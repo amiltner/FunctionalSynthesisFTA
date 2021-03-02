@@ -200,7 +200,7 @@ module TimbukBuilder : AutomatonBuilder =
 
     let transitions_from a s =
       let ps = A.state_parents s a in
-      let cs = A.ConfigurationSet.as_list ps in
+      let cs = ps in
       List.concat_map
         ~f:(fun c ->
             let ss =
@@ -209,7 +209,7 @@ module TimbukBuilder : AutomatonBuilder =
             in
             let (i,vs) = A.Configuration.node c in
             List.map ~f:(fun s -> (i,vs,s)) ss)
-        cs
+        !cs
 
     let transitions_to
         a
@@ -223,7 +223,7 @@ module TimbukBuilder : AutomatonBuilder =
       List.map
         ~f:(fun c ->
             A.Configuration.node c)
-        (A.ConfigurationSet.as_list configs)
+        !(configs)
 
     let transitions
         (c:t)
@@ -232,12 +232,12 @@ module TimbukBuilder : AutomatonBuilder =
       let ts =
         A.StateMap.fold
           (fun s cs ts ->
-             A.ConfigurationSet.fold
-               (fun c ts ->
+             List.fold_right
+               ~f:(fun c ts ->
                   let (i,ss) = (A.Configuration.node c) in
                   (i,ss ,s)::ts)
-               cs
-               ts)
+               !cs
+               ~init:ts)
           sm
           []
       in

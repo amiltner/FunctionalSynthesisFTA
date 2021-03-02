@@ -188,7 +188,21 @@ let rec evaluate
           in
           let (vcalls',v) = evaluate (replace i (value_to_exp v) branch) in
           (vcalls@vcalls',v)
-        | Wildcard -> (vcalls,Wildcard)
+        | Wildcard ->
+          (*let branch_evals =
+            List.map
+              ~f:(fun (_,branch) -> evaluate (replace i (value_to_exp v) branch))
+              branches
+          in
+          let (all_calls,all_evals) = List.unzip branch_evals in
+          let all_evals_vals = List.map ~f:to_value all_evals in
+          let final_val =
+            fold_on_head_exn
+              ~f:Predicate.join
+              all_evals_vals
+            in*)
+          (*List.concat all_calls,from_value final_val*)
+          (vcalls,Wildcard)
         | _ -> failwith "no soln"
       end
     | Tuple es ->

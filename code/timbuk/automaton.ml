@@ -28,12 +28,12 @@ module type BASE = sig
   val clear : t -> t
   val copy : t -> t
   val final_states : t -> StateSet.t
-  val configurations_for_states : t -> ConfigurationSet.t StateMap.t
-  val configurations_for_state : State.t -> t -> ConfigurationSet.t
-  val configurations_for_state_nonmutate : State.t -> t -> ConfigurationSet.t
+  val configurations_for_states : t -> (Configuration.t list ref) StateMap.t
+  val configurations_for_state : State.t -> t -> (Configuration.t list ref)
+  val configurations_for_state_nonmutate : State.t -> t -> (Configuration.t list)
   val states_for_configurations : t -> StateSet.t ConfigurationMap.t
   val states_for_configuration : Configuration.t -> t -> StateSet.t
-  val state_parents : State.t -> t -> ConfigurationSet.t
+  val state_parents : State.t -> t -> Configuration.t list ref
   val add_final_state : State.t -> t -> unit
   val add_final_states : StateSet.t -> t -> unit
   val set_final_states : StateSet.t -> t -> unit
@@ -60,13 +60,13 @@ module type S = sig
   val is_final : t -> State.t -> bool
   val state_count : t -> int
   val is_state_empty : State.t -> t -> bool
-  val configurations_for_state : State.t -> t -> ConfigurationSet.t
+  val configurations_for_state : State.t -> t -> Configuration.t list
   val fold_configurations_for_binding : (Configuration.t -> State.t -> 'a -> 'a) -> Binding.t -> t -> 'a -> 'a
   val iter_configurations_for_binding : (Configuration.t -> State.t -> unit) -> Binding.t -> t -> unit
   val fold_configurations_for_epsilon_state : (Configuration.t -> 'a -> 'a) -> State.t -> t -> 'a -> 'a
   val iter_configurations_for_epsilon_state : (Configuration.t -> unit) -> State.t -> t -> unit
   val fold_epsilon_class : (State.t -> 'a -> 'a) -> State.t -> t -> 'a -> 'a
-  val state_transitive_parents : State.t -> t -> ConfigurationSet.t
+  val state_transitive_parents : State.t -> t -> Configuration.t list
   val sub_automaton : StateSet.t -> t -> t
   val mem : Configuration.t -> State.t -> t -> bool
   val mem_configuration : Configuration.t -> t -> bool
@@ -191,9 +191,9 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
 
   type t = {
     mutable roots : StateSet.t; (* Final states. *)
-    mutable state_confs : ConfigurationSet.t StateMap.t; (* Associates to each state the set of configurations leading to it. *)
+    mutable state_confs : Configuration.t list ref StateMap.t; (* Associates to each state the set of configurations leading to it. *)
     mutable conf_states : StateSet.t ConfigurationMap.t; (* Associates to each configuration the set of states to go to. *)
-    mutable state_parents : ConfigurationSet.t StateMap.t (* Associates to each state the set of configurations it appears in. *)
+    mutable state_parents : Configuration.t list ref StateMap.t (* Associates to each state the set of configurations it appears in. *)
   }
 
   type data = unit
@@ -224,7 +224,7 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
   let state_parents q a =
     StateMap.find_or_add
       q
-      (fun () -> (ConfigurationSet.empty ()))
+      (fun () -> ref [])
       a.state_parents
 
   let add_final_state q a =
@@ -243,13 +243,13 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
   let configurations_for_state q a =
     StateMap.find_or_add
       q
-      (fun _ -> ConfigurationSet.empty ())
+      (fun _ -> ref [])
       a.state_confs
 
   let configurations_for_state_nonmutate q a =
     begin match StateMap.find_opt q a.state_confs with
-      | None -> ConfigurationSet.create 0
-      | Some cs -> cs
+      | None -> []
+      | Some cs -> !cs
     end
 
   let states_for_configuration conf a =
@@ -261,20 +261,20 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
   let add_transition (conf) q (a:t) =
     let add_parent_to q =
       let cs = state_parents q a in
-      ConfigurationSet.add
-        conf
-        cs;
+      cs := conf::!cs;
     in
-    ConfigurationSet.add (conf) (configurations_for_state q a);
+    let cs = (configurations_for_state q a) in
+    cs := conf::!cs;
     StateSet.add q (states_for_configuration conf a);
     List.iter add_parent_to (snd (Configuration.node conf))
 
   let remove_transition (conf) q (a:t) =
     let remove_parent_from q =
       let cs = (state_parents q a) in
-      (ConfigurationSet.remove conf cs);
+      cs := List.filter (fun c -> not (Configuration.equal c conf)) !cs;
     in
-    ConfigurationSet.remove conf (configurations_for_state q a);
+    let cs = (configurations_for_state q a) in
+    cs := List.filter (fun c -> not (Configuration.equal c conf)) !cs;
     StateSet.remove q (states_for_configuration conf a);
     List.iter remove_parent_from (snd (Configuration.node conf))
 end
@@ -348,12 +348,12 @@ module Extend (B: BASE) = struct
 
   let is_state_empty q a =
     let confs = configurations_for_state q a in
-    ConfigurationSet.is_empty confs
+    List.length !confs = 0
 
   let fold_transitions f a x =
     let fold_state_confs q confs x =
       let fold_labeled_confs conf = f conf q in
-      ConfigurationSet.fold (fold_labeled_confs) confs x
+      List.fold_right (fold_labeled_confs) !confs x
     in
     StateMap.fold (fold_state_confs) (configurations_for_states a) x
 
@@ -371,8 +371,8 @@ module Extend (B: BASE) = struct
       | Some () -> x
       | None ->
         Hashtbl.add table q ();
-        ConfigurationSet.fold (fold_configuration) (configurations_for_state_nonmutate q a) (f q x)
-    and fold_configuration conf x =
+        List.fold_right (fold_configuration) (configurations_for_state_nonmutate q a) (f q x)
+    and fold_configuration (conf:Configuration.t) x =
       let (_,ss) = Configuration.node conf in
       List.fold_right fold_state ss x
     and fold_transition conf q x =
@@ -390,7 +390,7 @@ module Extend (B: BASE) = struct
     StateSet.contains q (final_states a)
 
   let state_count a =
-    fold_states (fun _ k -> k + 1) a 0
+    StateMap.fold (fun _ _ i -> i+1) (configurations_for_states a) 0
 
   let mem conf label state a =
     let states = states_for_configuration conf a in
@@ -415,7 +415,7 @@ module Extend (B: BASE) = struct
       let foreach_conf conf x =
           func conf q x
       in
-      ConfigurationSet.fold foreach_conf confs x
+      List.fold_right foreach_conf !confs x
     | (None, label) ->
       let foreach_state q x =
         fold_configurations_for_binding func (Some q, label) t x
@@ -497,7 +497,7 @@ module Extend (B: BASE) = struct
           let u = add_transition conf q u in
           visit_conf conf u
         in
-        ConfigurationSet.fold add_conf confs ()
+        List.fold_right add_conf !confs ()
     and visit_conf_internal conf () =
       match conf with
       | (_, l) ->
@@ -544,15 +544,15 @@ module Extend (B: BASE) = struct
                 begin
                   StateSet.add s added_states;
                   let configs =
-                    ConfigurationSet.fold2
-                      (fun c1 c2 cs ->
+                    MyStdLib.List.fold
+                      ~f:(fun cs (c1,c2) ->
                          begin match Configuration.product c1 c2 with
                            | None -> cs
                            | Some p -> (c1,c2,p)::cs
                          end)
-                      (state_parents s1 a)
-                      (state_parents s2 b)
-                      []
+                      ~init:[]
+                      (MyStdLib.cartesian_map ~f:MyStdLib.Tuple2.create !(state_parents s1 a) !(state_parents s2 b))
+                      
                   in
                   let configs_output =
                     List.concat_map
@@ -613,7 +613,7 @@ module Extend (B: BASE) = struct
         | Some () -> ()
         | None ->
           Hashtbl.add visited q ();
-          ConfigurationSet.fold (reach_conf) (state_parents q a) (StateSet.add q set)
+          List.fold_right (reach_conf) !(state_parents q a) (StateSet.add q set)
       in
       if (List.for_all (reachable set) ss) then
         StateSet.fold (fold) lbl_states ()
@@ -666,8 +666,8 @@ module Extend (B: BASE) = struct
   let prune_useless (x:t)
     : t =
     (*let x = reduce x in*)
-    let fs = final_states x in
-      let x = sub_automaton fs x in
+    (*let fs = final_states x in
+      let x = sub_automaton fs x in*)
     x
 
   type renaming = State.t StateMap.t
@@ -679,7 +679,7 @@ module Extend (B: BASE) = struct
       let print_conf conf =
         Format.fprintf out "%t -> %t\n" (fun f -> Configuration.pp f conf) (State.print q)
       in
-      ConfigurationSet.iter (print_conf) confs
+      List.iter (print_conf) !confs
     and print_state q =
       Format.fprintf out "%t " (State.print q)
     in

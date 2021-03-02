@@ -117,6 +117,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (valid_ios:Value.t -> Value.t -> bool)
       (num_applications:int)
     : C.t =
+    Consts.reset_counter ();
     Consts.time
       Consts.initial_creation_times
       (fun _ ->
@@ -357,11 +358,13 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                  C.update_from_simple_conversions c conversions)
              (range 0 num_applications);
          (*C.update_from_conversions c (destruct_conversions) ~ensure_state:false;*)
+           print_endline ("Counter:" ^ (string_of_int (Consts.get_counter ();)));
            C.add_destructors c;
            (*print_endline "here";
              print_endline (C.show c);
              print_endline (string_of_bool (Option.is_some (C.min_term_state c)));*)
-         let c = C.minimize c in
+           print_endline ("Counter:" ^ (string_of_int (Consts.get_counter ();)));
+           let c = C.minimize c in
            (*print_endline (C.show c);
              print_endline "there";*)
          c)
@@ -709,6 +712,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         | Some (min,to_intersect) ->
           (*print_endline "intersect start";*)
           Consts.log (fun _ -> "Now intersecting: " ^ (Value.show (List.hd_exn (min.inputs))));
+          print_endline (string_of_int (List.length to_intersect));
           let c =
             (*C.intersect min pqe.c*)
             construct_single_fta
@@ -725,12 +729,12 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                      all_valids
                  in
                  List.concat_map ~f:(fun (v,c) -> C.get_final_values c v) all_valids)
-              (min.inputs@pqe.c.inputs)
+              ((List.concat_map ~f:(fun c -> c.inputs) pqe.to_intersect)@pqe.c.inputs)
               checker
               size
           in
           Consts.log (fun _ -> "Now minimizing: " ^ (Value.show (List.hd_exn (c.inputs))));
-          let c = C.minimize c in
+          (*let c = C.minimize c in*)
           Consts.log (fun _ -> string_of_float (Consts.max Consts.initial_creation_times));
           (*print_endline (string_of_int (A.size c.a));*)
           (*print_endline "intersect end";*)
@@ -750,11 +754,12 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           let constraints = pqe.constraints in
           let nonpermitted = pqe.nonpermitted in
           let v_to_c = pqe.v_to_c in
+          print_endline (string_of_int (A.size c.a));
           Some
             (make_internal
                ~inputs
                ~c
-               ~to_intersect
+               ~to_intersect:[]
                ~constraints
                ~nonpermitted
                ~v_to_c)
@@ -1370,6 +1375,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     print_endline (A.Term.show cand);
     print_endline (Expr.show (C.term_to_exp tin tout cand));
       assert (List.length (C.extract_unbranched_switches cand) = 0);*)
+    print_endline "test";
     let all_sorted_inputs =
       get_all_sorted_inputs_of_same_type context ds inputs
     in
@@ -1396,9 +1402,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         all_sorted_ios
     in
     let bads =
-      List.find_map
+      List.filter_map
         ~f:(fun inv ->
-            (*print_endline (Value.show inv);*)
             let outv =
               AngelicEval.to_value
                 (List.Assoc.find_exn
@@ -1425,7 +1430,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           in
           tps
           (*List.map ~f:(fun (t,p) -> (vin,t,p)) tps*))
-      (Option.to_list bads)
+      bads
 
   let rec synthesize_abstraction
       ~(context:Context.t)
