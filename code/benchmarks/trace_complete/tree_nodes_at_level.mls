@@ -44,6 +44,6 @@ synth tree -> nat -> nat satisfying
 [Node (Node (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf)), True, Leaf),0] -> 1,
 [Node (Node (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf)), True, Leaf),1] -> 1,
 [Node (Node (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf)), True, Leaf),2] -> 2,
-[Node (Node (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf)), True, Leaf),3] -> 1,
+[Node (Node (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf)), True, Leaf),3] -> 0,
 
 (* Interesting one, is slow but i'm not sure how to fix *)

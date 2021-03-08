@@ -18,6 +18,7 @@ struct
 
   let empty = D.empty
   let insert x s = D.insert s x ()
+  let insert_and_new x s = D.insert_and_new s x ()
   let insert_all s xs =
     List.fold
       ~f:(fun s x -> insert x s)

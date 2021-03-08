@@ -840,6 +840,13 @@ module Value = struct
       ~tuple_f:(fun is -> List.fold ~f:(+) ~init:1 is)
       ~wildcard_f:1
 
+  let size_min_expr : t -> int =
+    fold
+      ~func_f:(fun _ _ -> 1)
+      ~ctor_f:(fun _ i -> i+1)
+      ~tuple_f:(fun is -> List.fold ~f:(+) ~init:1 is)
+      ~wildcard_f:1
+
   let unit_ = create (Tuple [])
   let true_ = create (Ctor (Id.create "True",unit_))
   let false_ = create (Ctor (Id.create "False",unit_))

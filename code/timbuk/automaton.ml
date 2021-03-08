@@ -15,7 +15,7 @@ end
 module type BASE = sig
   module Sym : Symbol.S
   module State : STATE
-  module Configuration : ConfigS with type t = (Sym.t * State.t list) MyStdLib.hash_consed and type t_node = Sym.t * State.t list
+  module Configuration : ConfigS with type t = (Sym.t * State.t list) (*MyStdLib.hash_consed*) and type t_node = Sym.t * State.t list
   module StateSet : MyStdLib.HashSet.ImperativeSet with type elt = State.t
   module StateMap : MyStdLib.HashTable.ImperativeDict with type key = State.t
   module ConfigurationSet : MyStdLib.HashSet.ImperativeSet with type elt = Configuration.t
@@ -139,24 +139,24 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
     type t_node = Sym.t * State.t list
     [@@deriving hash, eq, ord, show]
 
-    type t = t_node hash_consed
+    type t = t_node (*hash_consed*)
     [@@deriving hash, eq, ord, show]
 
-    let table = HashConsTable.create 1000
+    (*let table = HashConsTable.create 1000*)
 
     let create
         (node:t_node)
       : t =
-      HashConsTable.hashcons
+      (*HashConsTable.hashcons
         hash_t_node
         compare_t_node
-        table
+        table*)
         node
 
     let node
         (v:t)
       : t_node =
-      v.node
+      v(*.node*)
 
     let product
         (c1:t)
@@ -511,7 +511,7 @@ module Extend (B: BASE) = struct
   let inter initials a b =
     let aut = empty () in
     let added_states = StateSet.empty () in
-    let processed_configs = ConfigurationSet.empty () in
+    (*let processed_configs = ConfigurationSet.empty () in*)
     let initial_configs =
       List.concat_map
         (fun t ->
@@ -557,16 +557,16 @@ module Extend (B: BASE) = struct
                   let configs_output =
                     List.concat_map
                       (fun (c1,c2,c) ->
-                         if ConfigurationSet.contains c processed_configs then
+                         (*if ConfigurationSet.contains c processed_configs then
                            []
-                         else
+                           else*)
                            let (t,ss) = Configuration.node c in
                            if List.for_all
                                (fun s -> StateSet.contains s added_states)
                                ss
                            then
                              begin
-                               ConfigurationSet.add c processed_configs;
+                               (*ConfigurationSet.add c processed_configs;*)
                                StateSet.fold2
                                  (fun s1 s2 sps ->
                                     (c,s1,s2)::sps
@@ -668,6 +668,20 @@ module Extend (B: BASE) = struct
     (*let x = reduce x in*)
     let fs = final_states x in
       let x = sub_automaton fs x in
+    x
+
+  let prune_useless_full (x:t)
+    : t =
+    let x = reduce x in
+    let fs = final_states x in
+    let x = sub_automaton fs x in
+    x
+
+  let prune_useless (x:t)
+    : t =
+    (*let x = reduce x in*)
+    let fs = final_states x in
+    let x = sub_automaton fs x in
     x
 
   type renaming = State.t StateMap.t

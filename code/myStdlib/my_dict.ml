@@ -206,13 +206,13 @@ struct
       (d: t)
       (k: key)
       (v: value)
-    : kicked =
+    : (kicked * bool) =
     match d with
-      | Leaf -> Up(Leaf,(k,v),Leaf)
-      | Two(left,n,right) -> 
-        insert_downward_two merge (k,v) n left right
-      | Three(left,n1,middle,n2,right) -> 
-        insert_downward_three merge (k,v) n1 n2 left middle right
+    | Leaf -> (Up(Leaf,(k,v),Leaf),true)
+    | Two(left,n,right) -> 
+      insert_downward_two merge (k,v) n left right
+    | Three(left,n1,middle,n2,right) -> 
+      insert_downward_three merge (k,v) n1 n2 left middle right
 
   (* Downward phase on a Two node. (k,v) is the (key,value) we are inserting,
    * (k1,v1) is the (key,value) of the current Two node, and left and right
@@ -223,21 +223,24 @@ struct
       ((k1,v1): pair)
       (left: t)
       (right: t)
-    : kicked =
+    : (kicked * bool) =
     let cmp = compare_key k k1 in
     if is_equal cmp then
-      Done(Two(left,(k1,merge v1 v),right))
+      (Done(Two(left,(k1,merge v1 v),right)),false)
     else if is_lt cmp then
-      begin match insert_downward merge left k v with
+      let (added,newc) = insert_downward merge left k v in
+      begin match added with
         | Up(l_kick,w,r_kick) -> 
-          insert_upward_two w l_kick r_kick (k1,v1) right
-        | Done new_left -> Done(Two(new_left,(k1,v1),right))
+          (insert_upward_two w l_kick r_kick (k1,v1) right,newc)
+        | Done new_left -> (Done(Two(new_left,(k1,v1),right)),newc)
       end
     else
-      begin match insert_downward merge right k v with
-        | Up(l_kick,w,r_kick) -> 
-          insert_upward_two w l_kick r_kick (k1,v1) left
-        | Done new_right -> Done(Two(left,(k1,v1),new_right))
+      let (added,newc) = insert_downward merge right k v in
+      begin match added with
+        | Up(l_kick,w,r_kick) ->
+          (insert_upward_two w l_kick r_kick (k1,v1) left,newc)
+        | Done new_right ->
+          (Done(Two(left,(k1,v1),new_right)),newc)
       end
 
 
@@ -252,29 +255,34 @@ struct
       (left: t)
       (middle: t)
       (right: t)
-    : kicked =
+    : (kicked * bool) =
     match
       make_matchable (compare_key k k1),
       make_matchable (compare_key k k2) with
-      | EQ, _ -> Done(Three(left,(k1,merge v1 v),middle,(k2,v2),right))
-      | _, EQ -> Done(Three(left,(k1,v1),middle,(k2,merge v2 v),right))
-      | LT, _ -> 
-        (match insert_downward merge left k v with
+    | EQ, _ -> (Done(Three(left,(k1,merge v1 v),middle,(k2,v2),right)),false)
+    | _, EQ -> (Done(Three(left,(k1,v1),middle,(k2,merge v2 v),right)),false)
+    | LT, _ ->
+      let (added,newc) = insert_downward merge left k v in
+      (match added with
+       | Up(l_kick,w,r_kick) ->
+         (insert_upward_three w l_kick r_kick (k1,v1) (k2,v2) middle right,newc)
+       | Done new_left -> (Done(Three(new_left,(k1,v1),middle,(k2,v2),right)),newc)
+      )
+    | _, GT ->
+      let (added,newc) = insert_downward merge right k v in
+        (match added with
           | Up(l_kick,w,r_kick) ->
-            insert_upward_three w l_kick r_kick (k1,v1) (k2,v2) middle right
-          | Done new_left -> Done(Three(new_left,(k1,v1),middle,(k2,v2),right))
+            (insert_upward_three w l_kick r_kick (k1,v1) (k2,v2) left middle,newc)
+          | Done new_right ->
+            (Done(Three(left,(k1,v1),middle,(k2,v2),new_right)),newc)
         )
-      | _, GT ->
-        (match insert_downward merge right k v with
+    | GT, LT ->
+      let (added,newc) = insert_downward merge middle k v in
+        (match added with
           | Up(l_kick,w,r_kick) ->
-            insert_upward_three w l_kick r_kick (k1,v1) (k2,v2) left middle
-          | Done new_right -> Done(Three(left,(k1,v1),middle,(k2,v2),new_right))
-        )
-      | GT, LT ->
-        (match insert_downward merge middle k v with
-          | Up(l_kick,w,r_kick) ->
-            insert_upward_three w l_kick r_kick (k1,v1) (k2,v2) left right
-          | Done new_mid -> Done(Three(left,(k1,v1),new_mid,(k2,v2),right))
+            (insert_upward_three w l_kick r_kick (k1,v1) (k2,v2) left right,newc)
+          | Done new_mid ->
+            (Done(Three(left,(k1,v1),new_mid,(k2,v2),right)),newc)
         )   
 
   (* We insert (k,v) into our dict using insert_downward, which gives us
@@ -285,12 +293,17 @@ struct
       (d: t)
       (k: key)
       (v: value)
-    : t =
-    match insert_downward combiner d k v with
-      | Up(l,(k1,v1),r) -> Two(l,(k1,v1),r)
-      | Done x -> x
+    : (t * bool) =
+    let (downward,added) = insert_downward combiner d k v in
+    match downward with
+    | Up(l,(k1,v1),r) -> (Two(l,(k1,v1),r),added)
+    | Done x -> (x,added)
 
   let insert : t -> key -> value -> t =
+    fun x k v ->
+    fst (insert_or_combine ~combiner:(fun _ n -> n) x k v)
+
+  let insert_and_new : t -> key -> value -> t * bool =
     insert_or_combine ~combiner:(fun _ n -> n)
 
   (* Upward phase for removal where the parent of the hole is a Two node. 

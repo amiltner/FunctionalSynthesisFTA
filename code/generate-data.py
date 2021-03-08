@@ -54,11 +54,11 @@ def average(lst):
 TEST_EXT = '.mls'
 BASELINE_EXT = '.out'
 BASE_FLAGS = ["-run-experiments"]
-TIMEOUT_TIME = 30
+TIMEOUT_TIME = 120
 STILL_WORK_TIMEOUT_TIME = 120
 GENERATE_EXAMPLES_TIMEOUT_TIME = 600000
 
-REPETITION_COUNT = 1
+REPETITION_COUNT = 10
 
 def ensure_dir(f):
     d = os.path.dirname(f)

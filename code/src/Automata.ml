@@ -4,6 +4,7 @@ module type Symbol =
 sig
   include Data
   val arity : t -> int
+  val cost : t -> int
 end
 
 module type State =
@@ -281,7 +282,7 @@ module TimbukBuilder : AutomatonBuilder =
         Option.map
           ~f:(fun iss ->
               let (ints,ss) = List.unzip iss in
-              let size = List.fold ~f:(+) ~init:1 ints in
+              let size = List.fold ~f:(+) ~init:(Symbol.cost t) ints in
               (size,TS (t,s,ss)))
           (distribute_option subs)
       in
@@ -298,7 +299,6 @@ module TimbukBuilder : AutomatonBuilder =
                 min_tree_internal st pq
               else
                 let st = StateToTS.insert st s (i,t) in
-
                 let triggered_transitions = transitions_from a s in
                 let produced =
                   List.filter_map
