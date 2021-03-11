@@ -140,80 +140,113 @@ let rec replace
   end
 
 let rec evaluate
-    (angelics : (value * value) list)
+    (angelics : (value * value list) list)
     (e : expr)
-  : ((value * value) list * value) =
+  : ((value * value) list * value) list =
   let evaluate = evaluate angelics in
   begin match e with
     | AngelicF e ->
-      let (vs,inv) = evaluate e in
-      let outv = List.Assoc.find_exn ~equal:equal_value angelics inv in
-      ((inv , outv)::vs,outv)
+      let vs_invs = evaluate e in
+      List.concat_map
+        ~f:(fun (vs,inv) ->
+            let outvs = List.Assoc.find_exn ~equal:equal_value angelics inv in
+            List.map
+              ~f:(fun outv ->
+                  ((inv , outv)::vs,outv))
+              outvs)
+        vs_invs
     | Var i -> failwith ("unbound variable " ^ (Id.show i))
     | App (e1,e2) ->
-      let (vins1,v1) = evaluate e1 in
-      let (vins2,v2) = evaluate e2 in
-      let vins = vins1@vins2 in
-      let e1 = value_to_exp v1 in
-      let e2 = value_to_exp v2 in
-      begin match e1 with
-        | Func ((i,_),e1) ->
-          let fulle = replace i e2 e1 in
-          let (vinscall,res) = evaluate fulle in
-          (vinscall@vins,res)
-        | _ -> failwith ("nonfunc applied: " ^ (show_expr e1))
-      end
+      let vins1v1s = evaluate e1 in
+      let vins2v2s = evaluate e2 in
+      cartesian_concat_map
+        ~f:(fun (vins1,v1) (vins2,v2) ->
+            let vins = vins1@vins2 in
+            let e1 = value_to_exp v1 in
+            let e2 = value_to_exp v2 in
+            begin match e1 with
+              | Func ((i,_),e1) ->
+                let fulle = replace i e2 e1 in
+                let vinscallress = evaluate fulle in
+                List.map
+                  ~f:(fun (vinscall,res) ->
+                      (vinscall@vins,res))
+                  vinscallress
+              | _ -> failwith ("nonfunc applied: " ^ (show_expr e1))
+            end)
+        vins1v1s
+        vins2v2s
     | Func (a,e) ->
-      ([],Func (a,e))
+      [([],Func (a,e))]
     | Ctor (i,e) ->
-      let (vcalls,v) = evaluate e in
-      (vcalls,(Ctor (i,v) : value))
+      let vcallsvs = evaluate e in
+      List.map
+        ~f:(fun (vcalls,v) ->
+            (vcalls,(Ctor (i,v) : value)))
+        vcallsvs
     | Fix (i,_,e') ->
       evaluate (replace i e e')
     | Match (e,i,branches) as match_expr ->
-      let (vcalls,v) = evaluate e in
-      begin match v with
-        | Ctor (choice,v) ->
-          let branch_o = List.Assoc.find ~equal:Id.equal branches choice in
-          let branch =
-            begin match branch_o with
-              | None ->
-                failwith
-                  ("constructor "
-                   ^ (Id.show choice)
-                   ^ " not matched: \n "
-                   ^ (show_expr match_expr))
-              | Some b -> b
-            end
-          in
-          let (vcalls',v) = evaluate (replace i (value_to_exp v) branch) in
-          (vcalls@vcalls',v)
-        | Wildcard -> (vcalls,Wildcard)
-        | _ -> failwith "no soln"
-      end
+      let vcallsvs = evaluate e in
+      List.concat_map
+        ~f:(fun (vcalls,v) ->
+            begin match v with
+              | Ctor (choice,v) ->
+                let branch_o = List.Assoc.find ~equal:Id.equal branches choice in
+                let branch =
+                  begin match branch_o with
+                    | None ->
+                      failwith
+                        ("constructor "
+                         ^ (Id.show choice)
+                         ^ " not matched: \n "
+                         ^ (show_expr match_expr))
+                    | Some b -> b
+                  end
+                in
+                let vcalls'vs = evaluate (replace i (value_to_exp v) branch) in
+                List.map
+                  ~f:(fun (vcalls',v) ->
+                      (vcalls@vcalls',v))
+                  vcalls'vs
+              | Wildcard -> [vcalls,Wildcard]
+              | _ -> failwith "no soln"
+            end)
+        vcallsvs
     | Tuple es ->
-      let (vcalls,vs) =
-        List.unzip (List.map ~f:evaluate es)
-      in
-      let allcalls = List.concat vcalls in
-      (allcalls,Tuple vs)
+      let allcalls_allvs = List.map ~f:evaluate es in
+      let all_merges = combinations allcalls_allvs in
+      List.map
+        ~f:(fun calls_vs ->
+            let (vcalls,vs) =
+              List.unzip calls_vs
+            in
+            let allcalls = List.concat vcalls in
+            (allcalls,(Tuple vs : value)))
+        all_merges
     | Proj (i,e) ->
-      let (vcalls,v) = evaluate e in
-      begin match v with
-        | Tuple vs -> (vcalls,List.nth_exn vs i)
-        | Wildcard -> (vcalls,Wildcard)
-        | _ -> failwith "bad"
-      end
+      let vcallsvs = evaluate e in
+      List.map
+        ~f:(fun (vcalls,v) ->
+            begin match v with
+              | Tuple vs -> (vcalls,List.nth_exn vs i)
+              | Wildcard -> (vcalls,Wildcard)
+              | _ -> failwith "bad"
+            end)
+        vcallsvs
     | Unctor (i,e) ->
-      let (vcalls,v) = evaluate e in
-      begin match v with
-        | Ctor (i',e) ->
-          assert (Id.equal i  i');
-          (vcalls,e)
-        | Wildcard -> (vcalls,Wildcard)
-        | _ -> failwith "ah"
-      end
-    | Wildcard -> ([],Wildcard)
+      let vcallsvs = evaluate e in
+      List.map
+        ~f:(fun (vcalls,v) ->
+            begin match v with
+            | Ctor (i',e) ->
+              assert (Id.equal i  i');
+              (vcalls,e)
+            | Wildcard -> (vcalls,Wildcard)
+            | _ -> failwith "ah"
+          end)
+        vcallsvs
+    | Wildcard -> [[],Wildcard]
   end
 
 let replace_holes
@@ -227,8 +260,8 @@ let replace_holes
 
 let evaluate_with_holes
     ~eval_context:(i_e:(Id.t * expr) list)
-    (ios:(value * value) list)
+    (ios:(value * value list) list)
     (e:expr)
-  : (value * value) list * value =
+  : ((value * value) list * value) list =
   let e = replace_holes ~i_e e in
   evaluate ios e

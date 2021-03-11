@@ -42,7 +42,7 @@ end
 module Transition =
 struct
   type id =
-    | FunctionApp of Id.t
+    | FunctionApp of Expr.t
     | Apply
     | VariantConstruct of Id.t
     | UnsafeVariantDestruct of Id.t
@@ -63,7 +63,7 @@ struct
       (es:AngelicEval.expr list)
     : AngelicEval.expr =
     begin match fst3 t.node with
-      | FunctionApp i -> AngelicEval.Var i
+      | FunctionApp e -> AngelicEval.from_exp e
       | Apply ->
         begin match es with
           | [e1;e2] -> AngelicEval.App (e1,e2)
@@ -153,7 +153,7 @@ struct
 
   let print_id id =
     match id with
-    | FunctionApp x -> Id.show x
+    | FunctionApp x -> Expr.show x
     | VariantConstruct x -> "Variant(" ^ MyStdLib.Id.to_string x ^ ")"
     | TupleConstruct i -> "Tuple(" ^ (string_of_int i) ^ ")"
     | Var -> "Var"
@@ -272,7 +272,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
               Expr.mk_app
                 acc
                 (term_to_exp_internals bt))
-          ~init:(Expr.mk_var e)
+          ~init:e
           ts
       | VariantConstruct c ->
         begin match ts with
@@ -349,7 +349,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                   App
                     (acc
                     ,(term_to_angelic_exp bt)))
-              ~init:(AngelicEval.Var e)
+              ~init:(AngelicEval.from_exp e)
               ts
           | VariantConstruct c ->
             begin match ts with
@@ -595,7 +595,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
           mk_term Transition.Var []
         | App (i,ets) ->
           let ts = List.map ~f:to_term ets in
-          mk_term (Transition.FunctionApp (Id.create i)) ts
+          mk_term (Transition.FunctionApp (Expr.mk_var (Id.create i))) ts
         | VC (i,et) ->
           mk_term (Transition.VariantConstruct (Id.create i)) [to_term et]
         | UVD (i,et) ->
@@ -1359,6 +1359,46 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       | _ -> true
     end
 
+  let rec term_cost
+      (Term (t,ts):A.Term.t)
+    : Float.t =
+    let simple_subcost ts =
+      List.fold ~f:(+.) ~init:0. (List.map ~f:term_cost ts)
+    in
+    begin match Transition.id t with
+      | FunctionApp _ -> 1. +. simple_subcost ts
+      | Apply ->
+        simple_subcost ts
+      | VariantConstruct i -> 1. +. simple_subcost ts
+      | UnsafeVariantDestruct _ -> 1. +. simple_subcost ts
+      | TupleConstruct _ -> 1. +. simple_subcost ts
+      | TupleDestruct _ -> (*1. +. simple_subcost ts*)
+        begin match ts with
+          | [Term (t,_) as term] ->
+            begin match Transition.id t with
+              | Var -> 1.
+              | _ -> 1. +. term_cost term
+            end
+          | _ -> failwith "invalid"
+          end
+      | Var -> (*0.*)
+        1.
+      | Rec -> (*1. +. simple_subcost ts*)
+        begin match ts with
+          | [Term (t,ts) as term] ->
+            begin match Transition.id t with
+              | TupleConstruct _ ->
+                1. +. (simple_subcost ts)
+              | _ ->
+                term_cost term
+            end
+          | _ -> failwith "cannot happen"
+          end
+      | VariantSwitch is -> (*2. +. simple_subcost ts*)
+      1. +. (Float.of_int (List.length is)) +. simple_subcost ts
+      | LetIn -> failwith "ah"
+    end
+
   let min_term_state
       (c:t)
     : A.TermState.t option =
@@ -1368,7 +1408,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         let mts =
           Consts.time
             Consts.min_elt_times
-            (fun _ -> A.min_term_state c.a (is_valid_term % A.TermState.to_term))
+            (fun _ -> A.min_term_state c.a is_valid_term term_cost)
         in
         c.min_term_state <- Some mts;
         mts

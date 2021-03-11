@@ -15,18 +15,10 @@ let snoc =
         | Cons -> Cons(l1p.0,snoc l1p.1 n)
 ;;
 
-let fold =
-  fix (fold : (list -> nat -> list) -> list -> list -> list) =
-    fun (f:(list -> nat -> list)) ->
-      fun (init:list) ->
-        fun (l:list) ->
-          match l binding lp with
-          | Nil -> init
-          | Cons -> f (fold f init lp.1) lp.0
-;;
-
 synth list -> list satisfying
 
 [Nil] -> Nil,
+[Cons(0,Nil)] -> Cons(0,Nil),
 [Cons(1,Nil)] -> Cons(1,Nil),
 [Cons(0,Cons(1,Nil))] -> Cons(1,Cons(0,Nil)),
+[Cons(0,Cons(0,Cons(1,Nil)))] -> Cons(1,Cons(0,Cons(0,Nil))),

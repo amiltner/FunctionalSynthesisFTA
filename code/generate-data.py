@@ -54,11 +54,11 @@ def average(lst):
 TEST_EXT = '.mls'
 BASELINE_EXT = '.out'
 BASE_FLAGS = ["-run-experiments"]
-TIMEOUT_TIME = 120
+TIMEOUT_TIME = 10
 STILL_WORK_TIMEOUT_TIME = 120
 GENERATE_EXAMPLES_TIMEOUT_TIME = 600000
 
-REPETITION_COUNT = 10
+REPETITION_COUNT = 1
 
 def ensure_dir(f):
     d = os.path.dirname(f)
@@ -69,8 +69,9 @@ def transpose(matrix):
     return zip(*matrix)
 
 def check_equal(path,base,data):
-    with open(join(path,base + REF_EXT), "r") as exfile:
-        return exfile.read() == data
+    with open(join(path,base + BASELINE_EXT), "r") as exfile:
+        exstr = exfile.read()
+        return exstr == data
 
 def find_tests(root):
     tests = []
@@ -122,7 +123,7 @@ def gather_data(rootlength, prog, path, base,name):
                 memout = True
                 break
             this_run_data = map(lambda d: d.strip(),datum.split(";")) + [time]
-            if not compare and check_equal(path,base,this_run_data[1]):
+            if compare and not check_equal(path,base,this_run_data[0]):
                 incorrect = True
             run_data.append(this_run_data)
         if error:
@@ -194,11 +195,12 @@ def load_data():
         return []
 
 def main(args):
-    if len(args) == 5:
+    if len(args) == 6:
         prog = args[1]
-        trace_complete_path = args[2]
+        trace_complete_path = args[5]
         incremental_path = args[3]
         postconditional_path = args[4]
+        example_based_path = args[5]
         rootlength = len(trace_complete_path)
         data = []#load_data()
         print(data)

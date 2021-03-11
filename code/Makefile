@@ -26,12 +26,12 @@ documentation:
 	jbuilder build @docs
 
 generate-data: all
-	$(GENERATE_DATA) ./ToolCmdLine.exe benchmarks/trace_complete benchmarks/incremental benchmarks/postconditional
+	$(GENERATE_DATA) ./ToolCmdLine.exe benchmarks/trace_complete benchmarks/incremental benchmarks/postconditional benchmarks/example_based
 
 generate-outs: all
-	$(CREATE_DEFAULT_ANSWERS) ./ToolCmdLine.exe benchmarks
+	$(CREATE_DEFAULT_ANSWERS) ./ToolCmdLine.exe benchmarks/trace_complete benchmarks/incremental benchmarks/postconditional benchmarks/example_based
 
 generate-all: all
-	$(GENERATE_DATA) ./ToolCmdLine.exe benchmarks/incremental benchmarks/postconditional benchmarks/trace_complete
+	$(GENERATE_DATA) ./ToolCmdLine.exe benchmarks/trace_complete benchmarks/incremental benchmarks/postconditional benchmarks/example_based
 	$(GENERATE_GRAPHS) generated_data/generated_data.csv
 

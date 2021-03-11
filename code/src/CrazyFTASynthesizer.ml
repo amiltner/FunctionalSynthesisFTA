@@ -117,34 +117,28 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     type t =
       {
         max_value_multiplier : Float.t ;
-        num_applications     : int     ;
       }
     [@@deriving eq, hash, ord, show]
 
     let initial =
       {
-        max_value_multiplier = 1.0 ;
-        num_applications     = 3   ;
+        max_value_multiplier = 1.5 ;
       }
-
-    let increase_apps is =
-      { is with num_applications = is.num_applications+1 }
 
     let increase_mvm is =
       {
         max_value_multiplier = is.max_value_multiplier +. 0.5 ;
-        num_applications = 3;
       }
   end
   module GlobalSettings = struct
     module D = DictOf(Value)(IndividualSettings)
-    type t = D.t
+    type t = D.t * int
     [@@deriving eq, hash, ord, show]
 
-    let empty : t = D.empty
+    let empty : t = (D.empty,3)
 
     let lookup
-        (gs:t)
+        ((gs,n):t)
         (v:Value.t)
       : IndividualSettings.t =
       begin match D.lookup gs v with
@@ -155,59 +149,28 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     let initialize
         (vs:Value.t list)
       : t =
-      D.from_kvp_list
-        (List.map ~f:(fun v -> (v,IndividualSettings.initial)) vs)
+      (D.from_kvp_list
+         (List.map ~f:(fun v -> (v,IndividualSettings.initial)) vs)
+      ,3)
 
     let upgrade_from_failed_isect
-        (s:t)
+        ((d,n):t)
       : t =
-      let kvps = D.as_kvp_list s in
-      let all_apps =
-        List.dedup_and_sort
-          ~compare:Int.compare
-          (List.map ~f:(fun (_,s) -> s.num_applications) kvps)
-      in
-      let kvps =
-        begin match List.rev all_apps with
-          | [_] ->
-            List.map
-              ~f:(fun (k,is) -> (k,IndividualSettings.increase_apps is))
-              kvps
-          | max::_ ->
-            List.map
-              ~f:(fun ((k,is) as kvp) ->
-                  if max <> is.num_applications then
-                    (k,IndividualSettings.increase_apps is)
-                  else
-                    kvp)
-              kvps
-          | _ -> failwith "invalid"
-        end
-      in
-      D.from_kvp_list kvps
+      (d,n+1)
 
     let increase_max_multiplier
-        (s:t)
+        ((d,n) as gs:t)
         (v:Value.t)
       : t =
-      let is = lookup s v in
+      let is = lookup gs v in
       let is = IndividualSettings.increase_mvm is in
-      D.insert s v is
-
-    let increase_num_applications
-        (s:t)
-        (v:Value.t)
-      : t =
-      let is = lookup s v in
-      let is = IndividualSettings.increase_apps is in
-      D.insert s v is
+      (D.insert d v is,n)
 
     let get_num_applications
-        (s:t)
+        ((_,n):t)
         (v:Value.t)
       : int =
-      let is = lookup s v in
-      is.num_applications
+      n
 
     let get_max_value_multiplier
         (s:t)
@@ -217,12 +180,43 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       is.max_value_multiplier
   end
 
-  (*TODO: this is really ugly right now, I need to clean it up badly*)
+  let strict_functional_subvalue
+      ~(context:Context.t)
+      ~(ds:C.TypeDS.t)
+      (v1:Value.t)
+      (v2:Value.t)
+    : bool =
+    let break = fun v ->
+      let t =
+        Typecheck.typecheck_value
+          context.ec
+          context.tc
+          context.vc
+          v
+      in
+      C.TypeDS.is_recursive_type
+        ds
+        t
+    in
+    Value.strict_functional_subvalue ~break v1 v2
+
   let subvalues_full_of_same_type
       ~(context:Context.t)
-      ~(break:Value.t -> bool)
+      ~(ds:C.TypeDS.t)
       (v:Value.t)
     : Value.t list =
+    let break = fun v ->
+      let t =
+        Typecheck.typecheck_value
+          context.ec
+          context.tc
+          context.vc
+          v
+      in
+      C.TypeDS.is_recursive_type
+        ds
+        t
+    in
     let t = Typecheck.typecheck_value context.ec context.tc context.vc v in
     let subvalues_full = Value.functional_subvalues ~break v in
     List.filter
@@ -236,7 +230,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
   type single_fta_response =
     | Generated of C.t
     | IncreaseMaxResponse
-    | IncreaseAppsResponse
 
   let rec construct_single_fta
       ~(context:Context.t)
@@ -266,27 +259,68 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                (tin,tout)
                valid_ios
            in
+           let rec get_all_partial_apps
+               (ins:Type.t list)
+               (base:Expr.t)
+               (extractor:Type.t -> Expr.t list)
+             : ((Type.t list * Expr.t) list) =
+             let basic = (ins,base) in
+             let advanced =
+               begin match ins with
+                 | [] -> []
+                 | h::t ->
+                   if Option.is_some (Type.destruct_arr h) then
+                     let apps = extractor h in
+                     List.concat_map
+                       ~f:(fun app ->
+                           let base = Expr.mk_app base app in
+                           get_all_partial_apps t base extractor)
+                       apps
+                   else
+                     []
+               end
+             in
+             basic::advanced
+           in
            let context_conversions =
              List.concat_map
                ~f:(fun (i,e) ->
                    let t = Context.find_exn context.ec i in
                    let (ins,out) = Type.split_to_arg_list_result t in
-                   let ins =
-                     List.map
-                       ~f:(fun int -> (int,TermClassification.Introduction))
+                   let possible_partials =
+                     get_all_partial_apps
                        ins
+                       (Expr.mk_var i)
+                       (fun t ->
+                          List.filter_map
+                            ~f:(fun (i,_) ->
+                                let t' = Context.find_exn context.ec i in
+                                if Typecheck.type_equiv context.tc t t' then
+                                  (Some (Expr.mk_var i))
+                                else
+                                  None)
+                            context.evals)
                    in
-                   let e = Expr.replace_holes ~i_e:context.evals e in
-                   let evaluation vs =
-                     let es = List.map ~f:Value.to_exp vs in
-                     [Eval.evaluate
-                        (List.fold
-                           ~f:Expr.mk_app
-                           ~init:e
-                           es)]
-                   in
-                   [(FTAConstructor.Transition.FunctionApp i,evaluation,ins,(out,TermClassification.Elimination))
-                   ;(FTAConstructor.Transition.FunctionApp i,evaluation,ins,(out,TermClassification.Introduction))])
+                   List.concat_map
+                     ~f:(fun (ins,e) ->
+                         let ins =
+                           List.map
+                             ~f:(fun int -> (int,TermClassification.Introduction))
+                             ins
+                         in
+                         let e_func = Expr.replace_holes ~i_e:context.evals e in
+                         let e_func = Value.to_exp (Eval.evaluate e_func) in
+                         let evaluation vs =
+                           let es = List.map ~f:Value.to_exp vs in
+                           [Eval.evaluate
+                              (List.fold
+                                 ~f:Expr.mk_app
+                                 ~init:e_func
+                                 es)]
+                         in
+                         [(FTAConstructor.Transition.FunctionApp e,evaluation,ins,(out,TermClassification.Elimination))
+                         ;(FTAConstructor.Transition.FunctionApp e,evaluation,ins,(out,TermClassification.Introduction))])
+                     possible_partials)
                context.evals
            in
            let eval_conversion =
@@ -486,7 +520,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
              let c = C.add_states c subcall_sites in*)
            let no_news =
              List.fold
-               ~f:(fun last_adds _ ->
+               ~f:(fun last_adds i ->
                    begin match last_adds with
                      | None -> None
                      | Some (old_added,old_pruned) ->
@@ -495,7 +529,11 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                        let (d3,e3) = C.update_from_conversions c conversions in
                        let new_added = (List.length d1) + (List.length d2) + (List.length d3) in
                        let new_pruned = (List.length e1) + (List.length e2) + (List.length e3) in
-                       if new_added <= old_added && new_pruned >= old_pruned && new_pruned > 0 then
+                       (*print_endline (string_of_int (new_added));
+                         print_endline (string_of_int (new_pruned));*)
+                       if new_pruned > 0 &&
+                          (new_added = 0 ||
+                           (new_added*2 < old_added && new_pruned > old_pruned*2)) then
                          None
                        else
                          Some (new_added, new_pruned)
@@ -507,8 +545,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
              begin
                IncreaseMaxResponse
              end
-           else if List.is_empty (A.final_states c.a) then
-             IncreaseAppsResponse
            else
              begin
                (*C.update_from_conversions c (destruct_conversions) ~ensure_state:false;*)
@@ -523,23 +559,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
              end)
     in
     begin match ans_o with
-      | IncreaseAppsResponse ->
-        let gs = GlobalSettings.increase_num_applications gs input in
-        Consts.log
-          (fun () ->
-             "Apps increased on " ^
-             (Value.show input) ^
-             " to " ^
-             (Int.to_string (GlobalSettings.get_num_applications gs input)));
-        construct_single_fta
-          ~context
-          ~tin
-          ~tout
-          ~gs
-          sub_calls
-          input
-          valid_ios
-          num_applications
       | IncreaseMaxResponse ->
         let gs = GlobalSettings.increase_max_multiplier gs input in
         Consts.log
@@ -724,25 +743,13 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (ds:C.TypeDS.t)
       (inputs:Value.t list)
     =
-      let break = (fun v ->
-          let t =
-            Typecheck.typecheck_value
-              context.ec
-              context.tc
-              context.vc
-              v
-          in
-          C.TypeDS.is_recursive_type
-            ds
-            t)
-      in
     let all_inputs =
       List.dedup_and_sort
         ~compare:Value.compare
         (List.concat_map
            ~f:(subvalues_full_of_same_type
                ~context
-               ~break)
+               ~ds)
            inputs)
       in
     (*This guarantees that, if v1 < v2, in terms of subvalue partial ordering,
@@ -751,10 +758,9 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       let sorted_inputs =
         safe_sort
         ~compare:(fun v1 v2 ->
-            if Value.strict_functional_subvalue
-                ~break v1 v2 then
+            if strict_functional_subvalue ~context ~ds v1 v2 then
               Some (-1)
-            else if Value.strict_functional_subvalue ~break v2 v1 then
+            else if strict_functional_subvalue ~context ~ds v2 v1 then
               Some 1
             else
               None)
@@ -816,7 +822,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     end
 
   module PQE = struct
-    module Priority = IntModule
+    module Priority = FloatModule
 
     type t =
       {
@@ -853,20 +859,59 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         rep_o
 
     let intersect
+        (value_map:Value.t -> Value.t list)
+        (context:Context.t)
+        (ds:C.TypeDS.t)
         (pqe:t)
       : t option option =
-      let t_o =
+      let e_o =
         Option.map
-          ~f:A.TermState.to_term
+          ~f:(C.term_to_angelic_exp Type._unit % A.TermState.to_term)
           (C.min_term_state pqe.c)
+      in
+      let eval_context =
+        List.map
+          ~f:(fun (i,e) -> (i,AngelicEval.from_exp e))
+          context.evals
       in
       let min_unsat =
         extract_min_where
           ~f:(fun cand ->
-              begin match t_o with
+              begin match e_o with
                 | None -> true
-                | Some t ->
-                  not (C.accepts_term cand t)
+                | Some e ->
+                  let inputs = cand.inputs in
+                  let checker = cand.final_candidates in
+                  not
+                    (List.for_all
+                       ~f:(fun input ->
+                           let subvalues =
+                             subvalues_full_of_same_type
+                               ~context
+                               ~ds
+                               input
+                           in
+                           let subcalls =
+                             List.map
+                               ~f:(fun sv ->
+                                   (AngelicEval.from_value sv
+                                   ,List.map ~f:AngelicEval.from_value (value_map sv)))
+                               subvalues
+                           in
+                           let outputs =
+                             AngelicEval.evaluate_with_holes
+                               ~eval_context
+                               subcalls
+                               (AngelicEval.App
+                                  (e
+                                  ,AngelicEval.from_exp (Value.to_exp input)))
+                           in
+                           List.exists
+                             ~f:(fun (_,output) ->
+                                 checker input (AngelicEval.to_value output))
+                             outputs)
+                       inputs)
+                    (*not (C.accepts_term cand t)*)
               end)
           ~compare:C.size_compare(*fun (c1:C.t) (c2:C.t) ->
               let v1 = List.hd_exn (List.hd_exn c1.inputs) in
@@ -976,8 +1021,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
 
     let priority
         (qe:t)
-      : int =
-      (Expr.size (C.term_to_exp_internals (A.TermState.to_term qe.rep)))
+      : Float.t =
+      C.term_cost (A.TermState.to_term qe.rep)
 
     let to_string_legible
         (qe:t)
@@ -1066,25 +1111,13 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
               (Typecheck.concretify context.tc tout))*)
       (FoundResult (C.term_of_type_exn ds tout),gs)
     else
-      let break = (fun v ->
-          let t =
-            Typecheck.typecheck_value
-              context.ec
-              context.tc
-              context.vc
-              v
-          in
-          C.TypeDS.is_recursive_type
-            ds
-            t)
-      in
     let all_inputs =
       List.dedup_and_sort
         ~compare:Value.compare
         (List.concat_map
            ~f:(subvalues_full_of_same_type
                ~context
-               ~break)
+               ~ds)
            inputs)
       in
     (*This guarantees that, if v1 < v2, in terms of subvalue partial ordering,
@@ -1093,10 +1126,10 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       let sorted_inputs =
         safe_sort
         ~compare:(fun v1 v2 ->
-              if Value.strict_functional_subvalue
-                  ~break v1 v2 then
+              if strict_functional_subvalue
+                  ~context ~ds v1 v2 then
                 Some (-1)
-              else if Value.strict_functional_subvalue ~break v2 v1 then
+              else if strict_functional_subvalue ~context ~ds v2 v1 then
                 Some 1
               else
                 None)
@@ -1109,7 +1142,15 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         Consts.log (fun _ -> "\n\nPopped:");
         Consts.log (fun _ -> PQE.to_string_legible pqe);
         (*print_endline (string_of_bool @$ (C.accepts_term pqe.c desired_term));*)
-        begin match PQE.intersect pqe with
+        let subcalls =
+          fun v ->
+            C.get_final_values
+              (ValToC.lookup_exn
+                 pqe.v_to_c
+                 v)
+              v
+        in
+        begin match PQE.intersect subcalls context ds pqe with
           | Some pqeo ->
             (NewQEs (Option.to_list pqeo),gs)
           | None ->
@@ -1269,7 +1310,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         (specs:PQ.t)
         : synth_res * GlobalSettings.t =
       begin match PQ.pop specs with
-        | Some (pqe,_,specs) ->
+        | Some (pqe,prio,specs) ->
+          Consts.log (fun () -> "Priority: " ^ (Float.to_string prio));
           let (res,gs) = process_queue_element gs pqe in
           begin match res with
             | NewQEs new_qes ->
@@ -1322,10 +1364,11 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     in
     try
       let (_,output) =
-        AngelicEval.evaluate_with_holes
-          ~eval_context
-          ios
-          (AngelicEval.App (cand_e,AngelicEval.value_to_exp input))
+        List.hd_exn
+          (AngelicEval.evaluate_with_holes
+             ~eval_context
+             (List.map ~f:(fun (v1,v2) -> (v1,[v2])) ios)
+             (AngelicEval.App (cand_e,AngelicEval.value_to_exp input)))
       in
       (*List.map ~f:(fun (inv,outv) -> (AngelicEval.to_value inv, AngelicEval.to_value outv)) rec_calls,AngelicEval.to_value output*)
       AngelicEval.to_value output
@@ -1409,10 +1452,11 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                     let to_expr = FTAConstructor.Transition.to_expr tr vs_as_es in
                     try
                       let (_,v) =
-                        AngelicEval.evaluate_with_holes
-                          ~eval_context
-                          angelic_ios
-                          to_expr
+                        List.hd_exn
+                          (AngelicEval.evaluate_with_holes
+                             ~eval_context
+                             (List.map ~f:(fun (i,o) -> (i,[o])) angelic_ios)
+                             to_expr)
                       in
                       AngelicEval.to_value v
                     with _ ->
@@ -1481,10 +1525,11 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
             let inv = AngelicEval.from_value inv in
             try
               let (_,outv) =
-                AngelicEval.evaluate_with_holes
-                  ~eval_context:(List.map ~f:(fun (i,e) -> (i,AngelicEval.from_exp e)) context.evals)
-                  ios
-                  (AngelicEval.App (cand_e,AngelicEval.value_to_exp inv))
+                List.hd_exn
+                  (AngelicEval.evaluate_with_holes
+                     ~eval_context:(List.map ~f:(fun (i,e) -> (i,AngelicEval.from_exp e)) context.evals)
+                     (List.map ~f:(fun (i,o) -> (i,[o])) ios)
+                     (AngelicEval.App (cand_e,AngelicEval.value_to_exp inv)))
               in
               (inv,outv)::ios
             with _ ->
@@ -1541,10 +1586,11 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
             let inv = AngelicEval.from_value inv in
             try
               let (_,outv) =
-                AngelicEval.evaluate_with_holes
-                  ~eval_context:(List.map ~f:(fun (i,e) -> (i,AngelicEval.from_exp e)) context.evals)
-                  ios
-                  (AngelicEval.App (cand_e,AngelicEval.value_to_exp inv))
+                List.hd_exn
+                  (AngelicEval.evaluate_with_holes
+                     ~eval_context:(List.map ~f:(fun (i,e) -> (i,AngelicEval.from_exp e)) context.evals)
+                     (List.map ~f:(fun (i,o) -> (i,[o])) ios)
+                     (AngelicEval.App (cand_e,AngelicEval.value_to_exp inv)))
               in
               (inv,outv)::ios
             with _ ->
@@ -1623,8 +1669,9 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           ~inputs
           ~size:(size+1)
           ~gs
-      | FoundResult e ->
-        C.term_to_exp tin tout e
+      | FoundResult t ->
+        (*let t = C.ensure_switches ds context t tout in*)
+        C.term_to_exp tin tout t
     end
 
   let synth

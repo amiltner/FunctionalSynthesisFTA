@@ -33,6 +33,13 @@ module Make : AutomatonBuilder =
         | TS (sy,s,tss) -> TS (sy,s,List.map ~f:from_timbuk_termstate tss)
       end
 
+    let rec from_timbuk_term
+        (x:TimbukAut.Term.t)
+      : term =
+      begin match x with
+        | Term (sy,tss) -> Term (sy,List.map ~f:from_timbuk_term tss)
+      end
+
     module TermState =
     struct
       type t = term_state
@@ -384,11 +391,12 @@ module Make : AutomatonBuilder =
 
     let min_term_state
         (x:t)
-        (f:term_state -> bool)
+        (f:term -> bool)
+        (cost:term -> Float.t)
       : term_state option =
       (*let x = get_small_aut x in*)
       let aut = get_aut x in
-      let tso = TimbukAut.min_term_state aut (f % from_timbuk_termstate) in
+      let tso = TimbukAut.min_term_state aut (f % from_timbuk_term) (cost % from_timbuk_term) in
       Option.map ~f:from_timbuk_termstate tso
 
     let size

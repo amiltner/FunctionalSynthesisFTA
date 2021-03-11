@@ -60,7 +60,7 @@ sig
   val transitions : t -> (Symbol.t * (State.t list) * State.t) list
   val minimize : t -> t
   val size : t -> int
-  val min_term_state : t -> (term_state -> bool) -> term_state option
+  val min_term_state : t -> (term -> bool) -> (term -> Float.t) -> term_state option
 end
 
 module type AutomatonBuilder =
@@ -257,23 +257,24 @@ module TimbukBuilder : AutomatonBuilder =
       in
       A.recognizes (term_to_aterm t) a*)
 
-    module StateToTS = DictOf(State)(PairOf(IntModule)(TermState))
+    module StateToTS = DictOf(State)(PairOf(FloatModule)(TermState))
     module TSPQ = PriorityQueueOf(struct
-        module Priority = IntModule
-        type t = int * TermState.t * State.t
+        module Priority = FloatModule
+        type t = Float.t * TermState.t * State.t
         [@@deriving eq, hash, ord, show]
         let priority = fst3
       end)
     let min_term_state
         (a:t)
-        (f:TermState.t -> bool)
+        (f:Term.t -> bool)
+        (cost:Term.t -> Float.t)
       : TermState.t option =
       let get_produced_from
           (st:StateToTS.t)
           (t:Symbol.t)
           (s:State.t)
           (ss:State.t list)
-        : (int * TermState.t) option =
+        : (Float.t * TermState.t) option =
         let subs =
           List.map
             ~f:(fun s -> StateToTS.lookup st s)
@@ -282,7 +283,9 @@ module TimbukBuilder : AutomatonBuilder =
         Option.map
           ~f:(fun iss ->
               let (ints,ss) = List.unzip iss in
-              let size = List.fold ~f:(+) ~init:(Symbol.cost t) ints in
+              let ts = TS (t,s,ss) in
+              let term = TermState.to_term ts in
+              let size = cost term in
               (size,TS (t,s,ss)))
           (distribute_option subs)
       in
@@ -291,14 +294,17 @@ module TimbukBuilder : AutomatonBuilder =
           (pq:TSPQ.t)
         : TermState.t option =
         begin match TSPQ.pop pq with
-          | Some ((i,t,s),_,pq) ->
-            if f t then
+          | Some ((c,t,s),_,pq) ->
+            if f (TermState.to_term t) then
               if is_final_state a s then
-                Some t
+                begin
+                  (*print_endline (Float.to_string c);*)
+                  Some t
+                end
               else if StateToTS.member st s then
                 min_tree_internal st pq
               else
-                let st = StateToTS.insert st s (i,t) in
+                let st = StateToTS.insert st s (c,t) in
                 let triggered_transitions = transitions_from a s in
                 let produced =
                   List.filter_map
