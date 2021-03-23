@@ -47,7 +47,7 @@ let rec evaluate
               in
               let v = evaluate (Expr.replace i (Value.to_exp v) branch) in
               v
-            | _ -> failwith "no soln"
+            | _ -> failwith (Value.show v)
           end
         | Fix (i,_,e') ->
           evaluate (Expr.replace i e e')
