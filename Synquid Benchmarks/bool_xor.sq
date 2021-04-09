@@ -4,12 +4,7 @@ data Boolean where
   
 bool_xor :: p:Boolean -> q:Boolean -> { Boolean | 
 
-   (p == T && q == T ==> _v == F) &&
-   (p == T && q == F ==> _v == T) &&
-   (p == F && q == T ==> _v == T) &&
-   (p == F && q == F ==> _v == F)
-   --(p == q => _v = F) && (p != q => _v = T)
-   -- The above specification doesn't work, it seems like you can't compare input variables?
+  (p == q ==> _v == F) && (p != q ==> _v == T)
 
 }
 bool_xor = ??
