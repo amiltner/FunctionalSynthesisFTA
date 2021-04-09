@@ -1,0 +1,11 @@
+data Boolean where
+  T :: Boolean
+  F :: Boolean
+  
+bool_impl :: p:Boolean -> q:Boolean -> { Boolean | 
+
+   -- ( (p == T ==> _v == q) && (p == F ==> _v == T) )
+   ( ((p == T && q == F) ==> _v == q) && (!(p == T && q == F) ==> _v == T) )
+
+}
+bool_impl = ??
