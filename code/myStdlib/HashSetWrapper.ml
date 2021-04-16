@@ -21,6 +21,7 @@ sig
   val union : t -> t -> t
   val pp : (Format.formatter -> elt -> unit) -> Format.formatter -> t -> unit
   val update : (elt option -> unit) -> elt -> t -> unit
+  val copy : t -> t
 end
 
 module HSWrapper(D : Data) =
@@ -125,4 +126,9 @@ struct
       (f (Some e))
     else
       (f None; add e s)
+
+  let copy
+      (x:t)
+    : t =
+    Hash_set.copy x
 end

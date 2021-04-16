@@ -8,6 +8,24 @@ struct
     | Top
   [@@deriving eq, hash, ord, show]
 
+  let imply
+      (s1:t)
+      (s2:t)
+    : bool =
+    begin match (s1,s2) with
+      | (_,Top) -> true
+      | (Top,_) -> false
+      | (Vals (vps1,(t1,_)),Vals (vps2,(t2,_))) ->
+        if Type.equal t1 t2 then
+          List.for_all
+            ~f:(fun (v2,p2) ->
+                let p1 = List.Assoc.find_exn ~equal:Value.equal vps1 v2 in
+                Value.equal p1 p2)
+            vps2
+        else
+          false
+    end
+
   let destruct_vals
       (x:t)
     : ((Value.t * Predicate.t) list * ClassifiedType.t) option =
@@ -20,6 +38,14 @@ struct
       (x:t)
     : ((Value.t * Predicate.t) list * ClassifiedType.t) =
     Option.value_exn (destruct_vals x)
+
+  let normalize
+      (x:t)
+    : t =
+    begin match x with
+      | Top -> Top
+      | Vals (vps,(t,tc)) -> Vals (vps,(t,TermClassification.Introduction))
+    end
 
   let top = Top
 
@@ -242,9 +268,12 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let copy (c:t)
     : t =
-    { c with
-      a = A.copy c.a ;
-    }
+    Consts.time
+      Consts.copy_times
+      (fun () ->
+         { c with
+           a = A.copy c.a ;
+         })
 
   let equal _ _ = failwith "not implemented"
   let hash_fold_t _ _ = failwith "not implemented"
@@ -444,6 +473,124 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     : A.Term.t =
     Option.value_exn (term_of_type ds x)
 
+  let rec extract_unbranched_states_internal
+      (TS (t,state,ts):A.term_state)
+    : A.term_state list =
+    begin match Transition.id t with
+       | Apply ->
+         begin match ts with
+           | [t1;t2] ->
+             let l1 = extract_unbranched_states_internal t1 in
+             let l2 = extract_unbranched_states_internal t2 in
+             l1@l2
+           | _ -> failwith "not permitted"
+         end
+       | FunctionApp _ ->
+         List.concat_map ~f:extract_unbranched_states_internal ts
+       | VariantConstruct c ->
+         begin match ts with
+           | [t] ->
+             extract_unbranched_states_internal t
+           | _ -> failwith "incorrect setup"
+         end
+       | UnsafeVariantDestruct i ->
+         begin match ts with
+           | [t] ->
+             let l = extract_unbranched_states_internal t in
+             t::l
+           | _ -> failwith "incorrect setup"
+         end
+       | TupleConstruct _ ->
+         List.concat_map ~f:extract_unbranched_states_internal ts
+       | Var ->
+         []
+       | Rec ->
+         begin match ts with
+           | [t] ->
+             extract_unbranched_states_internal t
+           | _ -> failwith "incorrect"
+         end
+       | VariantSwitch is ->
+         begin match ts with
+           | t::ts ->
+             let matched_term = A.TermState.to_term t in
+             let l = extract_unbranched_states_internal t in
+             l@
+             (List.concat_map
+                ~f:(fun t ->
+                    let l = extract_unbranched_states_internal t in
+                    List.filter ~f:(fun t -> not (A.Term.equal matched_term (A.TermState.to_term t))) l)
+                ts)
+           | [] -> failwith "cannot happen"
+         end
+       | TupleDestruct _ ->
+         begin match ts with
+           | [t] ->
+             extract_unbranched_states_internal t
+           | _ -> failwith "not permitted"
+         end
+       | LetIn -> failwith "not permitted"
+    end
+
+  let rec extract_unbranched_states
+      ((*TS (t,state,ts)*)ts:A.term_state)
+    : State.t list =
+    List.map ~f:A.(State.normalize % TermState.get_state) (extract_unbranched_states_internal ts)
+    (*begin match Transition.id t with
+       | Apply ->
+         begin match ts with
+           | [t1;t2] ->
+             let l1 = extract_unbranched_states t1 in
+             let l2 = extract_unbranched_states t2 in
+             l1@l2
+           | _ -> failwith "not permitted"
+         end
+       | FunctionApp _ ->
+         List.concat_map ~f:extract_unbranched_states ts
+       | VariantConstruct c ->
+         begin match ts with
+           | [t] ->
+             extract_unbranched_states t
+           | _ -> failwith "incorrect setup"
+         end
+       | UnsafeVariantDestruct i ->
+         begin match ts with
+           | [t] ->
+             let l = extract_unbranched_states t in
+             (State.normalize (A.TermState.get_state t))::l
+           | _ -> failwith "incorrect setup"
+         end
+       | TupleConstruct _ ->
+         List.concat_map ~f:extract_unbranched_states ts
+       | Var ->
+         []
+       | Rec ->
+         begin match ts with
+           | [t] ->
+             extract_unbranched_states t
+           | _ -> failwith "incorrect"
+         end
+       | VariantSwitch is ->
+         begin match ts with
+           | t::ts ->
+             let matched_state = State.normalize (A.TermState.get_state t) in
+             let l = extract_unbranched_states t in
+             l@
+             (List.concat_map
+                ~f:(fun t ->
+                    let l = extract_unbranched_states t in
+                    List.filter ~f:(fun t -> not (State.imply matched_state t)) l)
+                ts)
+           | [] -> failwith "cannot happen"
+         end
+       | TupleDestruct _ ->
+         begin match ts with
+           | [t] ->
+             extract_unbranched_states t
+           | _ -> failwith "not permitted"
+         end
+       | LetIn -> failwith "not permitted"
+      end*)
 
   let rec extract_unbranched_switches
       (Term (t,ts):A.term)
@@ -790,6 +937,13 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (sout:State.t)
     : unit =
     A.remove_transition c.a trans sins sout;
+    invalidate_computations c
+
+  let remove_final_state
+      (c:t)
+      (s:State.t)
+    : unit =
+    A.remove_final_state c.a s;
     invalidate_computations c
 
   let evaluate
@@ -1359,45 +1513,44 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       | _ -> true
     end
 
-  let rec term_cost
-      (Term (t,ts):A.Term.t)
-    : Float.t =
-    let simple_subcost ts =
-      List.fold ~f:(+.) ~init:0. (List.map ~f:term_cost ts)
+  let term_cost ?(print=false) t =
+    let rec term_cost_internal
+        (Term (t,ts):A.Term.t)
+      : Float.t =
+      let simple_subcost ts =
+        List.fold
+          ~f:(+.)
+          ~init:0.
+          (List.map ~f:(term_cost_internal) ts)
+      in
+      begin match Transition.id t with
+        | FunctionApp _ -> (Float.of_int (List.length ts)) +. simple_subcost ts
+        | Apply ->
+          simple_subcost ts
+        | VariantConstruct i -> 2. +. simple_subcost ts
+        | UnsafeVariantDestruct _ ->
+          simple_subcost ts
+        | TupleConstruct _ ->
+          1. +. simple_subcost ts
+        | TupleDestruct _ ->
+          begin match ts with
+            | [Term (t,_)] ->
+              begin match Transition.id t with
+                | Var -> 1.
+                | _ -> 1. +. simple_subcost ts
+              end
+            | _ -> failwith "invalid"
+          end
+        | Var -> (*0.*)
+          1.
+        | Rec -> (*1. +. simple_subcost ts*)
+          1. +. simple_subcost ts
+        | VariantSwitch is -> (*2. +. simple_subcost ts*)
+          1. +. (Float.of_int (List.length is)) +. simple_subcost ts
+        | LetIn -> failwith "ah"
+      end
     in
-    begin match Transition.id t with
-      | FunctionApp _ -> 1. +. simple_subcost ts
-      | Apply ->
-        simple_subcost ts
-      | VariantConstruct i -> 1. +. simple_subcost ts
-      | UnsafeVariantDestruct _ -> 1. +. simple_subcost ts
-      | TupleConstruct _ -> 1. +. simple_subcost ts
-      | TupleDestruct _ -> (*1. +. simple_subcost ts*)
-        begin match ts with
-          | [Term (t,_) as term] ->
-            begin match Transition.id t with
-              | Var -> 1.
-              | _ -> 1. +. term_cost term
-            end
-          | _ -> failwith "invalid"
-          end
-      | Var -> (*0.*)
-        1.
-      | Rec -> (*1. +. simple_subcost ts*)
-        begin match ts with
-          | [Term (t,ts) as term] ->
-            begin match Transition.id t with
-              | TupleConstruct _ ->
-                1. +. (simple_subcost ts)
-              | _ ->
-                term_cost term
-            end
-          | _ -> failwith "cannot happen"
-          end
-      | VariantSwitch is -> (*2. +. simple_subcost ts*)
-      1. +. (Float.of_int (List.length is)) +. simple_subcost ts
-      | LetIn -> failwith "ah"
-    end
+    term_cost_internal t
 
   let min_term_state
       (c:t)
@@ -1406,9 +1559,22 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       | Some mts -> mts
       | None ->
         let mts =
-          Consts.time
-            Consts.min_elt_times
-            (fun _ -> A.min_term_state c.a is_valid_term term_cost)
+          let basic_mts =
+            Consts.time
+              Consts.min_elt_times
+              (fun _ -> A.min_term_state c.a ~f:is_valid_term ~cost:term_cost ~reqs:(fun _ -> []))
+          in
+          begin match basic_mts with
+            | None ->
+              basic_mts
+            | Some mts ->
+              (*if List.is_empty (extract_unbranched_switches (A.TermState.to_term mts)) then
+                basic_mts
+              else
+                Consts.time
+                  Consts.min_elt_times
+                  (fun _ -> A.min_term_state c.a ~f:is_valid_term ~cost:term_cost ~reqs:(List.dedup_and_sort ~compare:State.compare % extract_unbranched_states)(*fun _ -> []*))*) basic_mts
+          end
         in
         c.min_term_state <- Some mts;
         mts

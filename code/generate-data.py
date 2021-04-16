@@ -26,6 +26,11 @@ def can_be_int(s):
     except ValueError:
         return False
 
+def simple_write_to_file(fname,data):
+    text_file = open(fname,"w")
+    text_file.write(data)
+    text_file.close()
+
 def clean(s):
     s = str(s)
     if can_be_int(s):
@@ -54,7 +59,8 @@ def average(lst):
 TEST_EXT = '.mls'
 BASELINE_EXT = '.out'
 BASE_FLAGS = ["-run-experiments"]
-TIMEOUT_TIME = 10
+TIMEOUT_TIME = 120
+CORRECT_TIMEOUT_TIME = 120
 STILL_WORK_TIMEOUT_TIME = 120
 GENERATE_EXAMPLES_TIMEOUT_TIME = 600000
 
@@ -68,10 +74,13 @@ def ensure_dir(f):
 def transpose(matrix):
     return zip(*matrix)
 
-def check_equal(path,base,data):
-    with open(join(path,base + BASELINE_EXT), "r") as exfile:
-        exstr = exfile.read()
-        return exstr == data
+def check_equal(prog,path,base,data):
+    infofname = join(path,base + TEST_EXT)
+    exfname = join(path,base + BASELINE_EXT)
+    temp_name = "temp.out"
+    simple_write_to_file(temp_name,data)
+    (time,datum,err) = gather_datum(prog, path, base, ["-check-equiv1",exfname,"-check-equiv2",temp_name], CORRECT_TIMEOUT_TIME)
+    return err == ""
 
 def find_tests(root):
     tests = []
@@ -96,6 +105,7 @@ def gather_datum(prog, path, base, additional_flags, timeout):
     start = time.time()
     flags = additional_flags
     #flags = map(lambda t: t(path,base),additional_flags)
+    print([prog] + BASE_FLAGS + flags + [join(path, base + TEST_EXT)])
     process_output = EasyProcess([prog] + BASE_FLAGS + flags + [join(path, base + TEST_EXT)]).call(timeout=timeout+5)
     end = time.time()
     return ((end - start), process_output.stdout,process_output.stderr)
@@ -109,6 +119,7 @@ def gather_data(rootlength, prog, path, base,name):
         error = False
         incorrect = False
         memout = False
+        iteration = 0
         for iteration in range(repetition_count):
             (time,datum,err) = gather_datum(prog, path, base,flags,timeout_time)
             print(time)
@@ -123,9 +134,10 @@ def gather_data(rootlength, prog, path, base,name):
                 memout = True
                 break
             this_run_data = map(lambda d: d.strip(),datum.split(";")) + [time]
-            if compare and not check_equal(path,base,this_run_data[0]):
+            if iteration == 0 and compare and not check_equal(prog,path,base,this_run_data[0]):
                 incorrect = True
             run_data.append(this_run_data)
+            iteration = iteration+1
         if error:
             print("err")
             for col_name in col_names:

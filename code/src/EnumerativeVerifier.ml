@@ -4,6 +4,8 @@ open Lang
 module T = struct
   let _NUM_CHECKS_ = 4096
 
+  let num_nothing = ref 0
+
   module TypeToGeneratorDict =
   struct
     module Generators =
@@ -43,7 +45,7 @@ module T = struct
       (D.empty,fs)
     end
 
-  let rec elements_of_type_and_size
+  let rec elements_of_type_and_size_internal
       (tc:Context.Types.t)
       (t:Type.t)
       (s:int)
@@ -51,7 +53,7 @@ module T = struct
     if s <= 0 then
       []
     else
-      let elements_simple = elements_of_type_and_size tc in
+      let elements_simple = elements_of_type_and_size_internal tc in
       begin match Type.node t with
         | Named i ->
           elements_simple (Context.find_exn tc i) s
@@ -74,7 +76,7 @@ module T = struct
           List.map ~f:Value.mk_tuple components
         | Mu (v,t) ->
           let tc = Context.set tc ~key:v ~data:t in
-          elements_of_type_and_size tc t s
+          elements_of_type_and_size_internal tc t s
         | Variant options ->
           List.concat_map
             ~f:(fun (i,t) ->
@@ -83,6 +85,15 @@ module T = struct
                   (elements_simple t (s-1)))
             options
       end
+
+  let elements_of_type_and_size
+      (tc:Context.Types.t)
+      (t:Type.t)
+      (s:int)
+    : Value.t list =
+    let res = elements_of_type_and_size_internal tc t s in
+    if List.length res = 0 then num_nothing := !num_nothing+1;
+    res
 
   let elements_of_type_to_size
       (tc:Context.Types.t)
@@ -97,7 +108,15 @@ module T = struct
       (tc:Context.Types.t)
       (t:Type.t)
     : Value.t Sequence.t =
-    let num_seq = Sequence.unfold ~init:0 ~f:(fun i -> Some (i,i+1)) in
+    let num_seq =
+      Sequence.unfold
+        ~init:0
+        ~f:(fun i ->
+            if !num_nothing < 200 then
+              Some (i,i+1)
+            else
+              None)
+    in
     Sequence.concat_map ~f:(Sequence.of_list % elements_of_type_and_size tc t) num_seq
 
   let satisfies_post
@@ -107,6 +126,7 @@ module T = struct
       ~(cand:Expr.t)
       ~(checker:Value.t -> Value.t -> bool)
     : Value.t option =
+    num_nothing := 0;
     let generator = sequence_of_type context.tc tin in
     let io_seq =
       Sequence.map
@@ -124,9 +144,9 @@ module T = struct
           begin match o with
             | Some o ->
               if checker i o then
-                None
+                 None
               else
-                Some i
+                 Some i
             | None ->
               Some i
           end)

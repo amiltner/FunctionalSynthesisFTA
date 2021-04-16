@@ -1,0 +1,79 @@
+type nat =
+  | O
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+type cmp =
+  | LT
+  | EQ
+  | GT
+
+let compare =
+  fix (compare : nat -> nat -> cmp) =
+    fun (x1 : nat) ->
+      fun (x2 : nat) ->
+        match x1 binding x1 with
+        | O -> (match x2 binding x2 with
+                | O -> EQ
+                | S -> LT)
+        | S -> (match x2 binding x2 with
+                | O -> GT
+                | S -> compare x1 x2)
+;;
+
+synth list -> list satisfying
+
+type bool =
+  | True
+  | False
+
+let for_all =
+  fix (for_all : (nat -> bool) -> list -> bool) =
+    fun (f:nat -> bool) -> (fun (l:list) ->
+      match l binding lp with
+      | Nil -> True
+      | Cons -> (match f (lp.0) binding fp with
+              | False -> False
+              | True -> for_all f lp.1))
+;;
+
+let contains =
+  fix (contains : list -> nat -> bool) =
+    fun (l:list) -> (fun (n:nat) ->
+      match l binding lp with
+      | Nil -> False
+      | Cons -> (match compare (lp.0) n binding cp with
+              | LT -> contains lp.1 n
+              | GT -> contains lp.1 n
+              | EQ -> True))
+;;
+
+let and =
+  fun (b1:bool) ->
+    fun (b2:bool) ->
+      match b1 binding b1p with
+      | True -> b2
+      | False -> False
+;;
+
+let no_dupes =
+  fix (no_dupes : list -> bool) =
+    fun (l:list) ->
+      (match l binding lp with
+         | Nil -> True
+         | Cons -> (match lp.1 binding lpp with
+           | Nil -> True
+           | Cons -> (match compare lp.0 lpp.0 binding c with
+                     | EQ -> False
+                     | LT -> no_dupes lp.1
+                     | GT -> no_dupes lp.1)))
+;;
+
+fun (inp:list) ->
+  (fun (out:list) ->
+    (and
+      (for_all (contains out) inp)
+      (no_dupes out)))

@@ -48,6 +48,7 @@ sig
   val final_states : t -> State.t list
   val is_final_state : t -> State.t -> bool
   val add_final_state : t -> State.t -> unit
+  val remove_final_state : t -> State.t -> unit
   val has_state : t -> State.t -> bool
   (*val is_empty : t -> bool*)
   (*val accepts_term : t -> Term.t -> bool*)
@@ -60,7 +61,12 @@ sig
   val transitions : t -> (Symbol.t * (State.t list) * State.t) list
   val minimize : t -> t
   val size : t -> int
-  val min_term_state : t -> (term -> bool) -> (term -> Float.t) -> term_state option
+  val min_term_state :
+    f:(term -> bool) ->
+    cost:(term -> Float.t) ->
+    reqs:(TermState.t -> State.t list) ->
+    t ->
+    term_state option
 end
 
 module type AutomatonBuilder =
@@ -170,6 +176,9 @@ module TimbukBuilder : AutomatonBuilder =
     let add_final_state a f =
       A.add_final_state f a
 
+    let remove_final_state a f =
+      A.remove_final_state f a
+
     let has_state
         a
         s
@@ -229,20 +238,10 @@ module TimbukBuilder : AutomatonBuilder =
     let transitions
         (c:t)
       : (Symbol.t * (State.t list) * State.t) list =
-      let sm = A.configurations_for_states c in
-      let ts =
-        A.StateMap.fold
-          (fun s cs ts ->
-             A.ConfigurationSet.fold
-               (fun c ts ->
-                  let (i,ss) = (A.Configuration.node c) in
-                  (i,ss ,s)::ts)
-               cs
-               ts)
-          sm
-          []
-      in
-      ts
+      A.fold_transitions
+        (fun (sy,ss) s acc -> (sy,ss,s)::acc)
+        c
+        []
 
     let minimize = A.prune_useless
 
@@ -257,75 +256,207 @@ module TimbukBuilder : AutomatonBuilder =
       in
       A.recognizes (term_to_aterm t) a*)
 
-    module StateToTS = DictOf(State)(PairOf(FloatModule)(TermState))
+    type comparison =
+      | Incomparable
+      | Equal
+      | StrictlyLess
+      | StrictlyGreater
+
+    module TSData = ListOf(TripleOf(FloatModule)(ListOf(State))(TermState))
+    module StateToTS = DictOf(State)(TSData)
+
+    let compare_terms
+        ((c1,r1s,t1):Float.t * State.t list * TermState.t)
+        ((c2,r2s,t2):Float.t * State.t list * TermState.t)
+      : comparison =
+      let cc =
+        Float.(
+          if c1 <. c2 then
+            StrictlyLess
+          else if c1 >. c2 then
+            StrictlyGreater
+          else
+            Equal)
+      in
+      let rc =
+        let size1 = List.length r1s in
+        let size2 = List.length r2s in
+        if size1 = size2 then
+          if List.equal State.equal r1s r2s then
+            Equal
+          else
+            Incomparable
+        else if size1 < size2 then
+          if sublist_on_sorted ~cmp:(State.compare) r1s r2s then
+              StrictlyLess
+            else
+              Incomparable
+          else
+          if sublist_on_sorted ~cmp:(State.compare) r2s r1s then
+            StrictlyGreater
+          else
+            Incomparable
+      in
+      begin match (cc,rc) with
+        | (Incomparable, _) -> Incomparable
+        | (_, Incomparable) -> Incomparable
+        | (Equal, _) -> rc
+        | (_, Equal) -> cc
+        | (StrictlyLess, StrictlyLess) -> StrictlyLess
+        | (StrictlyGreater, StrictlyGreater) -> StrictlyGreater
+        | _ -> Incomparable
+      end
+
+    let extract_minimal_list
+        (ls:(Float.t * State.t list * TermState.t) list)
+        (input:(Float.t * State.t list * TermState.t))
+      : (Float.t * State.t list * TermState.t) list option =
+      let rec extract_minimal_list_internal
+          (acc:(Float.t * State.t list * TermState.t) list)
+          (ls:(Float.t * State.t list * TermState.t) list)
+        : (Float.t * State.t list * TermState.t) list option =
+        begin match ls with
+          | [] ->
+            Some (input::acc)
+          | h::t ->
+            begin match compare_terms input h with
+              | Incomparable ->
+                extract_minimal_list_internal
+                  (h::acc)
+                  t
+              | Equal | StrictlyGreater ->
+                None
+              | StrictlyLess ->
+                extract_minimal_list_internal
+                  acc
+                  t
+            end
+
+        end
+      in
+      let mlo = extract_minimal_list_internal [] ls in
+      Option.map ~f:(List.sort ~compare:(triple_compare Float.compare (compare_list ~cmp:State.compare) compare_term_state)) mlo
+
     module TSPQ = PriorityQueueOf(struct
         module Priority = FloatModule
-        type t = Float.t * TermState.t * State.t
+        type t = Float.t * State.t list * TermState.t * State.t
         [@@deriving eq, hash, ord, show]
-        let priority = fst3
+        let priority = fun (x,_,_,_) -> x
       end)
     let min_term_state
+        ~(f:Term.t -> bool)
+        ~(cost:Term.t -> Float.t)
+        ~(reqs:TermState.t -> State.t list)
         (a:t)
-        (f:Term.t -> bool)
-        (cost:Term.t -> Float.t)
       : TermState.t option =
+      let pops = ref 0 in
       let get_produced_from
           (st:StateToTS.t)
           (t:Symbol.t)
           (s:State.t)
           (ss:State.t list)
-        : (Float.t * TermState.t) option =
+        : (Float.t * State.t list * TermState.t) list =
         let subs =
           List.map
-            ~f:(fun s -> StateToTS.lookup st s)
+            ~f:(fun s -> StateToTS.lookup_default ~default:[] st s)
             ss
         in
-        Option.map
+        List.map
           ~f:(fun iss ->
-              let (ints,ss) = List.unzip iss in
+              let (ints,_,ss) = List.unzip3 iss in
               let ts = TS (t,s,ss) in
+              let reqs = reqs ts in
               let term = TermState.to_term ts in
               let size = cost term in
-              (size,TS (t,s,ss)))
-          (distribute_option subs)
+              (size,reqs,TS (t,s,ss)))
+          (combinations subs)
       in
       let rec min_tree_internal
           (st:StateToTS.t)
           (pq:TSPQ.t)
         : TermState.t option =
+        (*print_endline "BEGIN";
+        print_endline @$ StateToTS.show st;
+        print_endline @$ string_of_int @$ TSPQ.length pq;
+          print_endline "END\n\n\n\n";*)
+        pops := !pops+1;
         begin match TSPQ.pop pq with
-          | Some ((c,t,s),_,pq) ->
-            if f (TermState.to_term t) then
-              if is_final_state a s then
+          | Some ((c,rs,t,s),_,pq) ->
+            (*print_endline ("State: " ^ (State.show s));*)
+            (*if f (TermState.to_term t) then*)
+              if is_final_state a s && List.is_empty rs then
                 begin
+                  (*print_endline (string_of_int !pops);*)
                   (*print_endline (Float.to_string c);*)
                   Some t
                 end
-              else if StateToTS.member st s then
-                min_tree_internal st pq
               else
-                let st = StateToTS.insert st s (c,t) in
-                let triggered_transitions = transitions_from a s in
-                let produced =
-                  List.filter_map
-                    ~f:(fun (t,ss,s) ->
-                        Option.map
-                          ~f:(fun (i,t) -> (i,t,s))
-                          (get_produced_from st t s ss))
-                    triggered_transitions
-                in
-                let pq = TSPQ.push_all pq produced in
-                min_tree_internal st pq
-            else
-              min_tree_internal st pq
-          | None -> None
+                begin match StateToTS.lookup st s with
+                  | None ->
+                    (*print_endline "NEW ONE";*)
+                    let st = StateToTS.insert st s [(c,rs,t)] in
+                    let triggered_transitions = transitions_from a s in
+                    (*List.iter
+                      ~f:(fun (sy,ss,out) ->
+                          if (List.length ss = 1) then
+                            begin
+                              print_endline (Symbol.show sy);
+                              print_endline (State.show out);
+                              print_endline "\n";
+                            end
+                          else
+                            ()
+                        )
+                      triggered_transitions;
+                      print_endline ("StateDone:");*)
+                    let produced =
+                      List.concat_map
+                        ~f:(fun (t,ss,s) ->
+                            List.map
+                              ~f:(fun (i,ss,t) -> (i,ss,t,s))
+                              (get_produced_from st t s ss))
+                        triggered_transitions
+                    in
+                    let pq = TSPQ.push_all pq produced in
+                    min_tree_internal st pq
+                  | Some ts ->
+                    begin match extract_minimal_list ts (c,rs,t) with
+                      | None ->
+                        (*print_endline "OLD ONE NO CHANGE";*)
+                        min_tree_internal st pq
+                      | Some ml ->
+                        (*print_endline "OLD ONE YES CHANGE";
+                        print_endline (StateToTS.show_value ts);
+                          print_endline (StateToTS.show_value ml);*)
+                        let st = StateToTS.insert st s ml in
+                        let st_for_produced = StateToTS.insert st s [(c,rs,t)] in
+                        let triggered_transitions = transitions_from a s in
+                        let produced =
+                          List.concat_map
+                            ~f:(fun (t,ss,s) ->
+                                List.map
+                                  ~f:(fun (i,ss,t) -> (i,ss,t,s))
+                                  (get_produced_from st_for_produced t s ss))
+                            triggered_transitions
+                        in
+                        let pq = TSPQ.push_all pq produced in
+                        min_tree_internal st pq
+                    end
+                end
+            (*else
+              min_tree_internal st pq*)
+          | None ->
+            (*List.iter
+              ~f:(fun kv -> print_endline @$ (string_of_pair State.show TSData.show) kv)
+              (StateToTS.as_kvp_list st);*)
+            None
         end
       in
       let initial_terms =
-        List.filter_map
+        List.concat_map
           ~f:(fun (t,ss,s) ->
-              Option.map
-                ~f:(fun (i,t) -> (i,t,s))
+              List.map
+                ~f:(fun (i,ss,t) -> (i,ss,t,s))
                 (get_produced_from StateToTS.empty t s ss))
           (transitions a)
       in

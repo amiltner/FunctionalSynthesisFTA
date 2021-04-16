@@ -6,6 +6,16 @@ let rec appify (e:Expr.t) (es:Expr.t list) : Expr.t =
   match es with
   | [] -> e
   | e'::es -> appify (Expr.mk_app e e') es
+
+let mk_unctor_or_ctor_by_name
+      (c:String.t)
+      (e:Expr.t)
+    : Expr.t =
+  if String.length c > 3 && String.equal (String.sub c 0 3) "Un_" then
+    let c = String.sub c 3 (String.length c - 3) in
+    Expr.mk_unctor (Id.create c) e
+  else
+    Expr.mk_ctor (Id.create c) e
 %}
 
 %token <string> LID
@@ -37,6 +47,7 @@ let rec appify (e:Expr.t) (es:Expr.t list) : Expr.t =
 %token FORALL
 %token VAL
 %token BINDING
+%token WILDCARD
 %token MU
 %token FIX
 %token SYNTH
@@ -51,8 +62,10 @@ let rec appify (e:Expr.t) (es:Expr.t list) : Expr.t =
 %token INCLUDE
 
 %start unprocessed_problem
+%start exp
 %start imports_decls_start
 %type <Problem.t_unprocessed> unprocessed_problem
+%type <Lang.Expr.t> exp
 %type <string list * Declaration.t list> imports_decls_start
 
 %%
@@ -265,19 +278,23 @@ exp_base:
   | c=INT
     { Expr.from_int c }
   | c=UID
-    { Expr.mk_ctor (Id.create c) Expr.mk_unit }
+    {
+      mk_unctor_or_ctor_by_name c Expr.mk_unit
+    }
   | c=UID LPAREN e=exp RPAREN
-    { Expr.mk_ctor (Id.create c) e }
+                     { mk_unctor_or_ctor_by_name c e }
   | c1=UID c2=UID                                         (* Sugar: ctor with ctor argument.   *)
-                { Expr.mk_ctor (Id.create c1) (Expr.mk_ctor (Id.create c2) Expr.mk_unit) }
+                { mk_unctor_or_ctor_by_name c1 (mk_unctor_or_ctor_by_name c2 Expr.mk_unit) }
   | c=UID x=LID                                           (* Sugar: ctor with var argument.    *)
-    { Expr.mk_ctor (Id.create c) (Expr.mk_var (Id.create x)) }
+              { mk_unctor_or_ctor_by_name c (Expr.mk_var (Id.create x)) }
   | c=UID LPAREN RPAREN                                   (* Sugar: ctor with unit argument.   *)
-    { Expr.mk_ctor (Id.create c) Expr.mk_unit }
+        { mk_unctor_or_ctor_by_name c Expr.mk_unit }
   | c=UID LPAREN e=exp COMMA es=exp_comma_list_one RPAREN (* Sugar: ctor with tuple argument.  *)
-    { Expr.mk_ctor (Id.create c) (Expr.mk_tuple (e :: List.rev es)) }
+                                  { mk_unctor_or_ctor_by_name c (Expr.mk_tuple (e :: List.rev es)) }
   | MATCH e=exp BINDING i=LID WITH bs=branches
     { Expr.mk_match e (Id.create i) (List.rev bs) }
+  | MATCH e=exp BINDING WILDCARD WITH bs=branches
+    { Expr.mk_match e (Id.create "_") (List.rev bs) }
   (*| LBRACKET l=exp_semi_list RBRACKET
     { list_of_exps l }*)
   | LPAREN e=exp COMMA es=exp_comma_list_one RPAREN

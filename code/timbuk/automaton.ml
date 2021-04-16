@@ -35,6 +35,7 @@ module type BASE = sig
   val states_for_configuration : Configuration.t -> t -> StateSet.t
   val state_parents : State.t -> t -> ConfigurationSet.t
   val add_final_state : State.t -> t -> unit
+  val remove_final_state : State.t -> t -> unit
   val add_final_states : StateSet.t -> t -> unit
   val set_final_states : StateSet.t -> t -> unit
   val add_transition : Configuration.t -> State.t -> t -> unit
@@ -191,9 +192,9 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
 
   type t = {
     mutable roots : StateSet.t; (* Final states. *)
-    mutable state_confs : ConfigurationSet.t StateMap.t; (* Associates to each state the set of configurations leading to it. *)
-    mutable conf_states : StateSet.t ConfigurationMap.t; (* Associates to each configuration the set of states to go to. *)
-    mutable state_parents : ConfigurationSet.t StateMap.t (* Associates to each state the set of configurations it appears in. *)
+    state_confs : ConfigurationSet.t StateMap.t; (* Associates to each state the set of configurations leading to it. *)
+    conf_states : StateSet.t ConfigurationMap.t; (* Associates to each configuration the set of states to go to. *)
+    state_parents : ConfigurationSet.t StateMap.t (* Associates to each state the set of configurations it appears in. *)
   }
 
   type data = unit
@@ -211,7 +212,31 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
 
   let clear _ = empty ()
 
-  let copy x = x
+  let copy x =
+    let state_confs = StateMap.empty () in
+    StateMap.iter
+      (fun k cs ->
+         if not (ConfigurationSet.is_empty cs) then
+           StateMap.add k (ConfigurationSet.copy cs) state_confs)
+      x.state_confs;
+    let conf_states = ConfigurationMap.empty () in
+    ConfigurationMap.iter
+      (fun k ss ->
+         if not (StateSet.is_empty ss) then
+           ConfigurationMap.add k (StateSet.copy ss) conf_states)
+      x.conf_states;
+    let state_parents = StateMap.empty () in
+    StateMap.iter
+      (fun k cs ->
+         if not (ConfigurationSet.is_empty cs) then
+           StateMap.add k (ConfigurationSet.copy cs) state_parents)
+      x.state_parents;
+    {
+      roots = StateSet.copy x.roots ;
+      state_confs = state_confs ;
+      conf_states = conf_states ;
+      state_parents = x.state_parents ;
+    }
 
   let final_states a = a.roots
 
@@ -229,6 +254,9 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
 
   let add_final_state q a =
     StateSet.add q a.roots
+
+  let remove_final_state q a =
+    StateSet.remove q a.roots
 
   let add_final_states set a =
     StateSet.iter
@@ -275,8 +303,12 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
       (ConfigurationSet.remove conf cs);
     in
     ConfigurationSet.remove conf (configurations_for_state q a);
-    StateSet.remove q (states_for_configuration conf a);
-    List.iter remove_parent_from (snd (Configuration.node conf))
+    let sc = states_for_configuration conf a in
+    StateSet.remove q sc;
+    if StateSet.is_empty sc then
+      List.iter remove_parent_from (snd (Configuration.node conf))
+    else
+      ()
 end
 
 module Extend (B: BASE) = struct
@@ -665,7 +697,7 @@ module Extend (B: BASE) = struct
 
   let prune_useless (x:t)
     : t =
-    (*let x = reduce x in*)
+    let x = reduce x in
     let fs = final_states x in
       let x = sub_automaton fs x in
     x

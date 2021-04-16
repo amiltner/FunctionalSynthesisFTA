@@ -30,6 +30,7 @@ let symbols : (string * Parser.token) list =
     (*("?", HOLE)*)
     (*; ("|>", IMPLIES)*)
   ; ("->", ARR)
+  ; ("_", WILDCARD)
   (*; ("=>", FATARR)*)
   ; (".", DOT)
   ; (",", COMMA)

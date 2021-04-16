@@ -149,7 +149,11 @@ let rec evaluate
       let vs_invs = evaluate e in
       List.concat_map
         ~f:(fun (vs,inv) ->
-            let outvs = List.Assoc.find_exn ~equal:equal_value angelics inv in
+            let outvs =
+              Option.value
+                ~default:[]
+                (List.Assoc.find ~equal:equal_value angelics inv)
+            in
             List.map
               ~f:(fun outv ->
                   ((inv , outv)::vs,outv))

@@ -45,6 +45,7 @@ let rec evaluate
                   | Some b -> b
                 end
               in
+              let _ = (Expr.replace i (Value.to_exp v) branch) in
               let v = evaluate (Expr.replace i (Value.to_exp v) branch) in
               v
             | _ -> failwith (Value.show v)

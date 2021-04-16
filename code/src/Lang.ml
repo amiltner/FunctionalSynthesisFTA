@@ -562,7 +562,7 @@ module Expr = struct
             fpf ppf "@[<2>%a@ %a@]"
               pp_internal (this_lvl, e1) pp_internal (this_lvl + 1, e2)
           | Proj (n, e) ->
-            fpf ppf "@[<2>#%d@ %a@]" n pp_internal (this_lvl + 1, e)
+            fpf ppf "@[<2>%a@ .@ %d@]" pp_internal (this_lvl + 1, e) n
           | Func (x, e) ->
             fpf ppf "@[<2>fun %a ->@ %a@]" Param.pp x pp_internal (this_lvl, e)
           | Ctor (c, e)  ->
@@ -571,7 +571,7 @@ module Expr = struct
             else
               fpf ppf "@[<2>%a %a@]" Id.pp c pp_internal (this_lvl + 1, e)
           | Unctor (c, e)  ->
-            let unc = Id.create ("un_" ^ (Id.to_string c)) in
+            let unc = Id.create ("Un_" ^ (Id.to_string c)) in
             fpf ppf "@[<2>%a %a@]" Id.pp unc pp_internal (this_lvl + 1, e)
           | Match (e, i, bs) ->
             fpf ppf "@[<2>match %a binding %a with@\n%a@]"
@@ -579,7 +579,7 @@ module Expr = struct
               Id.pp i
               pp_branches (this_lvl+1, bs)
           | Fix (i, t, e) ->
-            fpf ppf "@[<2>fix %a : %a =@ %a@]"
+            fpf ppf "@[<2>fix (%a : %a) =@ %a@]"
               Id.pp i
               Type.pp t
               pp_internal (this_lvl, e)

@@ -11,5 +11,3 @@ synth list -> nat -> list satisfying
 [Nil,0] -> Cons(0,Nil),
 [Nil,1] -> Cons(1,Nil),
 [Cons(2,Cons(1,Cons(0,Nil))),1] -> Cons(2,Cons(1,Cons(0,Cons(1,Nil)))),
-
-(* This also goes too high in terms of numbers of asts required, bug *)

@@ -16,6 +16,7 @@ let minify_times = ref (0.0,0.0)
 let min_elt_times = ref (0.0,0.0)
 let initial_creation_times = ref (0.0,0.0)
 let accepts_term_times = ref (0.0,0.0)
+let copy_times = ref (0.0,0.0)
 
 let time t f =
   let (ttot,tmax) = !t in

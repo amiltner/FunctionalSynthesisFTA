@@ -279,6 +279,12 @@ module Make : AutomatonBuilder =
       : unit =
       (TimbukAut.add_final_state (get_aut x) s)
 
+    let remove_final_state
+        (x:t)
+        (s:State.t)
+      : unit =
+      (TimbukAut.remove_final_state (get_aut x) s)
+
     (*let is_empty
         (x:t)
       : bool =
@@ -390,13 +396,20 @@ module Make : AutomatonBuilder =
         create_from_fname new_fname
 
     let min_term_state
+        ~(f:term -> bool)
+        ~(cost:term -> Float.t)
+        ~(reqs:TermState.t -> State.t list)
         (x:t)
-        (f:term -> bool)
-        (cost:term -> Float.t)
       : term_state option =
       (*let x = get_small_aut x in*)
       let aut = get_aut x in
-      let tso = TimbukAut.min_term_state aut (f % from_timbuk_term) (cost % from_timbuk_term) in
+      let tso =
+        TimbukAut.min_term_state
+          ~f:(f % from_timbuk_term)
+          ~cost:(cost % from_timbuk_term)
+          ~reqs:(reqs % from_timbuk_termstate)
+          aut
+      in
       Option.map ~f:from_timbuk_termstate tso
 
     let size
