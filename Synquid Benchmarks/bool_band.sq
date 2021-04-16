@@ -1,0 +1,10 @@
+data Boolean where
+  T :: Boolean
+  F :: Boolean
+  
+bool_band :: p:Boolean -> q:Boolean -> { Boolean | 
+
+   ((p == T ==> _v == q) && (p == F ==> _v == F))
+
+}
+bool_band = ??

@@ -1,0 +1,10 @@
+data Boolean where
+  T :: Boolean
+  F :: Boolean
+  
+bool_bor :: p:Boolean -> q:Boolean -> { Boolean | 
+
+   ((p == T ==> _v == T) && (p == F ==> _v == q))
+
+}
+bool_bor = ??
