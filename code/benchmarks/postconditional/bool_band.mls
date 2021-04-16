@@ -1,0 +1,16 @@
+include "bool.decls"
+
+synth bool -> bool -> bool satisfying
+
+let bool_and =
+  fun (b1:bool) ->
+    fun (b2:bool) ->
+      (match b1 binding _ with
+      | True -> b2
+      | False -> False)
+;;
+
+fun (in1in2:bool*bool) -> (fun (out : bool) ->
+    match in1in2.0 binding _ with
+    | True -> bool_eq out in1in2.1
+    | False -> bool_eq out False)
