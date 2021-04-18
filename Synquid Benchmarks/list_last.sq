@@ -1,0 +1,18 @@
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+
+  
+data NatList where
+  Nil :: NatList
+  Cons :: Nat -> NatList -> NatList
+
+list_last :: ns:NatList -> { Nat | 
+    (ns == Nil ==> _v == Z) &&
+    (ns == Cons (S Z) Nil ==> _v == (S Z)) &&
+    (ns == Cons (S Z) (Cons (S (S Z)) Nil) ==> _v == (S (S Z))) &&
+    (ns == Cons (S Z) (Cons (S Z) (Cons (S (S Z)) Nil)) ==> _v == (S (S Z)))
+    }
+
+
+list_last = ??

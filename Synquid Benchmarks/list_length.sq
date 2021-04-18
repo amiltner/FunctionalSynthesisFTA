@@ -1,0 +1,26 @@
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+
+data NatList where
+  Nil :: NatList
+  Cons :: Nat -> NatList -> NatList
+
+-- NOTE: this len function is not used but when it is removed it causes error
+termination measure len :: NatList -> {Int | _v >= 0} where
+  Nil -> 0
+  Cons x xs -> 1 + len xs 
+  
+zero :: {Int | _v == 0}
+inc :: x: Int -> {Int | _v == x + 1}
+dec :: x: Int -> {Int | _v == x - 1}  
+leq :: x: Int -> y: Int -> {Bool | _v == (x <= y)}
+neq :: x: Int -> y: Int -> {Bool | _v == (x != y)}
+	
+list_length :: ns: NatList -> {Int | 
+    (_v >= 0) &&
+    (ns == Nil ==> _v == 0) &&
+    (ns == Cons (S Z) Nil ==> _v == 1) &&
+    (ns == Cons (S Z) (Cons (S Z) Nil) ==> _v == 2) &&
+    (ns == Cons (S Z) (Cons (S Z) (Cons (S Z) Nil)) ==> _v > 2)}
+list_length = ??
