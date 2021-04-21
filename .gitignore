@@ -47,6 +47,13 @@ _tags
 *.csv
 
 
+# - - -
+# Haskell
+# - - -
+
+stack.*
+.stack*
+
 
 # - - -
 # Editor/IDE
