@@ -4,7 +4,7 @@ data Boolean where
   
 bool_band :: p:Boolean -> q:Boolean -> { Boolean | 
 
-   ((p == T ==> _v == q) && (p == F ==> _v == F))
+   if p == F || q == F then _v == F else _v == T
 
 }
 bool_band = ??

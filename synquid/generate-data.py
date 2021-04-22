@@ -107,8 +107,11 @@ def gather_datum(path, base, additional_flags, timeout):
     #flags = map(lambda t: t(path,base),additional_flags)
     print(["stack","exec","--","synquid"] + BASE_FLAGS + flags + [join(path, base + TEST_EXT)])
     process_output = EasyProcess(["stack","exec","--","synquid"] + BASE_FLAGS + flags + [join(path, base + TEST_EXT)]).call(timeout=timeout+5)
+    stderr = process_output.stderr
+    if process_output.return_code != 0:
+        stderr = "Error" + stderr
     end = time.time()
-    return ((end - start), process_output.stdout,process_output.stderr)
+    return ((end - start), process_output.stdout,stderr)
 
 def gather_data(rootlength, path, base,name):
     current_data = {"Test":name}

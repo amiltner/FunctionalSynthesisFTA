@@ -1,0 +1,5 @@
+fix (f : tree -> nat) =
+  fun (x:tree) ->
+    match x binding _ with
+      | Leaf -> 0
+      | Node -> sum S (f (Un_Node x . 0)) (f (Un_Node x . 2))

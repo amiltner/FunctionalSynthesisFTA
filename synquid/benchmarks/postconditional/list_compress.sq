@@ -14,16 +14,20 @@ termination measure len :: NatList -> {Int | _v >= 0} where
   Nil -> 0
   Cons x xs -> 1 + len xs
   
-termination measure no_adjacent_pairs :: NatList -> Bool where
+measure hd :: NatList -> Nat where
+    Nil -> Z
+    Cons h t -> h
+ 
+measure elems :: NatList -> Set Nat where
+  Nil -> []
+  Cons x xs -> [x] + elems xs
+  
+measure no_adjacent_pairs :: NatList -> Bool where
   Nil -> True
-  Cons x xs -> match xs with -- giving an error on this refinement type
-                    Nil -> True
-                    Cons y ys -> (x == y) && (comp xs)
-  
-  
+  Cons x xs -> if xs == Nil then True else hd xs != x && no_adjacent_pairs xs
+
 list_compress :: xs:NatList -> { NatList | 
-   (len _v <= len xs) &&
    (no_adjacent_pairs _v)
-   -- Need to include specification for making sure ever elem in xs is in _v
+   && (elems xs <= elems _v)
 }
 list_compress = ??

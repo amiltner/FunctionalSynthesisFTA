@@ -4,7 +4,7 @@ data Boolean where
   
 bool_xor :: p:Boolean -> q:Boolean -> { Boolean | 
 
-  (p == q ==> _v == F) && (p != q ==> _v == T)
+  p != q <==> _v == T
 
 }
 bool_xor = ??

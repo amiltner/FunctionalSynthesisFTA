@@ -3,6 +3,6 @@ data Boolean where
   F :: Boolean
   
 bool_impl :: p:Boolean -> q:Boolean -> { Boolean | 
-   ( (p == T ==> _v == q) && (p == F ==> _v == T) )
+   ( (p == T && q == F) <==> _v == F )
 }
 bool_impl = ??

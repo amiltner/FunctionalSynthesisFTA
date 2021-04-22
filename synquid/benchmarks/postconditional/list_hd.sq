@@ -9,11 +9,12 @@ termination measure dec :: Nat -> {Int | _v >= 0} where
 data NatList where
   Nil :: NatList
   Cons :: Nat -> NatList -> NatList
-  
-list_hd :: xs:NatList -> { Nat | 
-   -- Spec from GitHub, tried to implement matching as spec
-   (xs == Nil ==> _v == Z) &&
-   (xs == (Cons (S Z) Nil) ==> _v == (S Z)) 
 
+measure hd :: NatList -> Nat where
+    Nil -> Z
+    Cons h t -> h
+
+list_hd :: xs:NatList -> { Nat | 
+   if xs == Nil then _v == Z else _v == hd xs
 }
 list_hd = ??

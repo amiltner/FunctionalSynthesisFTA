@@ -1,4 +1,4 @@
-.PHONY: all clean generate-outs generate-data clean-data regenerate-data hyper-clean
+.PHONY: all clean generate-outs generate-data clean-data regenerate-data hyper-clean clean-outs regenerate-outs
 
 all:
 	stack setup && stack build
@@ -19,6 +19,10 @@ endif
 
 regenerate-data: clean-data generate-data
 
-hyper-clean: clean-data clean
-	rm benchmarks/example_based/*.out
+regenerate-outs: clean-outs generate-outs
+
+clean-outs:
 	rm benchmarks/postconditional/*.out
+	rm benchmarks/example_based/*.out
+
+hyper-clean: clean-data clean-outs clean

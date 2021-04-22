@@ -1,0 +1,9 @@
+fix (f : list -> bool) =
+  fun (x:list) ->
+    match x binding _ with
+      | Nil -> True
+      | Cons -> (match Un_Cons x . 0 binding _ with
+                   | True -> (match f (Un_Cons x . 1) binding _ with
+                                | True -> False
+                                | False -> Un_Cons x . 0)
+                   | False -> f (Un_Cons x . 1))
