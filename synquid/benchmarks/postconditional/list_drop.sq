@@ -14,8 +14,6 @@ termination measure len :: NatList -> {Int | _v >= 0} where
   Cons x xs -> 1 + len xs
   
 list_drop :: xn:Nat -> xs:NatList -> { NatList | 
-   (len xs - dec xn == len _v)
+   (if len xs - dec xn < 0 then len _v == 0 else len xs - dec xn == len _v)
 }
 list_drop = ??
-
--- This one gives an error; I looked at the specifications in the GitHub and it said timeout. 

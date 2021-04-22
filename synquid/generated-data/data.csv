@@ -1,0 +1,13 @@
+Test,PostTime
+bool-band,0.34
+bool-bor,0.35
+bool-impl,0.34
+bool-neg,0.34
+bool-xor,0.34
+list-append,0.44
+list-compress,err
+list-concat,err
+list-drop,0.39
+list-hd,0.34
+list-last,0.34
+list-length,err

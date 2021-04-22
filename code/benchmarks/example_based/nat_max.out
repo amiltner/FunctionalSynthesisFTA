@@ -1,0 +1,6 @@
+fix (f : nat * nat -> nat) =
+  fun (x:nat * nat) ->
+    match compare (x . 0) (x . 1) binding _ with
+      | LT -> x . 1
+      | EQ -> x . 0
+      | GT -> x . 0

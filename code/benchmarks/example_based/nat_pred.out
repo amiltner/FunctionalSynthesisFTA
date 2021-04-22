@@ -1,0 +1,4 @@
+fix (f : nat -> nat) =
+  fun (x:nat) -> match x binding _ with
+                   | O -> x
+                   | S -> Un_S x

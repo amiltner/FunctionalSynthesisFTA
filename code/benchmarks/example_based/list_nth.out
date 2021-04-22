@@ -1,0 +1,7 @@
+fix (f : list * nat -> nat) =
+  fun (x:list * nat) ->
+    match x . 0 binding _ with
+      | Nil -> 0
+      | Cons -> (match x . 1 binding _ with
+                   | O -> Un_Cons (x . 0) . 0
+                   | S -> f (Un_Cons (x . 0) . 1, Un_S (x . 1)))

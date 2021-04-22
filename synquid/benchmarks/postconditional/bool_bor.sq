@@ -4,7 +4,7 @@ data Boolean where
   
 bool_bor :: p:Boolean -> q:Boolean -> { Boolean | 
 
-   ((p == T ==> _v == T) && (p == F ==> _v == q))
+   if p == T || q == T then _v == T else _v == F
 
 }
 bool_bor = ??

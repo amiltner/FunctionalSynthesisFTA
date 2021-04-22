@@ -1,0 +1,8 @@
+list_last :: ns:NatList -> {Nat|(((ns == (Nil) ==> _v == (Z)) && (ns == (Cons ((S (Z))) (Nil)) ==> _v == (S (Z)))) && (ns == (Cons ((S (Z))) ((Cons ((S ((S (Z))))) (Nil)))) ==> _v == (S ((S (Z)))))) && (ns == (Cons ((S (Z))) ((Cons ((S (Z))) ((Cons ((S ((S (Z))))) (Nil)))))) ==> _v == (S ((S (Z)))))}
+list_last = \ns . 
+  match ns with
+    Nil -> Z
+    Cons x2 x3 -> 
+      match x3 with
+        Nil -> x2
+        Cons x6 x7 -> S x2

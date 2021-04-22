@@ -2,7 +2,6 @@ config.h
 *.tgz
 starexec*
 
-*.out
 .DS_Store
 
 # - - -
@@ -43,10 +42,6 @@ ocamlprof.dump
 gmon.out
 _tags
 
-# experiment files
-*.csv
-
-
 # - - -
 # Haskell
 # - - -
@@ -60,3 +55,5 @@ stack.*
 # - - -
 
 .vscode
+
+code/*.out

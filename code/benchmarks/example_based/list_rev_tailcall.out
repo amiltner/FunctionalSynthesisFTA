@@ -1,0 +1,8 @@
+fix (f : list * list -> list) =
+  fun (x:list * list) ->
+    match x . 0 binding _ with
+      | Nil -> x . 1
+      | Cons -> (match Un_Cons (x . 0) . 1 binding _ with
+                   | Nil -> Cons (Un_Cons (x . 0) . 0, x . 1)
+                   | Cons -> Cons (Un_Cons (Un_Cons (x . 0) . 1) . 0,
+                                    Cons (Un_Cons (x . 0) . 0, x . 1)))

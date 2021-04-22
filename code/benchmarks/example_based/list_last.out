@@ -1,0 +1,7 @@
+fix (f : list -> natopt) =
+  fun (x:list) ->
+    match x binding _ with
+      | Nil -> None
+      | Cons -> (match Un_Cons x . 1 binding _ with
+                   | Nil -> Some (Un_Cons x . 0)
+                   | Cons -> f (Un_Cons x . 1))

@@ -1,0 +1,5 @@
+fix (f : llist -> list) =
+  fun (x:llist) ->
+    match x binding _ with
+      | LNil -> Nil
+      | LCons -> append (f (Un_LCons x . 1)) (Un_LCons x . 0)
