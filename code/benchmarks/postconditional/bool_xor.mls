@@ -1,0 +1,12 @@
+include "bool.decls"
+
+synth bool -> bool -> bool satisfying
+
+let xor =
+  fun (b1:bool) ->
+    fun (b2:bool) ->
+      (bool_not (bool_eq b1 b2))
+;;
+
+fun (in1in2:bool*bool) -> (fun (out : bool) ->
+    (bool_eq (bool_eq in1in2.0 in1in2.1) (bool_not out)))

@@ -1,0 +1,11 @@
+include "bool.decls"
+
+synth bool -> bool satisfying
+
+let bool_neg =
+  fun (b:bool) ->
+    (bool_not b)
+;;
+
+fun (in:bool) -> (fun (out : bool) ->
+  (bool_not (bool_eq in out)))
