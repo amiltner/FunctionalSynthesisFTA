@@ -323,6 +323,26 @@ branch:
   | PIPE i=UID ARR e=exp
     { (Id.create i, e) }
 
+pat:
+  | c=UID p=pattern
+    { (c, Some p) }
+  | c=UID
+    { (c, None) }
+
+pattern:
+  | WILDCARD
+    { PWildcard }
+  | x=LID
+    { PVar x }
+  | LPAREN p=pattern COMMA ps=pattern_list RPAREN
+    { PTuple (p :: List.rev ps) }
+
+pattern_list: (* Reversed *)
+  | p=pattern
+    { [p] }
+  | ps=pattern_list COMMA p=pattern
+    { p::ps }
+
 (*evidence:
   | v=ev_val
     { v }

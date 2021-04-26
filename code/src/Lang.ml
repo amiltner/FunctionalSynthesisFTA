@@ -1,5 +1,14 @@
 open MyStdLib
 
+module Pattern =
+struct
+  type t =
+    | Tuple of t list
+    | Ctor of Id.t * t
+    | Var of Id.t
+  [@@deriving eq, hash, ord, show]
+end
+
 type 'a e_node_maker =
   | Var of Id.t
   | Wildcard
