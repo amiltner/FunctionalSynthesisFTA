@@ -83,7 +83,8 @@ rule token = parse
   | digit { INT (int_of_string (lexeme lexbuf)) }
   (*| "#" digit+ { create_proj lexbuf } *)
   | "(*" {comments 0 lexbuf}
-  | whitespace+ | newline+    { token lexbuf }
+  | newline { new_line lexbuf; token lexbuf }
+  | whitespace+ { token lexbuf }
   | lowercase (digit | character | '_')* { create_token lexbuf }
   | uppercase (digit | character | '_')* { UID (lexeme lexbuf) }
   | '?' | "|>" | '=' | "->" | "=>" | '*' | ',' | ':' | ';' | '|' | '(' | ')'

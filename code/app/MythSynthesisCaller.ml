@@ -90,11 +90,15 @@ module DSToMyth = struct
          MythLang.EFun ((Id.to_string i,mt), to_myth_exp e)
        | Ctor (i,e) ->
          ECtor (Id.to_string i,to_myth_exp e)
-       | Match (e,i,branches) ->
+       | Match (e,branches) ->
          let me = to_myth_exp e in
          let mbranches =
            List.map
-             ~f:(fun (b,e) -> ((Id.to_string b,Some (MythLang.PVar (Id.to_string i))), to_myth_exp e))
+             ~f:(fun (b,e) ->
+                 begin match b with
+                   | Pattern.Ctor (b,Pattern.Var i) -> ((Id.to_string b,Some (MythLang.PVar (Id.to_string i))), to_myth_exp e)
+                   | _ -> failwith "ah"
+                 end)
              branches
          in
          MythLang.EMatch (me,mbranches)
@@ -239,6 +243,16 @@ module MythToDS = struct
         -> helper (i + 1) acc plist
     in helper 0 []
 
+  let rec pattern_from_myth
+      (p:Myth.Lang.pattern)
+    : Pattern.t =
+    begin match p with
+      | PVar id -> Pattern.Var (Id.create id)
+      | PTuple ps -> Pattern.Tuple (List.map ~f:pattern_from_myth ps)
+      | PWildcard -> Pattern.Wildcard
+      | _ -> failwith "invalid"
+    end
+
   let rec convert_type : Myth.Lang.typ -> Type.t =
     function [@warning "-8"]
     | TBase id          -> Type.mk_named (Id.create id)
@@ -308,35 +322,28 @@ module MythToDS = struct
                                     ~f:(fun eacc arg -> Expr.mk_func arg eacc)))
                       (body),counter)
       | Myth.Lang.EMatch (exp, branchlist)
-        -> let (fresh_var,counter) = create_fresh_var counter in
+        ->
         let (e,counter) = convert_expr counter exp in
         let (branches,counter) =
           List.fold_right
             ~f:(fun b (bs,counter) ->
-                let (b,counter) = (convert_branch fresh_var counter b) in
+                let (b,counter) = (convert_branch counter b) in
                 (b::bs,counter))
             ~init:([],counter)
             branchlist
         in
         (Expr.mk_match e
-                     fresh_var
-                     branches,counter)
+           branches,counter)
     end
 
-  and convert_branch (binder : Id.t) (counter:int) : Myth.Lang.branch -> ((Id.t * Expr.t) * int) =
+  and convert_branch (counter:int) : Myth.Lang.branch -> ((Pattern.t * Expr.t) * int) =
     function [@warning "-8"]
     | ((id, None), exp) ->
       let (e,counter) = convert_expr counter exp in
-      ((Id.create id, e),counter)
-    | ((id, Some (Myth.Lang.PVar _id)), exp)
+      ((Pattern.Ctor (Id.create id,Pattern.Tuple []), e),counter)
+    | ((id, Some p), exp)
       -> let (e,counter) = (convert_expr counter exp) in
-      ((Id.create id, (Expr.mk_let_in (Id.create _id) Type._unit (Expr.mk_var binder) e)),counter)
-    | ((id, Some (Myth.Lang.PTuple _plist)), exp)
-      -> let (e,counter) = (convert_expr counter exp) in
-      ((Id.create id, (List.fold
-               (explode (Expr.mk_var binder) _plist)
-               ~init:e
-               ~f:(fun eacc (e, _id) -> Expr.mk_let_in _id Type._unit e eacc))),counter)
+      ((Pattern.Ctor (Id.create id, pattern_from_myth p),e),counter)
 
   let convert_expr (e : Myth.Lang.exp) : Expr.t =
     fst (convert_expr 0 e)

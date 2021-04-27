@@ -28,28 +28,31 @@ let rec evaluate
         | Ctor (i,e) ->
           let v = evaluate e in
           Value.mk_ctor i v
-        | Match (e,i,branches) as match_expr ->
+        | Match (e,branches) as match_expr ->
           let v = evaluate e in
-          begin match Value.node v with
-            | Wildcard -> Value.mk_wildcard
-            | Ctor (choice,v) ->
-              let branch_o = List.Assoc.find ~equal:Id.equal branches choice in
-              let branch =
-                begin match branch_o with
-                  | None ->
-                    failwith
-                      ("constructor "
-                       ^ (Id.show choice)
-                       ^ " not matched: \n "
-                       ^ (Expr.show_t_node match_expr))
-                  | Some b -> b
-                end
-              in
-              let _ = (Expr.replace i (Value.to_exp v) branch) in
-              let v = evaluate (Expr.replace i (Value.to_exp v) branch) in
-              v
-            | _ -> failwith (Value.show v)
-          end
+          let branch_o =
+            List.find_map
+              ~f:(fun (p,e) ->
+                  Option.map
+                    ~f:(fun ms -> (ms,e))
+                    (Value.matches_pattern_and_extractions p v))
+              branches
+          in
+          let (replacements,e) =
+            begin match branch_o with
+              | None ->
+                failwith
+                  ((Value.show v)
+                   ^ " not matched: \n "
+                   ^ (Expr.show_t_node match_expr))
+              | Some b -> b
+            end
+          in
+          let replacements =
+            List.map ~f:(fun (i,v) -> (i,Value.to_exp v)) replacements
+          in
+          let v = evaluate (Expr.replace_holes replacements e) in
+          v
         | Fix (i,_,e') ->
           evaluate (Expr.replace i e e')
         | Tuple es ->
@@ -86,16 +89,16 @@ let evaluate_with_holes
 let rec safe_evaluate
     (e:Expr.t)
   : Value.t option =
-  try
+  (*try*)
     Some (evaluate e)
-  with _ ->
-    None
+  (*with _ ->
+    None*)
 
 let rec safe_evaluate_with_holes
     ~(eval_context:(Id.t * Expr.t) list)
     (e:Expr.t)
   : Value.t option =
-  try
+  (*try*)
     Some (evaluate_with_holes ~eval_context e)
-  with _ ->
-    None
+  (*with _ ->
+    None*)

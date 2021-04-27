@@ -6,7 +6,52 @@ struct
     | Tuple of t list
     | Ctor of Id.t * t
     | Var of Id.t
+    | Wildcard
   [@@deriving eq, hash, ord, show]
+
+  let rec contains_id
+      (i:Id.t)
+      (p:t)
+    : bool =
+    begin match p with
+      | Tuple ps -> List.exists ~f:(contains_id i) ps
+      | Ctor (_,p) -> contains_id i p
+      | Var i' -> Id.equal i i'
+      | Wildcard -> false
+    end
+
+  let rec pp
+      (ppf:Format.formatter)
+      (p:t)
+    : unit =
+    begin match p with
+      | Ctor (i,p) ->
+        Format.fprintf
+          ppf
+          "@[<2>%a %a@]"
+          Id.pp i
+          pp p
+      | Wildcard -> Format.fprintf ppf "_"
+      | Tuple ps ->
+        Format.fprintf
+          ppf
+          "@[<2>(%a)@]"
+          pp_many ps
+      | Var i ->
+        Id.pp ppf i
+    end
+  and pp_many
+      (ppf:Format.formatter)
+      (ps:t list)
+    : unit =
+    begin match ps with
+      | [] -> ()
+      | [p]   -> Format.fprintf ppf "%a" pp p
+      | p::ps -> Format.fprintf ppf "%a,@ %a" pp p pp_many ps
+    end
+
+
+  let show = show_of_pp pp
 end
 
 type 'a e_node_maker =
@@ -16,7 +61,7 @@ type 'a e_node_maker =
   | Func of Param.t * 'a e_maker
   | Ctor of Id.t * 'a e_maker
   | Unctor of Id.t * 'a e_maker
-  | Match of 'a e_maker * Id.t * (Id.t * 'a e_maker) list
+  | Match of 'a e_maker * (Pattern.t * 'a e_maker) list
   | Fix  of Id.t * Type.t * 'a e_maker
   | Tuple of 'a e_maker list
   | Proj of int * 'a e_maker
@@ -82,7 +127,7 @@ module Expr = struct
       ~(func_f:Param.t -> a -> a)
       ~(ctor_f:Id.t -> a -> a)
       ~(unctor_f:Id.t -> a -> a)
-      ~(match_f:a -> Id.t -> (Id.t * a) list -> a)
+      ~(match_f:a -> (Pattern.t * a) list -> a)
       ~(fix_f:Id.t -> Type.t -> a -> a)
       ~(tuple_f:a list -> a)
       ~(proj_f:int -> a -> a)
@@ -95,9 +140,9 @@ module Expr = struct
       | App (e1,e2) -> app_f (fold_internal e1) (fold_internal e2)
       | Func (a,e) -> func_f a (fold_internal e)
       | Ctor (v,e) -> ctor_f v (fold_internal e)
-      | Match (e,i,branches)
-        -> match_f (fold_internal e) i
-             (List.map ~f:(fun (i,e') -> (i,fold_internal e')) branches)
+      | Match (e,branches)
+        -> match_f (fold_internal e)
+             (List.map ~f:(fun (p,e') -> (p,fold_internal e')) branches)
       | Fix (i,t,e)
         -> fix_f i t (fold_internal e)
       | Tuple es
@@ -257,28 +302,27 @@ module Expr = struct
 
   let mk_match
       (e:t)
-      (binder:Id.t)
-      (branches:(Id.t * t) list)
+      (branches:(Pattern.t * t) list)
     : t =
-    create (Match (e,binder,branches))
+    create (Match (e,branches))
 
   let apply_match
       (type a)
-      ~(f:t -> Id.t -> (Id.t * t) list -> a)
+      ~(f:t -> (Pattern.t * t) list -> a)
       (e:t)
     : a option =
     begin match node e with
-      | Match (e,i,branches) -> Some (f e i branches)
+      | Match (e,branches) -> Some (f e branches)
       | _ -> None
     end
 
   let destruct_match
-    : t -> (t * Id.t * (Id.t * t) list) option =
-    apply_match ~f:(fun e i branches -> (e,i,branches))
+    : t -> (t * (Pattern.t * t) list) option =
+    apply_match ~f:(fun e branches -> (e,branches))
 
   let destruct_match_exn
       (e:t)
-    : t * Id.t * (Id.t * t) list =
+    : t * (Pattern.t * t) list =
     Option.value_exn (destruct_match e)
 
   let mk_fix
@@ -331,16 +375,17 @@ module Expr = struct
         mk_ctor i (replace_simple e)
       | Unctor (i,e) ->
         mk_unctor i (replace_simple e)
-      | Match (e,i',branches) ->
+      | Match (e,branches) ->
         let branches =
-          if Id.equal i i' then
+          List.map
+            ~f:(fun (p,e) ->
+                if Pattern.contains_id i p then
+                  (p,e)
+                else
+                  (p,replace_simple e))
             branches
-          else
-            List.map
-              ~f:(fun (i,e) -> (i,replace_simple e))
-              branches
         in
-        mk_match (replace_simple e) i' branches
+        mk_match (replace_simple e) branches
       | Fix (i',t,e') ->
         if Id.equal i i' then
           e
@@ -412,14 +457,12 @@ module Expr = struct
           contains_var_simple e
       | Ctor (_,e) -> contains_var_simple e
       | Unctor (_,e) -> contains_var_simple e
-      | Match (e,i,branches) ->
+      | Match (e,branches) ->
         contains_var_simple e ||
-        (if Id.equal i v then
-           false
-         else
-           List.exists
-             ~f:(fun (_,e) -> contains_var_simple e)
-             branches)
+        (List.exists
+           ~f:(fun (p,e) ->
+               not (Pattern.contains_id v p) && contains_var_simple e)
+           branches)
       | Fix (i,_,e) ->
         if Id.equal i v then
           false
@@ -439,11 +482,10 @@ module Expr = struct
         mk_app (simplify e1) (simplify e2)
       | Func (a,e) ->
         mk_func a (simplify e)
-      | Match (e,v,branches) ->
+      | Match (e,branches) ->
         mk_match
           (simplify e)
-          v
-          (List.map ~f:(fun (i,e) -> (i,simplify e)) branches)
+          (List.map ~f:(fun (p,e) -> (p,simplify e)) branches)
       | Fix (i,t,e) ->
         let e = simplify e in
         if not (contains_var i e) then
@@ -500,7 +542,7 @@ module Expr = struct
       ~func_f:(fun (_,t) i -> 1 + (Type.size t) + i)
       ~ctor_f:(fun _ s -> s+1)
       ~unctor_f:(fun _ s -> s+1)
-      ~match_f:(fun s _ bs -> List.fold_left bs ~init:(s+1)
+      ~match_f:(fun s bs -> List.fold_left bs ~init:(s+1)
                    ~f:(fun acc (_,s) -> s+acc))
       ~fix_f:(fun _ t s -> 1 + (Type.size t) + s)
       ~tuple_f:(List.fold_left ~f:(+) ~init:1)
@@ -541,11 +583,11 @@ module Expr = struct
       | Var _         -> 1000
       | Wildcard         -> 1000
     in
-    let rec fpf_branch ppf ((lvl, (i,e)):int * (Id.t * t)) =
-      fpf ppf "@[<2>| %a -> %a@]" Id.pp i pp_internal (lvl, e)
+    let rec fpf_branch ppf ((lvl, (p,e)):int * (Pattern.t * t)) =
+      fpf ppf "@[<2>| %a -> %a@]" Pattern.pp p pp_internal (lvl, e)
     and pp_branches
         (ppf:Format.formatter)
-        ((lvl,bs):int * ((Id.t * t) list))
+        ((lvl,bs):int * ((Pattern.t * t) list))
       : unit =
       match bs with
       | [] -> ()
@@ -582,10 +624,9 @@ module Expr = struct
           | Unctor (c, e)  ->
             let unc = Id.create ("Un_" ^ (Id.to_string c)) in
             fpf ppf "@[<2>%a %a@]" Id.pp unc pp_internal (this_lvl + 1, e)
-          | Match (e, i, bs) ->
-            fpf ppf "@[<2>match %a binding %a with@\n%a@]"
+          | Match (e, bs) ->
+            fpf ppf "@[<2>match %a with@\n%a@]"
               pp_internal (0, e)
-              Id.pp i
               pp_branches (this_lvl+1, bs)
           | Fix (i, t, e) ->
             fpf ppf "@[<2>fix (%a : %a) =@ %a@]"
@@ -651,7 +692,7 @@ module Expr = struct
       | Unctor (i,e) ->
         let l = extract_unbranched_switches e in
         (e,i)::l
-      | Match (e,_,branches) ->
+      | Match (e,branches) ->
         let matched_e = e in
         let l1 = extract_unbranched_switches e in
         l1@
@@ -873,4 +914,29 @@ module Value = struct
       (t:Type.t)
     : t option =
     Option.map ~f:from_exp_exn (Expr.of_type t)
+
+  let rec matches_pattern_and_extractions
+      (p:Pattern.t)
+      (v:t)
+    : (Id.t * t) list option =
+    begin match (p,node v) with
+      | (Tuple ps, Tuple vs) ->
+        let merge_os =
+          List.map2_exn
+            ~f:matches_pattern_and_extractions
+            ps
+            vs
+        in
+        Option.map
+          ~f:(fun ivs -> List.concat ivs)
+          (distribute_option merge_os)
+      | (Ctor (i,p),Ctor (i',v)) ->
+        if Id.equal i i' then
+          matches_pattern_and_extractions p v
+        else
+          None
+      | (Var i,_) -> Some [(i,v)]
+      | (Wildcard,_) -> Some []
+      | _ -> failwith "bad typechecking"
+    end
 end

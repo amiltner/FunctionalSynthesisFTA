@@ -291,10 +291,8 @@ exp_base:
         { mk_unctor_or_ctor_by_name c Expr.mk_unit }
   | c=UID LPAREN e=exp COMMA es=exp_comma_list_one RPAREN (* Sugar: ctor with tuple argument.  *)
                                   { mk_unctor_or_ctor_by_name c (Expr.mk_tuple (e :: List.rev es)) }
-  | MATCH e=exp BINDING i=LID WITH bs=branches
-    { Expr.mk_match e (Id.create i) (List.rev bs) }
-  | MATCH e=exp BINDING WILDCARD WITH bs=branches
-    { Expr.mk_match e (Id.create "_") (List.rev bs) }
+  | MATCH e=exp WITH bs=branches
+    { Expr.mk_match e (List.rev bs) }
   (*| LBRACKET l=exp_semi_list RBRACKET
     { list_of_exps l }*)
   | LPAREN e=exp COMMA es=exp_comma_list_one RPAREN
@@ -320,22 +318,22 @@ branches:   (* NOTE: reversed *)
     { b::bs }
 
 branch:
-  | PIPE i=UID ARR e=exp
-    { (Id.create i, e) }
-
-pat:
-  | c=UID p=pattern
-    { (c, Some p) }
-  | c=UID
-    { (c, None) }
+  | PIPE p=pattern ARR e=exp
+    { (p, e) }
 
 pattern:
+  | c=UID
+    { (Pattern.Ctor (Id.create c,Pattern.Tuple [])) }
+  | c=UID p=pattern
+    { (Pattern.Ctor (Id.create c,p)) }
   | WILDCARD
-    { PWildcard }
-  | x=LID
-    { PVar x }
+    { Pattern.Wildcard }
+  | LPAREN RPAREN
+    { Pattern.Tuple [] }
   | LPAREN p=pattern COMMA ps=pattern_list RPAREN
-    { PTuple (p :: List.rev ps) }
+    { Pattern.Tuple (p :: List.rev ps) }
+  | x=LID
+    { Pattern.Var (Id.create x) }
 
 pattern_list: (* Reversed *)
   | p=pattern

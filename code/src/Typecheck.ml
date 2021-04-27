@@ -88,6 +88,28 @@ let rec concretify
     | _ -> t
   end
 
+let rec typecheck_pattern
+    (tc:Context.Types.t)
+    (p:Pattern.t)
+    (t:Type.t)
+  : (Id.t * Type.t) list =
+  begin match (p,Type.node (concretify tc t)) with
+    | (Tuple ps, Tuple ts) ->
+      let merges =
+        List.map2_exn
+          ~f:(typecheck_pattern tc)
+          ps
+          ts
+      in
+      List.concat merges
+    | (Ctor (i,p),Variant variants) ->
+      let t = List.Assoc.find_exn ~equal:Id.equal variants i in
+      typecheck_pattern tc p t
+    | (Var i,_) -> [(i,t)]
+    | (Wildcard,_) -> []
+    | _ -> failwith ("didn't merge " ^ (Pattern.show p) ^ " with " ^ (Type.show t))
+  end
+
 let rec typecheck_exp
     (ec:Context.Exprs.t)
     (tc:Context.Types.t)
@@ -125,47 +147,19 @@ let rec typecheck_exp
       else
         failwith ("variant " ^ (Id.show i) ^ " expects different type: expected "
                   ^ (Type.show t_defined) ^ " but got " ^ (Type.show t))
-    | Match(e,i,branches) ->
+    | Match(e,branches) ->
       let t = concretify tc (typecheck_simple e) in
-      let expected_branches = Type.destruct_variant_exn t in
-      let ordered_expected =
-        List.sort
-          ~compare:(fun (i1,_) (i2,_) -> Id.compare i1 i2)
-          expected_branches
-      in
-      let ordered_actual =
-        List.sort
-          ~compare:(fun (i1,_) (i2,_) -> Id.compare i1 i2)
+      let ts =
+        List.map
+          ~f:(fun (p,e) ->
+              let its = typecheck_pattern tc p t in
+              let ec = Context.set_multiple ec its in
+              typecheck_exp ec tc vc e)
           branches
       in
-      let merged_ordered_actual_expected =
-        List.zip_exn ordered_actual ordered_expected
-      in
-      Option.value_exn
-        (List.fold_left
-           ~f:(fun acc_o ((i_actual,e),(i_expected,t_arg)) ->
-               if Id.equal i_actual i_expected then
-                 let ec = Context.set ec ~key:i ~data:t_arg in
-                 let t = typecheck_exp ec tc vc e
-                  in begin match acc_o with
-                       | None -> Some t
-                       | Some acc
-                         -> if (type_equiv tc acc t) then
-                              Some acc
-                            else failwith
-                                   ("inconsistent return types: "
-                                   ^ (Type.show acc)
-                                   ^ " and "
-                                   ^ (Type.show t))
-                     end
-               else
-                 failwith
-                   ("Variant mismatch with "
-                    ^ (Id.show i_actual)
-                    ^ " and "
-                    ^ (Id.show i_expected)))
-           ~init:None
-           merged_ordered_actual_expected)
+      let (ht,tt) = split_by_first_exn ts in
+      assert (List.for_all ~f:(fun t -> type_equiv tc ht t) tt);
+      ht
     | Fix (i,t,e) ->
       let ec = Context.set ec ~key:i ~data:t in
       typecheck_exp ec tc vc e

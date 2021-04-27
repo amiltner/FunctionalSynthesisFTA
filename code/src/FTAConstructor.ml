@@ -126,11 +126,11 @@ struct
           | e::es ->
             let branches =
               List.map2_exn
-                ~f:(fun i e -> (i,e))
+                ~f:(fun i e -> (Pattern.Ctor (i,Pattern.Wildcard),e))
                 ids
                 es
             in
-            AngelicEval.Match (e,Id.create "_",branches)
+            AngelicEval.Match (e,branches)
           | _ -> failwith "bad7"
         end
     end
@@ -336,8 +336,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             (* TODO, make destructors *)
             let e = term_to_exp_internals t in
             let its = List.zip_exn is ts in
-            let ies = List.map ~f:(fun (i,t) -> (i,term_to_exp_internals t)) its in
-            Expr.mk_match e (Id.wildcard) ies
+            let branches = List.map ~f:(fun (i,t) -> (Pattern.Ctor (i,Pattern.Wildcard),term_to_exp_internals t)) its in
+            Expr.mk_match e branches
           | [] -> failwith "cannot happen"
         end
       | TupleDestruct (_,i) ->
@@ -413,8 +413,8 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
                 (* TODO, make destructors *)
                 let e = term_to_angelic_exp t in
                 let its = List.zip_exn is ts in
-                let ies = List.map ~f:(fun (i,t) -> (i,term_to_angelic_exp t)) its in
-                Match (e,(Id.wildcard),ies)
+                let branches = List.map ~f:(fun (i,t) -> (Pattern.Ctor (i,Pattern.Wildcard),term_to_angelic_exp t)) its in
+                Match (e,branches)
               | [] -> failwith "cannot happen"
             end
           | TupleDestruct (_,i) ->
@@ -1568,12 +1568,12 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             | None ->
               basic_mts
             | Some mts ->
-              (*if List.is_empty (extract_unbranched_switches (A.TermState.to_term mts)) then
+              if List.is_empty (extract_unbranched_switches (A.TermState.to_term mts)) then
                 basic_mts
               else
                 Consts.time
                   Consts.min_elt_times
-                  (fun _ -> A.min_term_state c.a ~f:is_valid_term ~cost:term_cost ~reqs:(List.dedup_and_sort ~compare:State.compare % extract_unbranched_states)(*fun _ -> []*))*) basic_mts
+                  (fun _ -> A.min_term_state c.a ~f:is_valid_term ~cost:term_cost ~reqs:(List.dedup_and_sort ~compare:State.compare % extract_unbranched_states)(*fun _ -> []*))
           end
         in
         c.min_term_state <- Some mts;

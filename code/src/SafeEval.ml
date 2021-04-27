@@ -8,7 +8,7 @@ type expr =
   | Func of Param.t * expr
   | Ctor of Id.t * expr
   | Unctor of Id.t * expr
-  | Match of expr * Id.t * (Id.t * expr) list
+  | Match of expr * (Pattern.t * expr) list
   | Fix  of Id.t * Type.t * expr
   | Tuple of expr list
   | Proj of int * expr
@@ -22,6 +22,31 @@ and value =
   | Wildcard
 [@@deriving show]
 
+let rec matches_pattern_and_extractions
+    (p:Pattern.t)
+    (v:value)
+  : (Id.t * value) list option =
+  begin match (p,v) with
+    | (Tuple ps, Tuple vs) ->
+      let merge_os =
+        List.map2_exn
+          ~f:matches_pattern_and_extractions
+          ps
+          vs
+      in
+      Option.map
+        ~f:(fun ivs -> List.concat ivs)
+        (distribute_option merge_os)
+    | (Ctor (i,p),Ctor (i',v)) ->
+      if Id.equal i i' then
+        matches_pattern_and_extractions p v
+      else
+        None
+    | (Var i,_) -> Some [(i,v)]
+    | (Wildcard,_) -> Some []
+    | _ -> failwith "bad typechecking"
+  end
+
 let from_exp =
   Expr.fold
     ~var_f:(fun i -> Var i)
@@ -29,7 +54,7 @@ let from_exp =
     ~func_f:(fun p e -> Func(p,e))
     ~ctor_f:(fun i e -> Ctor(i,e))
     ~unctor_f:(fun i e -> Unctor (i,e))
-    ~match_f:(fun e i bs -> Match(e,i,bs))
+    ~match_f:(fun e bs -> Match(e,bs))
     ~fix_f:(fun i t e -> Fix(i,t,e))
     ~tuple_f:(fun es -> Tuple es)
     ~proj_f:(fun i e -> Proj(i,e))
@@ -72,16 +97,17 @@ let rec replace
       Ctor (i,(replace_simple e))
     | Unctor (i,e) ->
       Unctor (i,(replace_simple e))
-    | Match (e,i',branches) ->
+    | Match (e,branches) ->
       let branches =
-        if Id.equal i i' then
+        List.map
+          ~f:(fun (p,e) ->
+              if Pattern.contains_id i p then
+                (p,e)
+              else
+                (p,replace_simple e))
           branches
-        else
-          List.map
-            ~f:(fun (i,e) -> (i,replace_simple e))
-            branches
       in
-      Match ((replace_simple e),i',branches)
+      Match ((replace_simple e),branches)
     | Fix (i',t,e') ->
       if Id.equal i i' then
         e
@@ -93,6 +119,15 @@ let rec replace
     | Proj (i,e) ->
       Proj (i,(replace_simple e))
   end
+
+let replace_holes
+    ~(i_e:(Id.t * expr) list)
+    (e:expr)
+  : expr =
+  List.fold_left
+    ~f:(fun acc (i,e) -> replace i e acc)
+    ~init:e
+    i_e
 
 let rec evaluate
     (current_check : value -> bool)
@@ -125,27 +160,31 @@ let rec evaluate
     | Ctor (i,e) ->
       let v = evaluate current_check e in
       Ctor (i,v)
-    | Match (e,i,branches) as match_expr ->
+    | Match (e,branches) as match_expr ->
       let v = evaluate current_check e in
-      begin match v with
-        | Wildcard -> Wildcard
-        | Ctor (choice,v) ->
-          let branch_o = List.Assoc.find ~equal:Id.equal branches choice in
-          let branch =
-            begin match branch_o with
-              | None ->
-                failwith
-                  ("constructor "
-                   ^ (Id.show choice)
-                   ^ " not matched: \n "
-                   ^ (show_expr match_expr))
-              | Some b -> b
-            end
-          in
-          let v = evaluate current_check (replace i (value_to_exp v) branch) in
-          v
-        | _ -> failwith "no soln"
-      end
+      let branch_o =
+        List.find_map
+          ~f:(fun (p,e) ->
+              Option.map
+                ~f:(fun ms -> (ms,e))
+                (matches_pattern_and_extractions p v))
+          branches
+      in
+      let (replacements,e) =
+        begin match branch_o with
+          | None ->
+            failwith
+              ((show_value v)
+               ^ " not matched: \n "
+               ^ (show_expr match_expr))
+          | Some b -> b
+        end
+      in
+      let replacements =
+        List.map ~f:(fun (i,v) -> (i,value_to_exp v)) replacements
+      in
+      let v = evaluate current_check (replace_holes replacements e) in
+      v
     | Fix (i,_,e') ->
       evaluate current_check (replace i e e')
     | Tuple es ->

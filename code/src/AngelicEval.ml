@@ -7,7 +7,7 @@ type expr =
   | Func of Param.t * expr
   | Ctor of Id.t * expr
   | Unctor of Id.t * expr
-  | Match of expr * Id.t * (Id.t * expr) list
+  | Match of expr * (Pattern.t * expr) list
   | Fix of Id.t * Type.t * expr
   | Tuple of expr list
   | Proj of int * expr
@@ -21,6 +21,31 @@ and value =
   | Wildcard
 [@@deriving eq, show]
 
+let rec matches_pattern_and_extractions
+    (p:Pattern.t)
+    (v:value)
+  : (Id.t * value) list option =
+  begin match (p,v) with
+    | (Tuple ps, Tuple vs) ->
+      let merge_os =
+        List.map2_exn
+          ~f:matches_pattern_and_extractions
+          ps
+          vs
+      in
+      Option.map
+        ~f:(fun ivs -> List.concat ivs)
+        (distribute_option merge_os)
+    | (Ctor (i,p),Ctor (i',v)) ->
+      if Id.equal i i' then
+        matches_pattern_and_extractions p v
+      else
+        None
+    | (Var i,_) -> Some [(i,v)]
+    | (Wildcard,_) -> Some []
+    | _ -> failwith "bad typechecking"
+  end
+
 let mk_value_ctor (i:Id.t) (v:value) : value = Ctor (i,v)
 
 let from_exp =
@@ -30,7 +55,7 @@ let from_exp =
     ~func_f:(fun p e -> Func(p,e))
     ~ctor_f:(fun i e -> Ctor(i,e))
     ~unctor_f:(fun i e -> Unctor (i,e))
-    ~match_f:(fun e i bs -> Match(e,i,bs))
+    ~match_f:(fun e bs -> Match(e,bs))
     ~tuple_f:(fun es -> Tuple es)
     ~proj_f:(fun i e -> Proj(i,e))
     ~fix_f:(fun i t e -> Fix (i,t,e))
@@ -56,11 +81,10 @@ let rec to_exp
         (to_exp e)
     | Ctor (i,e) -> Expr.mk_ctor i (to_exp e)
     | Unctor (i,e) -> Expr.mk_unctor i (to_exp e)
-    | Match (e,i,matches) ->
+    | Match (e,bs) ->
       Expr.mk_match
         (to_exp e)
-        i
-        (List.map ~f:(fun (i,e) -> (i,to_exp e)) matches)
+        (List.map ~f:(fun (p,e) -> (p,to_exp e)) bs)
     | Tuple es -> Expr.mk_tuple (List.map ~f:to_exp es)
     | Proj (i,e) -> Expr.mk_proj i (to_exp e)
     | AngelicF e -> failwith "no"
@@ -116,16 +140,17 @@ let rec replace
       Ctor (i,(replace_simple e))
     | Unctor (i,e) ->
       Unctor (i,(replace_simple e))
-    | Match (e,i',branches) ->
+    | Match (e,branches) ->
       let branches =
-        if Id.equal i i' then
+        List.map
+          ~f:(fun (p,e) ->
+              if Pattern.contains_id i p then
+                (p,e)
+              else
+                (p,replace_simple e))
           branches
-        else
-          List.map
-            ~f:(fun (i,e) -> (i,replace_simple e))
-            branches
       in
-      Match ((replace_simple e),i',branches)
+      Match ((replace_simple e),branches)
     | Tuple es ->
       Tuple
         (List.map ~f:replace_simple es)
@@ -138,6 +163,15 @@ let rec replace
         Fix (i',t,replace_simple e')
     | Wildcard -> Wildcard
   end
+
+let replace_holes
+    ~(i_e:(Id.t * expr) list)
+    (e:expr)
+  : expr =
+  List.fold_left
+    ~f:(fun acc (i,e) -> replace i e acc)
+    ~init:e
+    i_e
 
 let rec evaluate
     (angelics : (value * value list) list)
@@ -190,32 +224,36 @@ let rec evaluate
         vcallsvs
     | Fix (i,_,e') ->
       evaluate (replace i e e')
-    | Match (e,i,branches) as match_expr ->
+    | Match (e,branches) as match_expr ->
       let vcallsvs = evaluate e in
       List.concat_map
         ~f:(fun (vcalls,v) ->
-            begin match v with
-              | Ctor (choice,v) ->
-                let branch_o = List.Assoc.find ~equal:Id.equal branches choice in
-                let branch =
-                  begin match branch_o with
-                    | None ->
-                      failwith
-                        ("constructor "
-                         ^ (Id.show choice)
-                         ^ " not matched: \n "
-                         ^ (show_expr match_expr))
-                    | Some b -> b
-                  end
-                in
-                let vcalls'vs = evaluate (replace i (value_to_exp v) branch) in
-                List.map
-                  ~f:(fun (vcalls',v) ->
-                      (vcalls@vcalls',v))
-                  vcalls'vs
-              | Wildcard -> [vcalls,Wildcard]
-              | _ -> failwith "no soln"
-            end)
+            let branch_o =
+              List.find_map
+                ~f:(fun (p,e) ->
+                    Option.map
+                      ~f:(fun ms -> (ms,e))
+                      (matches_pattern_and_extractions p v))
+                branches
+            in
+            let (replacements,e) =
+              begin match branch_o with
+                | None ->
+                  failwith
+                    ((show_value v)
+                     ^ " not matched: \n "
+                     ^ (show_expr match_expr))
+                | Some b -> b
+              end
+            in
+            let replacements =
+              List.map ~f:(fun (i,v) -> (i,value_to_exp v)) replacements
+            in
+            let vcalls'vs = evaluate (replace_holes replacements e) in
+            List.map
+              ~f:(fun (vcalls',v) ->
+                  (vcalls@vcalls',v))
+              vcalls'vs)
         vcallsvs
     | Tuple es ->
       let allcalls_allvs = List.map ~f:evaluate es in

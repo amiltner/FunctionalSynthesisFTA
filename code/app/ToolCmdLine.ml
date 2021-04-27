@@ -9,10 +9,7 @@ let rec import_imports
     | None -> acc
     | Some (fname,acc) ->
       let (news,newd) =
-        Parser.imports_decls_start
-          Lexer.token
-          (Lexing.from_string
-             (MyStdLib.SimpleFile.read_from_file ~fname))
+        ParserContainer.import_decls_start (MyStdLib.SimpleFile.read_from_file ~fname)
       in
       let news = Problem.update_import_base news fname in
       import_imports
@@ -123,20 +120,15 @@ let check_equivalence
     ~(ce2:string)
   : unit =
   let p_unprocessed =
-    Parser.unprocessed_problem
-      Lexer.token
-      (Lexing.from_string
-         (Prelude.prelude_string ^ (MyStdLib.SimpleFile.read_from_file ~fname)))
+    ParserContainer.unprocessed_problem (MyStdLib.SimpleFile.read_from_file ~fname)
   in
   let p_unprocessed = Problem.update_all_import_bases p_unprocessed fname in
   let p_unprocessed = import_imports p_unprocessed in
   let problem = Problem.process p_unprocessed in
   let context = Problem.extract_context problem in
   let ref_e =
-    Parser.exp
-      Lexer.token
-      (Lexing.from_string
-         (MyStdLib.SimpleFile.read_from_file ~fname:ce1))
+    ParserContainer.exp
+      (MyStdLib.SimpleFile.read_from_file ~fname:ce1)
   in
   let cand =
     Parser.exp
@@ -178,10 +170,8 @@ let synthesize_solution
   Consts.logging := log;
   Consts.print_mapping := print_mapping;
   let p_unprocessed =
-    Parser.unprocessed_problem
-      Lexer.token
-      (Lexing.from_string
-         (Prelude.prelude_string ^ (MyStdLib.SimpleFile.read_from_file ~fname)))
+    ParserContainer.unprocessed_problem
+      ((MyStdLib.SimpleFile.read_from_file ~fname))
   in
   let p_unprocessed = Problem.update_all_import_bases p_unprocessed fname in
   let p_unprocessed = import_imports p_unprocessed in
