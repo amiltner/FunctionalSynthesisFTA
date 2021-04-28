@@ -1,8 +1,0 @@
-include "nat.decls"
-
-synth nat -> bool satisfying
-
-[0] -> True,
-[1] -> False,
-[2] -> True,
-[3] -> False
