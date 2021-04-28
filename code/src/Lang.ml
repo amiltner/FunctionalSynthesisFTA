@@ -61,6 +61,7 @@ type 'a e_node_maker =
   | Func of Param.t * 'a e_maker
   | Ctor of Id.t * 'a e_maker
   | Unctor of Id.t * 'a e_maker
+  | Eq of bool * 'a e_maker * 'a e_maker
   | Match of 'a e_maker * (Pattern.t * 'a e_maker) list
   | Fix  of Id.t * Type.t * 'a e_maker
   | Tuple of 'a e_maker list
@@ -126,6 +127,7 @@ module Expr = struct
       ~(app_f:a -> a -> a)
       ~(func_f:Param.t -> a -> a)
       ~(ctor_f:Id.t -> a -> a)
+      ~(eq_f:bool -> a -> a -> a)
       ~(unctor_f:Id.t -> a -> a)
       ~(match_f:a -> (Pattern.t * a) list -> a)
       ~(fix_f:Id.t -> Type.t -> a -> a)
@@ -139,6 +141,7 @@ module Expr = struct
       | Var v -> var_f v
       | App (e1,e2) -> app_f (fold_internal e1) (fold_internal e2)
       | Func (a,e) -> func_f a (fold_internal e)
+      | Eq (b,e1,e2) -> eq_f b (fold_internal e1) (fold_internal e2)
       | Ctor (v,e) -> ctor_f v (fold_internal e)
       | Match (e,branches)
         -> match_f (fold_internal e)
@@ -156,6 +159,15 @@ module Expr = struct
 
   let mk_app (e1:t) (e2:t) : t =
     create (App (e1,e2))
+
+  let mk_eq (b:bool) (e1:t) (e2:t) : t =
+    create (Eq (b,e1,e2))
+
+  let mk_equal (e1:t) (e2:t) : t =
+    mk_eq true e1 e2
+
+  let mk_not_equal (e1:t) (e2:t) : t =
+    mk_eq false e1 e2
 
   let apply_app
       (type a)
@@ -359,6 +371,8 @@ module Expr = struct
     let replace_simple = replace i e_with in
     begin match node e with
       | Wildcard -> e
+      | Eq (b,e1,e2) ->
+        mk_eq b (replace_simple e1) (replace_simple e2)
       | Var i' ->
         if Id.equal i i' then
           e_with
@@ -456,6 +470,7 @@ module Expr = struct
         else
           contains_var_simple e
       | Ctor (_,e) -> contains_var_simple e
+      | Eq (_,e1,e2) -> contains_var_simple e1 || contains_var_simple e2
       | Unctor (_,e) -> contains_var_simple e
       | Match (e,branches) ->
         contains_var_simple e ||
@@ -480,6 +495,8 @@ module Expr = struct
       | Var _ -> e
       | App (e1,e2) ->
         mk_app (simplify e1) (simplify e2)
+      | Eq (b,e1,e2) ->
+        mk_eq b (simplify e1) (simplify e2)
       | Func (a,e) ->
         mk_func a (simplify e)
       | Match (e,branches) ->
@@ -539,6 +556,7 @@ module Expr = struct
   let size : t -> int =
     fold ~var_f:(fun _ -> 1)
       ~app_f:(fun x y -> x+y+1)
+      ~eq_f:(fun _ x y -> x+y+1)
       ~func_f:(fun (_,t) i -> 1 + (Type.size t) + i)
       ~ctor_f:(fun _ s -> s+1)
       ~unctor_f:(fun _ s -> s+1)
@@ -574,6 +592,7 @@ module Expr = struct
     let prec_of_exp (e:t) : int =
       match node e with
       | App _  -> 500
+      | Eq _ -> 400
       | Proj _ -> 500
       | Func _ | Fix _ -> 100
       | Ctor  (_, e) -> (if equal e unit_ then 1000 else 600)
@@ -609,6 +628,10 @@ module Expr = struct
         (if this_lvl < lvl then fpf ppf "(");
         begin match node e with
           | Var x -> fpf ppf "%a" Id.pp x
+          | Eq (true,e1,e2) ->
+            fpf ppf "%a == %a" pp_internal (this_lvl + 1,e1) pp_internal (this_lvl + 1,e2)
+          | Eq (false,e1,e2) ->
+            fpf ppf "%a != %a" pp_internal (this_lvl + 1,e1) pp_internal (this_lvl + 1,e2)
           | App (e1, e2) ->
             fpf ppf "@[<2>%a@ %a@]"
               pp_internal (this_lvl, e1) pp_internal (this_lvl + 1, e2)
@@ -687,6 +710,7 @@ module Expr = struct
     begin match node e with
       | Var _ -> []
       | App (e1,e2) -> (extract_unbranched_switches e1)@(extract_unbranched_switches e2)
+      | Eq (_,e1,e2) -> (extract_unbranched_switches e1)@(extract_unbranched_switches e2)
       | Func (_,e) -> extract_unbranched_switches e
       | Ctor (_,e) -> extract_unbranched_switches e
       | Unctor (i,e) ->
@@ -794,6 +818,8 @@ module Value = struct
 
   let mk_false : t = mk_ctor (Id.create "False") (mk_tuple [])
 
+  let from_bool (b:bool) : t = if b then mk_true else mk_false
+
   let mk_wildcard : t = create Wildcard
 
   let rec fold
@@ -835,6 +861,7 @@ module Value = struct
     | Match _
     | Fix _
     | Unctor _
+    | Eq _
       -> None
 
   let from_exp_exn (e:Expr.t) : t =

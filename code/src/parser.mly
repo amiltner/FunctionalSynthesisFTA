@@ -38,6 +38,8 @@ let mk_unctor_or_ctor_by_name
 %token UNIT
 
 %token EQ
+%token FATEQ
+%token NEQ
 %token EQUIV
 %token ARR
 %token COMMA
@@ -293,12 +295,14 @@ exp_base:
                                   { mk_unctor_or_ctor_by_name c (Expr.mk_tuple (e :: List.rev es)) }
   | MATCH e=exp WITH bs=branches
     { Expr.mk_match e (List.rev bs) }
-  (*| LBRACKET l=exp_semi_list RBRACKET
-    { list_of_exps l }*)
   | LPAREN e=exp COMMA es=exp_comma_list_one RPAREN
     { Expr.mk_tuple (e :: List.rev es) }
   | e=exp_base DOT n=INT
     { Expr.mk_proj n e }
+  | e1=exp_base FATEQ e2=exp_base
+    { Expr.mk_eq true e1 e2 }
+  | e1=exp_base NEQ e2=exp_base
+    { Expr.mk_eq false e1 e2 }
   | LPAREN e=exp RPAREN
     { e }
   | LPAREN RPAREN

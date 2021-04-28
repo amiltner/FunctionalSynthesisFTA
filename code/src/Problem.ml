@@ -207,6 +207,8 @@ let process_spec
     | UPost e ->
       let (tin,tout) = st_to_pair synth_type in
       let t = Typecheck.typecheck_exp ec tc vc e in
+      print_endline (Type.show t);
+      print_endline (Type.show (Type.mk_arrow tin (Type.mk_arrow tout Type._bool)));
       assert
         (Typecheck.type_equiv
            tc

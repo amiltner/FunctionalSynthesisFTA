@@ -23,6 +23,12 @@ let rec evaluate
               Value.mk_wildcard
             | _ -> failwith "nonfunc applied"
           end
+        | Eq (b,e1,e2) ->
+          let v1 = evaluate e1 in
+          let v2 = evaluate e2 in
+          let eq = Value.equal v1 v2 in
+          let res = if b then eq else not eq in
+          Value.from_bool res
         | Func (a,e) ->
           Value.mk_func a e
         | Ctor (i,e) ->

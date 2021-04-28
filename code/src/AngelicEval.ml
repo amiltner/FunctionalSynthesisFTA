@@ -52,6 +52,7 @@ let from_exp =
   Expr.fold
     ~var_f:(fun i -> Var i)
     ~app_f:(fun e1 e2 -> App (e1,e2))
+    ~eq_f:(fun _ _ _ -> failwith "no eq in angelic evals")
     ~func_f:(fun p e -> Func(p,e))
     ~ctor_f:(fun i e -> Ctor(i,e))
     ~unctor_f:(fun i e -> Unctor (i,e))

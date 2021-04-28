@@ -122,6 +122,11 @@ let rec typecheck_exp
     | Unctor _ -> failwith "not typeable"
     | Var v ->
       Context.find_exn ec v
+    | Eq (_,e1,e2) ->
+      let t1 = typecheck_simple e1 in
+      let t2 = typecheck_simple e2 in
+      assert (type_equiv tc t1 t2);
+      Type._bool
     | App (e1,e2) ->
       let t1 = concretify tc (typecheck_simple e1) in
       let (t11,t12) = Type.destruct_arr_exn t1 in
