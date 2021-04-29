@@ -17,7 +17,7 @@ let size =
     fun (x:list) ->
       match x with
         | Nil -> O
-        | Cons (_,t) -> S (size t)
+        | Cons (_, t) -> S (size t)
 ;;
 
 let plus =
@@ -39,10 +39,10 @@ let and =
 
 fun (in1in2:list * list) -> (fun (out : list) ->
   (and
-    ((size out) == (plus (size (in1in2.0)) (size (in1in2.1))))
+    (nat_eq (size out) (plus (size (in1in2.0)) (size (in1in2.1))))
     (match in1in2.0 with
      | Nil -> True
-     | Cons (in1h,_) ->
-       (match out with
+     | Cons (x, _) ->
+       match out with
        | Nil -> False
-       | Cons (outh,_) -> in1h == outh))))
+       | Cons (y, _) -> nat_eq x y)))

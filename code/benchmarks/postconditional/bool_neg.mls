@@ -4,8 +4,8 @@ synth bool -> bool satisfying
 
 let bool_neg =
   fun (b:bool) ->
-    (bool_not b)
+    b == False
 ;;
 
 fun (in:bool) -> (fun (out : bool) ->
-  (bool_not (bool_eq in out)))
+    out != in)

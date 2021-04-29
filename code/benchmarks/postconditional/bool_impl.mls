@@ -12,5 +12,5 @@ let bool_impl =
 
 fun (in1in2:bool*bool) -> (fun (out : bool) ->
     match in1in2.0 with
-    | True -> bool_eq out in1in2.1
-    | False -> bool_eq out True)
+    | True -> out == in1in2.1
+    | False -> out == True)
