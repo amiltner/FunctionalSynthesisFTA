@@ -1,7 +1,0 @@
-fix (f : bool * bool -> bool) =
-  fun (x:bool * bool) ->
-    match x . 0 binding _ with
-      | False -> x . 1
-      | True -> (match x . 1 binding _ with
-                   | False -> x . 0
-                   | True -> False)

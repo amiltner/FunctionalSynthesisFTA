@@ -1,7 +1,0 @@
-fix (f : nat -> bool) =
-  fun (x:nat) ->
-    match x binding _ with
-      | O -> True
-      | S -> (match Un_S x binding _ with
-                | O -> False
-                | S -> f Un_S (Un_S x))

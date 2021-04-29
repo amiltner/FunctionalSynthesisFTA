@@ -15,13 +15,11 @@ let comp_nat =
   fix (comp_nat : nat -> nat -> cmp) =
     fun (x1 : nat) ->
       fun (x2 : nat) ->
-        match x1 binding x1 with
-        | O -> (match x2 binding x2 with
-                | O -> CEq
-                | S -> CLt)
-        | S -> (match x2 binding x2 with
-                | O -> CGt
-                | S -> comp_nat x1 x2)
+        match (x1,x2) with
+        | (O,O) -> CEq
+        | (O,S _) -> CLt
+        | (S _,O) -> CGt
+        | (S x1,S x2) -> comp_nat x1 x2
 ;;
 
 synth tree -> nat -> tree satisfying

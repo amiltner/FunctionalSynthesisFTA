@@ -14,25 +14,24 @@ let sum =
   fix (sum : nat -> nat -> nat) =
     fun (n1 : nat) ->
       fun (n2 : nat) ->
-        match n1 binding n1p with
+        match n1 with
         | O -> n2
-        | S -> S (sum n1p n2)
+        | S n1p -> S (sum n1p n2)
 ;;
 
 let is_odd =
   fix (is_odd : nat -> bool) =
     fun (x1 : nat) ->
-      match x1 binding x1p with
+      match x1 with
       | O -> False
-      | S -> (match x1p binding x1pp with
-              | O -> True
-              | S -> is_odd x1pp)
+      | S O -> True
+      | S S x1p -> is_odd x1p
 ;;
 
 let count_odd =
   fun (n1:nat) ->
     fun (n2:nat) ->
-      match is_odd n2 binding n2p with
+      match is_odd n2 with
       | True -> S n1
       | False -> n1
 ;;

@@ -10,9 +10,9 @@ let map =
   fix (map : list -> (nat -> nat) -> list) =
     fun (l1 : list) ->
       fun (f : nat -> nat) ->
-        match l1 binding l1p with
+        match l1 with
         | Nil -> Nil
-        | Cons -> Cons (f l1p.0, map l1p.1 f)
+        | Cons (h,t) -> Cons (f h, map t f)
 ;;
 
 synth list -> list satisfying

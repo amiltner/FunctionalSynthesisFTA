@@ -15,13 +15,11 @@ let compare =
   fix (compare : nat -> nat -> cmp) =
     fun (x1 : nat) ->
       fun (x2 : nat) ->
-        match x1 binding x1 with
-        | O -> (match x2 binding x2 with
-                | O -> EQ
-                | S -> LT)
-        | S -> (match x2 binding x2 with
-                | O -> GT
-                | S -> compare x1 x2)
+        match (x1,x2) with
+        | (O,O) -> EQ
+        | (O,S _) -> LT
+        | (S _,O) -> GT
+        | (S x1,S x2) -> compare x1 x2
 ;;
 
 synth list -> list satisfying
@@ -33,28 +31,28 @@ type bool =
 let for_all =
   fix (for_all : (nat -> bool) -> list -> bool) =
     fun (f:nat -> bool) -> (fun (l:list) ->
-      match l binding lp with
+      match l with
       | Nil -> True
-      | Cons -> (match f (lp.0) binding fp with
+      | Cons (h,t) -> (match f h with
               | False -> False
-              | True -> for_all f lp.1))
+              | True -> for_all f t))
 ;;
 
 let contains =
   fix (contains : list -> nat -> bool) =
     fun (l:list) -> (fun (n:nat) ->
-      match l binding lp with
+      match l with
       | Nil -> False
-      | Cons -> (match compare (lp.0) n binding cp with
-              | LT -> contains lp.1 n
-              | GT -> contains lp.1 n
+      | Cons (h,t) -> (match compare h n with
+              | LT -> contains t n
+              | GT -> contains t n
               | EQ -> True))
 ;;
 
 let and =
   fun (b1:bool) ->
     fun (b2:bool) ->
-      match b1 binding b1p with
+      match b1 with
       | True -> b2
       | False -> False
 ;;
@@ -62,14 +60,13 @@ let and =
 let no_dupes =
   fix (no_dupes : list -> bool) =
     fun (l:list) ->
-      (match l binding lp with
+      (match l with
          | Nil -> True
-         | Cons -> (match lp.1 binding lpp with
-           | Nil -> True
-           | Cons -> (match compare lp.0 lpp.0 binding c with
+         | Cons (h,Nil) -> True
+         | Cons (h1,Cons(h2,t)) -> (match compare h1 h2 with
                      | EQ -> False
-                     | LT -> no_dupes lp.1
-                     | GT -> no_dupes lp.1)))
+                     | LT -> no_dupes (Cons(h2,t))
+                     | GT -> no_dupes (Cons(h2,t))))
 ;;
 
 fun (inp:list) ->

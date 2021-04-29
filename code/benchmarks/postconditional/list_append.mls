@@ -15,46 +15,34 @@ type bool =
 let size =
   fix (size : list -> nat) =
     fun (x:list) ->
-      match x binding xp with
+      match x with
         | Nil -> O
-        | Cons -> S (size (xp.1))
+        | Cons (_,t) -> S (size t)
 ;;
 
 let plus =
   fix (plus : nat -> nat -> nat) =
     fun (x1:nat) ->
       fun (x2:nat) ->
-        match x1 binding x1p with
+        match x1 with
         | O -> x2
-        | S -> S (plus x1p x2)
-;;
-
-let nat_eq =
-  fix (nat_eq : nat -> nat -> bool) =
-    fun (x1:nat) -> (fun (x2:nat) ->
-      match x1 binding x1p with
-      | O -> (match x2 binding x2p with
-              | O -> True
-              | S -> False)
-      | S -> (match x2 binding x2p with
-              | O -> False
-              | S -> nat_eq x1p x2p))
+        | S x1p -> S (plus x1p x2)
 ;;
 
 let and =
   fun (b1:bool) ->
     fun (b2:bool) ->
-      match b1 binding b1p with
+      match b1 with
       | True -> b2
       | False -> False
 ;;
 
 fun (in1in2:list * list) -> (fun (out : list) ->
   (and
-    (nat_eq (size out) (plus (size (in1in2.0)) (size (in1in2.1))))
-    (match in1in2.0 binding in0p with
+    ((size out) == (plus (size (in1in2.0)) (size (in1in2.1))))
+    (match in1in2.0 with
      | Nil -> True
-     | Cons ->
-       match out binding outp with
+     | Cons (in1h,_) ->
+       (match out with
        | Nil -> False
-       | Cons -> nat_eq in0p.0 outp.0)))
+       | Cons (outh,_) -> in1h == outh))))

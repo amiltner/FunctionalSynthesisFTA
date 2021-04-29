@@ -964,6 +964,6 @@ module Value = struct
           None
       | (Var i,_) -> Some [(i,v)]
       | (Wildcard,_) -> Some []
-      | _ -> failwith "bad typechecking"
+      | _ -> failwith ("bad typechecking: pattern: " ^ Pattern.show p ^ "value: " ^ show v)
     end
 end

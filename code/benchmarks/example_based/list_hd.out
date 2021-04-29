@@ -1,4 +1,0 @@
-fix (f : list -> nat) =
-  fun (x:list) -> match x binding _ with
-                    | Nil -> 0
-                    | Cons -> Un_Cons x . 0

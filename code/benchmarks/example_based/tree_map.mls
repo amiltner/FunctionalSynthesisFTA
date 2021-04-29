@@ -13,11 +13,10 @@ type tree =
 let div2 =
   fix (div2 : nat -> nat) =
     fun (n : nat) ->
-      match n binding np with
+      match n with
       | O -> O
-      | S -> match np binding npp with
-             | O -> O
-             | S -> S (div2 npp)
+      | S O -> O
+      | S S np -> S (div2 np)
 ;;
 
 let inc =

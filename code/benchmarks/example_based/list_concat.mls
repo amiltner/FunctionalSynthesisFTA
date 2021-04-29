@@ -14,9 +14,9 @@ let append =
   fix (append : list -> list -> list) =
     fun (l1 : list) ->
       fun (l2 : list) ->
-        match l1 binding l1p with
+        match l1 with
         | Nil -> l2
-        | Cons -> Cons(l1p.0,append l1p.1 l2)
+        | Cons l1p -> Cons(l1p.0,append l1p.1 l2)
 ;;
 
 synth llist -> list satisfying

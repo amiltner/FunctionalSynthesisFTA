@@ -13,18 +13,17 @@ type bool =
 let is_even =
   fix (is_even : nat -> bool) =
     fun (x1 : nat) ->
-      match x1 binding x1p with
+      match x1 with
       | O -> True
-      | S -> (match x1p binding x1pp with
-              | O -> False
-              | S -> is_even x1pp)
+      | S O -> False
+      | S S x1p -> is_even x1p
 ;;
 
 let is_nonzero =
   fun (x1 : nat) ->
-    match x1 binding x1p with
+    match x1 with
     | O -> False
-    | S -> True
+    | S _ -> True
 ;;
 
 synth (nat -> bool) -> list -> list satisfying

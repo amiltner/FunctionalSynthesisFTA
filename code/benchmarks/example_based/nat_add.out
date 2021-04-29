@@ -1,5 +1,0 @@
-fix (f : nat * nat -> nat) =
-  fun (x:nat * nat) ->
-    match x . 0 binding _ with
-      | O -> x . 1
-      | S -> S (f (Un_S (x . 0), x . 1))

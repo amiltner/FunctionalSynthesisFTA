@@ -1,8 +1,0 @@
-fix (f : tree * nat -> nat) =
-  fun (x:tree * nat) ->
-    match x . 0 binding _ with
-      | Leaf -> 0
-      | Node -> (match x . 1 binding _ with
-                   | O -> S (x . 1)
-                   | S -> sum (f (Un_Node (x . 0) . 2, Un_S (x . 1)))
-                            (f (Un_Node (x . 0) . 0, Un_S (x . 1))))
