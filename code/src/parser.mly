@@ -327,7 +327,7 @@ branch:
 
 pattern:
   | c=UID
-    { (Pattern.Ctor (Id.create c,Pattern.Tuple [])) }
+    { (Pattern.Ctor (Id.create c,Pattern.Wildcard)) }
   | c=UID p=pattern
     { (Pattern.Ctor (Id.create c,p)) }
   | WILDCARD
