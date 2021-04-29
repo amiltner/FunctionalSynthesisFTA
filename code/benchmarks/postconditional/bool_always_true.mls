@@ -3,4 +3,4 @@ include "bool.decls"
 synth bool -> bool satisfying
 
 fun (in:bool) -> (fun (out : bool) ->
-  out == True)
+    out == True)
