@@ -10,9 +10,9 @@ let map =
   fix (map : list -> (nat -> nat) -> list) =
     fun (l1 : list) ->
       fun (f : nat -> nat) ->
-        match l1 binding l1p with
+        match l1 with
         | Nil -> Nil
-        | Cons -> Cons (f l1p.0, map l1p.1 f)
+        | Cons (h,t) -> Cons (f h, map t f)
 ;;
 
 synth list -> list satisfying
@@ -24,36 +24,24 @@ type bool =
 let size =
   fix (size : list -> nat) =
     fun (x:list) ->
-      match x binding xp with
+      match x with
         | Nil -> O
-        | Cons -> S (size (xp.1))
+        | Cons (_,t) -> S (size t)
 ;;
 
 let plus =
   fix (plus : nat -> nat -> nat) =
     fun (x1:nat) ->
       fun (x2:nat) ->
-        match x1 binding x1p with
+        match x1 with
         | O -> x2
-        | S -> S (plus x1p x2)
-;;
-
-let nat_eq =
-  fix (nat_eq : nat -> nat -> bool) =
-    fun (x1:nat) -> (fun (x2:nat) ->
-      match x1 binding x1p with
-      | O -> (match x2 binding x2p with
-              | O -> True
-              | S -> False)
-      | S -> (match x2 binding x2p with
-              | O -> False
-              | S -> nat_eq x1p x2p))
+        | S x1p -> S (plus x1p x2)
 ;;
 
 let and =
   fun (b1:bool) ->
     fun (b2:bool) ->
-      match b1 binding b1p with
+      match b1 with
       | True -> b2
       | False -> False
 ;;
@@ -62,46 +50,46 @@ let add =
   fix (add : nat -> nat -> nat) =
     fun (n1 : nat) ->
       fun (n2 : nat) ->
-        match n1 binding n1p with
+        match n1 with
         | O -> n2
-        | S -> S (add n1p n2)
+        | S n1p -> S (add n1p n2)
 ;;
 
 let minus =
   fix (minus : nat -> nat -> nat) =
     fun (n1 : nat) ->
       fun (n2 : nat) ->
-        match n2 binding n2p with
+        match n2 with
         | O -> n1
-        | S -> (match n1 binding n1p with
+        | S n2p -> (match n1 with
                 | O -> O
-                | S -> minus n1p n2p)
+                | S n1p -> minus n1p n2p)
 ;;
 
 let nat_lt =
   fix (nat_lt : nat -> nat -> bool) =
     fun (n1 : nat) ->
       fun (n2 : nat) ->
-        match n2 binding n2p with
+        match n2 with
         | O -> False
-        | S -> (match n1 binding n1p with
+        | S n2p -> (match n1 with
                 | O -> True
-                | S -> nat_lt n1p n2p)
+                | S n1p -> nat_lt n1p n2p)
 ;;
 
 let all_lt =
   fix (all_lt : list -> list -> bool) =
     fun (l1 : list) ->
       fun (l2 : list) ->
-        match l1 binding l1p with
+        match l1 with
         | Nil -> True
-        | Cons -> (match l2 binding l2p with
+        | Cons l1p -> (match l2 with
                    | Nil -> True
-                   | Cons ->
+                   | Cons l2p ->
                      and (nat_lt (l1p.0) (l2p.0)) (all_lt (l1p.1) (l2p.1)))
 ;;
 
 fun (in:list) -> (fun (out : list) ->
   (and
-    (nat_eq (size in) (size out))
+    ((size in) == (size out))
     (all_lt in out)))

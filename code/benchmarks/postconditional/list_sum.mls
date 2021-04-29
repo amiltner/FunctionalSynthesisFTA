@@ -7,22 +7,22 @@ type list =
   | Cons of nat * list
 
 let fold =
-  fix (fold : list -> (nat -> nat -> nat) -> nat -> nat) =
-    fun (l1:list) ->
-      fun (f:nat -> nat -> nat) ->
-        fun (acc:nat) ->
-          match l1 binding l1p with
+  fix (fold : (nat -> nat -> nat) -> nat -> list -> nat) =
+    fun (f:nat -> nat -> nat) ->
+      fun (acc:nat) ->
+        fun (l1:list) ->
+          match l1 with
           | Nil -> acc
-          | Cons -> fold l1p.1 f (f acc l1p.0)
+          | Cons (h,t) -> fold f (f acc h) t
 ;;
 
 let add =
   fix (add : nat -> nat -> nat) =
     fun (n1 : nat) ->
       fun (n2 : nat) ->
-        match n1 binding n1p with
+        match n1 with
         | O -> n2
-        | S -> S (add n1p n2)
+        | S n1p -> S (add n1p n2)
 ;;
 
 synth list -> nat satisfying
