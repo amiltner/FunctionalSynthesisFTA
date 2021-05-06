@@ -50,7 +50,7 @@ def gather_datum(path, base, timeout):
 def gather_data(rootlength, path, base):
     if not os.path.exists(join(path,base+REF_EXT)):
         res = gather_datum(path, base,TIMEOUT_TIME)
-        with open(join(path,base+REF_EXT), "wb") as outfile:
+        with open(join(path,base+REF_EXT), "w") as outfile:
             outfile.write(res)
 
 def specsize_compare(x,y):
@@ -61,7 +61,7 @@ def sort_data(data):
 
 def print_data(data):
     ensure_dir("generated_data/")
-    with open("generated_data/generated_data.csv", "wb") as csvfile:
+    with open("generated_data/generated_data.csv", "w") as csvfile:
         datawriter = csv.DictWriter(csvfile,fieldnames=data[0].keys())
         datawriter.writeheader()
         datawriter.writerows(data)

@@ -7,10 +7,10 @@ clean:
 	stack clean
 
 generate-data: all
-	python generate-data.py benchmarks/example-based benchmarks/postconditional
+	python3 generate-data.py benchmarks/example-based benchmarks/postconditional
 
 generate-outs: all
-	python generate-outs.py benchmarks/example-based benchmarks/postconditional
+	python3 generate-outs.py benchmarks/example-based benchmarks/postconditional
 
 clean-data:
 ifneq (,$(wildcard ./generated-data/data.csv))

@@ -1,0 +1,50 @@
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+termination measure dec :: Nat -> {Int | _v >= 0} where
+  Z -> 0
+  S m -> 1 + dec m
+    
+data NatList where
+  Nil :: NatList
+  Cons :: Nat -> NatList -> NatList
+  
+termination measure len :: NatList -> {Int | _v >= 0} where
+  Nil -> 0
+  Cons x xs -> 1 + len xs
+
+data Boolean where
+  T :: Boolean
+  F :: Boolean
+  
+sum :: Nat -> Nat -> Nat
+sum = \n1 . \n2.
+  match n1 with
+    Z -> n2
+    S n' -> S (sum n' n2)
+  
+is_nonzero :: Nat -> Boolean
+is_nonzero = \n .
+  match n with
+    Z -> T
+    S _ -> F
+    
+is_odd :: Nat -> Boolean
+is_odd = \n .
+  match n with
+    Z -> F
+    S n' -> match n' with
+              Z -> T
+              S n'' -> is_odd n''
+
+count_odd :: Nat -> Nat -> Nat
+count_odd = \n1. \n2.
+  match is_odd n2 with
+    T -> S n1
+    F -> n1
+    
+data PNatList where
+  P :: (Nat -> Boolean) -> NatList -> PNatList
+  
+list_fold :: f:(Nat -> Nat -> Nat) -> init:Nat -> l:NatList ->  {Nat | if f == sum then _v == Z else True }
+list_fold = ??
