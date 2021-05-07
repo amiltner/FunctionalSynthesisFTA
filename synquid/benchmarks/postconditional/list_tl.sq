@@ -1,0 +1,19 @@
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+
+  
+data NatList where
+  Nil :: NatList
+  Cons :: Nat -> NatList -> NatList
+
+  
+list_tl :: xs:NatList -> { NatList | 
+
+   (xs == Nil ==> _v == Nil) &&
+   (xs == (Cons Z Nil) ==> _v == Nil) &&
+   (xs == (Cons Z (Cons Z Nil)) ==> _v == (Cons Z Nil)) 
+
+}
+-- From the github
+list_tl = ??
