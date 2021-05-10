@@ -121,7 +121,10 @@ let rec typecheck_exp
     | Wildcard -> failwith "not typeable"
     | Unctor _ -> failwith "not typeable"
     | Var v ->
-      Context.find_exn ec v
+      begin match Context.find ec v with
+        | None -> failwith ("variable " ^ (Id.show v) ^ " not found")
+        | Some e -> e
+      end
     | Eq (_,e1,e2) ->
       let t1 = typecheck_simple e1 in
       let t2 = typecheck_simple e2 in
