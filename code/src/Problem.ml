@@ -219,8 +219,11 @@ let process_spec
            let e1 = Value.to_exp v1 in
            let e2 = Value.to_exp v2 in
            let full_exp = Expr.mk_app (Expr.mk_app e e1) e2 in
-           let vout = Eval.evaluate_with_holes ~eval_context:i_e full_exp in
-           Value.equal vout Value.true_)
+           let vout = Eval.safe_evaluate_with_holes ~eval_context:i_e full_exp in
+           begin match vout with
+             | None -> false
+             | Some vout -> Value.equal vout Value.true_
+           end)
   end
 
 let rec process (unprocessed : t_unprocessed) : t =
