@@ -39,10 +39,10 @@ let and =
 
 fun (in1in2:list * list) -> (fun (out : list) ->
   (and
-    (nat_eq (size out) (plus (size (in1in2.0)) (size (in1in2.1))))
+    ((size out) == (plus (size (in1in2.0)) (size (in1in2.1))))
     (match in1in2.0 with
      | Nil -> True
      | Cons (x, _) ->
        match out with
        | Nil -> False
-       | Cons (y, _) -> nat_eq x y)))
+       | Cons (y, _) -> x == y)))
