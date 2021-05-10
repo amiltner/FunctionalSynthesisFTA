@@ -3,6 +3,7 @@ open Lang
 
 module T = struct
   let _NUM_CHECKS_ = 4096
+  let _MAX_SIZE_ = 32
 
   let num_nothing = ref 0
 
@@ -43,37 +44,40 @@ module T = struct
         (fs:(Type.t -> Expr.t Sequence.t))
       : t =
       (D.empty,fs)
-    end
+  end
 
   let rec elements_of_type_and_size_internal
       (tc:Context.Types.t)
       (t:Type.t)
       (s:int)
     : Value.t list =
+    let elements_simple = elements_of_type_and_size_internal tc in
     if s <= 0 then
       []
     else
-      let elements_simple = elements_of_type_and_size_internal tc in
       begin match Type.node t with
         | Named i ->
           elements_simple (Context.find_exn tc i) s
         | Arrow _ ->
           failwith "Will do if necessary..."
         | Tuple ts ->
-          let parts = partitions (s-1) (List.length ts) in
-          let components =
-            List.concat_map
-              ~f:(fun part ->
-                  let components =
-                    List.map2_exn
-                      ~f:(fun t p -> elements_simple t p)
-                      ts
-                      part
-                  in
-                  combinations components)
-              parts
-          in
-          List.map ~f:Value.mk_tuple components
+          if Int.equal (List.length ts) 0 && not (Int.equal s 1) then
+            []
+          else
+            let parts = partitions (s-1) (List.length ts) in
+            let components =
+              List.concat_map
+                ~f:(fun part ->
+                    let components =
+                      List.map2_exn
+                        ~f:(fun t p -> elements_simple t p)
+                        ts
+                        part
+                    in
+                    combinations components)
+                parts
+            in
+            List.map ~f:Value.mk_tuple components
         | Mu (v,t) ->
           let tc = Context.set tc ~key:v ~data:t in
           elements_of_type_and_size_internal tc t s
@@ -112,7 +116,7 @@ module T = struct
       Sequence.unfold
         ~init:0
         ~f:(fun i ->
-            if !num_nothing < 200 then
+            if !num_nothing < 200 && _MAX_SIZE_ > i then
               Some (i,i+1)
             else
               None)
