@@ -1,0 +1,27 @@
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+
+termination measure dec :: Nat -> {Int | _v >= 0} where
+  Z -> 0
+  S m -> 1 + dec m
+  
+data NatList where
+  Nil :: NatList
+  Cons :: Nat -> NatList -> NatList
+
+termination measure len :: NatList -> {Int | _v >= 0} where
+  Nil -> 0
+  Cons x xs -> 1 + len xs
+  
+list_sort_sorted_insert :: l:NatList -> { NatList | 
+
+   (len l == len _v) &&
+   (l == Nil ==> _v == Nil) &&
+   (l == (Cons Z (Cons (S Z) Nil)) ==> _v == (Cons (S Z) (Cons Z Nil))) &&
+   (l == (Cons (S Z) (Cons Z Nil)) ==> _v == (Cons (S Z) (Cons Z Nil)))  
+   -- With more specifications, gives error or timeout
+   -- With these specs, the result is too specific
+
+}
+list_sort_sorted_insert = ??

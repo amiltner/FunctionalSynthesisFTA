@@ -1,0 +1,29 @@
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+
+termination measure dec :: Nat -> {Int | _v >= 0} where
+  Z -> 0
+  S m -> 1 + dec m
+  
+data NatList where
+  Nil :: NatList
+  Cons :: Nat -> NatList -> NatList
+  
+
+  
+list_sum :: xs:NatList -> { Nat | 
+
+   (xs == Nil ==> _v == Z) &&
+   (xs == (Cons (S Z) Nil) ==> _v == (S Z)) &&
+   (xs == (Cons (S (S Z)) (Cons (S Z) Nil)) ==> _v == (S (S (S Z)))) &&
+   (xs == (Cons (S (S (S Z))) Nil) ==> _v == (S (S (S Z)))) &&
+   (xs == (Cons (S (S Z)) (Cons (S (S Z)) Nil)) ==> _v == (S (S (S (S Z))))) &&
+   (xs == (Cons Z Nil) ==> _v == Z) &&
+   --(xs == (Cons Z (Cons Z Nil)) ==> _v == Z) &&
+   True	
+}
+-- This gives an error, as does the benchmark provided in the GitHub link
+-- With the line commented out, it is just wrong, with no error
+list_sum = ??
+

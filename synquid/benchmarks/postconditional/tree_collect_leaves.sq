@@ -1,0 +1,36 @@
+-- Tree structure taken from the github: https://github.com/UChicago-PL/smyth/blob/main/experiments/exp-4-logic/results/2a/
+data Boolean where
+  T :: Boolean
+  F :: Boolean
+  
+data BooleanTree where
+  Leaf :: BooleanTree
+  Node :: BooleanTree -> Boolean -> BooleanTree -> BooleanTree
+
+termination measure sizeTree :: BooleanTree -> {Int | _v >= 0} where
+  Leaf -> 0
+  Node left x right -> 1 + sizeTree left + sizeTree right
+  
+data BooleanList where
+  Nil :: BooleanList
+  Cons :: Boolean -> BooleanList -> BooleanList
+
+termination measure len :: BooleanList -> {Int | _v >= 0} where
+  Nil -> 0
+  Cons x xs -> 1 + len xs
+  
+tree_collect_leaves :: t:BooleanTree -> { BooleanList | 
+
+   (t == Leaf ==> _v == Nil) &&
+   (t == (Node Leaf T Leaf) ==> _v == (Cons T Nil)) &&
+   (t == (Node Leaf F Leaf) ==> _v == (Cons F Nil)) &&
+   (t == (Node (Node Leaf T Leaf) F Leaf) ==> _v == (Cons T (Cons F Nil))) &&
+   (t == (Node (Node Leaf F Leaf) T Leaf) ==> _v == (Cons F (Cons T Nil))) &&
+   (t == (Node Leaf F (Node Leaf T Leaf)) ==> _v == (Cons F (Cons T Nil))) &&
+   -- With these two commented in, it times out; without, the result is slightly off
+   --(t == (Node (Node Leaf T Leaf) F (Node Leaf T Leaf)) ==> _v == (Cons T (Cons F (Cons T Nil)))) &&
+   --(t == (Node (Node Leaf F Leaf) F (Node Leaf F Leaf)) ==> _v == (Cons F (Cons F (Cons F Nil)))) &&
+   True
+
+}
+tree_collect_leaves = ??
