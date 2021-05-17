@@ -47,11 +47,12 @@ module T = struct
   end
 
   let rec elements_of_type_and_size_internal
+      (context:Context.t)
       (tc:Context.Types.t)
       (t:Type.t)
       (s:int)
     : Value.t list =
-    let elements_simple = elements_of_type_and_size_internal tc in
+    let elements_simple = elements_of_type_and_size_internal context tc in
     if s <= 0 then
       []
     else
@@ -59,9 +60,11 @@ module T = struct
         | Named i ->
           elements_simple (Context.find_exn tc i) s
         | Arrow _ ->
-          failwith "Will do if necessary..."
+          let ids = List.filter (Map.to_alist tc) (fun (i,t') -> Typecheck.type_equiv tc t t') in
+          let vs = List.map ~f:(fun (i,_) -> Value.from_exp_exn (List.Assoc.find_exn context.evals ~equal:Id.equal i)) ids in
+          if s = 1 then vs else []
         | Tuple ts ->
-          if Int.equal (List.length ts) 0 && not (Int.equal s 1) then
+          if (List.length ts) = 0 && s <> 1 then
             []
           else
             let parts = partitions (s-1) (List.length ts) in
@@ -80,7 +83,7 @@ module T = struct
             List.map ~f:Value.mk_tuple components
         | Mu (v,t) ->
           let tc = Context.set tc ~key:v ~data:t in
-          elements_of_type_and_size_internal tc t s
+          elements_of_type_and_size_internal context tc t s
         | Variant options ->
           List.concat_map
             ~f:(fun (i,t) ->
@@ -91,24 +94,27 @@ module T = struct
       end
 
   let elements_of_type_and_size
+      (context:Context.t)
       (tc:Context.Types.t)
       (t:Type.t)
       (s:int)
     : Value.t list =
-    let res = elements_of_type_and_size_internal tc t s in
+    let res = elements_of_type_and_size_internal context tc t s in
     if List.length res = 0 then num_nothing := !num_nothing+1;
     res
 
   let elements_of_type_to_size
+      (context:Context.t)
       (tc:Context.Types.t)
       (t:Type.t)
       (max_size:int)
     : Value.t list =
     List.concat_map
-      ~f:(fun s -> elements_of_type_and_size tc t s)
+      ~f:(fun s -> elements_of_type_and_size context tc t s)
       (List.range 1 (max_size+1))
 
   let sequence_of_type
+      (context:Context.t)
       (tc:Context.Types.t)
       (t:Type.t)
     : Value.t Sequence.t =
@@ -121,7 +127,7 @@ module T = struct
             else
               None)
     in
-    Sequence.concat_map ~f:(Sequence.of_list % elements_of_type_and_size tc t) num_seq
+    Sequence.concat_map ~f:(Sequence.of_list % elements_of_type_and_size context tc t) num_seq
 
   let satisfies_post
       ~(context:Context.t)
@@ -131,7 +137,7 @@ module T = struct
       ~(checker:Value.t -> Value.t -> bool)
     : Value.t option =
     num_nothing := 0;
-    let generator = sequence_of_type context.tc tin in
+    let generator = sequence_of_type context context.tc tin in
     let io_seq =
       Sequence.map
         ~f:(fun v ->
