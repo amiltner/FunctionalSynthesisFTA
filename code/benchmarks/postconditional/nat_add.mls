@@ -1,0 +1,17 @@
+type nat =
+  | O
+  | S of nat
+
+synth nat -> nat -> nat satisfying
+
+let plus =
+  fix (plus : nat -> nat -> nat) =
+    fun (x1:nat) ->
+      fun (x2:nat) ->
+        match x1 with
+        | O -> x2
+        | S x1p -> S (plus x1p x2)
+;;
+
+fun (in1in2:nat * nat) -> (fun (out : nat) ->
+    out == (plus in1in2.0 in1in2.1))

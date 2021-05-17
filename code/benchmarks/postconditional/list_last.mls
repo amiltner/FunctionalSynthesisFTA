@@ -1,0 +1,25 @@
+type nat =
+  | O 
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+type opt =
+  | None
+  | Some of nat
+
+synth list -> opt satisfying
+
+let last =
+  fix (last : list -> opt) =
+    fun (x:list) ->
+      match x with
+      | Nil -> None
+      | Cons (n, Nil) -> Some n
+      | Cons (_, t) -> last t
+;;
+
+fun (input:list) -> (fun (out : opt) ->
+    out == (last input))

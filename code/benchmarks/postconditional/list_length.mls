@@ -1,0 +1,20 @@
+type nat =
+  | O 
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+synth list -> nat satisfying
+
+let size =
+  fix (size : list -> nat) =
+    fun (x:list) ->
+      match x with
+        | Nil -> O
+        | Cons (_, t) -> S (size t)
+;;
+
+fun (input:list) -> (fun (out : nat) ->
+    out == (size input))

@@ -1,0 +1,21 @@
+type bool =
+  | True
+  | False
+
+type list =
+  | Nil
+  | Cons of bool * list
+
+synth list -> bool satisfying
+
+let parity = 
+  fix (parity: list -> bool) =
+    fun (x:list) ->
+      match x with
+        | Nil -> True
+        | Cons (True, t) -> (parity t) == False
+        | Cons (False, t) -> parity t
+;;
+
+fun (input:list) -> (fun (out : bool) ->
+    out == (parity input))

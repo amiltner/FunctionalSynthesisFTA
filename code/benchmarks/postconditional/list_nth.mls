@@ -1,0 +1,28 @@
+type nat =
+  | O 
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+type opt =
+  | None 
+  | Some of nat
+
+synth list -> nat -> opt satisfying
+
+let nth =
+  fix (nth : list -> nat -> opt) =
+    fun (x:list) ->
+      fun (n:nat) ->
+        match x with
+          | Nil -> None
+          | Cons (n, t) -> (
+            match n with
+            | O -> Some n
+            | S m -> nth t m)
+;;
+
+fun (in1in2:list*nat) -> (fun (out : opt) ->
+    out == (nth in1in2.0 in1in2.1))
