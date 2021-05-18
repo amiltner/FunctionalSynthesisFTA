@@ -1,0 +1,43 @@
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+
+termination measure dec :: Nat -> {Int | _v >= 0} where
+  Z -> 0
+  S m -> 1 + dec m
+
+data Tree where
+  Leaf :: Tree
+  Node :: Tree -> Nat -> Tree -> Tree
+
+termination measure size :: Tree -> {Int | _v >= 0} where
+  Leaf -> 0
+  Node left x right -> 1 + size left + size right
+
+measure isNode :: Tree -> Bool where
+  Leaf -> False
+  Node l x r -> True
+
+measure value :: Tree -> Nat where
+  Leaf -> Z
+  Node l x r -> x
+
+measure left :: Tree -> Tree where
+  Leaf -> Leaf
+  Node l x r -> l
+
+measure right :: Tree -> Tree where
+  Leaf -> Leaf
+  Node l x r -> r
+
+nat_add :: Nat -> Nat -> Nat
+nat_add = \n1 . \n2 .
+  match n1 with
+    Z   -> n2
+    S m -> S (nat_add m n2)
+
+tree_map :: t:Tree -> f:(nat -> nat) -> { Tree |
+  ((t == Leaf) ==> (_v == Leaf))
+  && ((isNode t) ==> ((isNode _v) && f(value t) == (value _v)))
+}
+tree_map = ??
