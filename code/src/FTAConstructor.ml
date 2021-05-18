@@ -1568,12 +1568,13 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
             | None ->
               basic_mts
             | Some mts ->
-              if List.is_empty (extract_unbranched_switches (A.TermState.to_term mts)) then
+              basic_mts
+              (*if List.is_empty (extract_unbranched_switches (A.TermState.to_term mts)) then
                 basic_mts
               else
                 Consts.time
                   Consts.min_elt_times
-                  (fun _ -> A.min_term_state c.a ~f:is_valid_term ~cost:term_cost ~reqs:(List.dedup_and_sort ~compare:State.compare % extract_unbranched_states)(*fun _ -> []*))
+                  (fun _ -> A.min_term_state c.a ~f:is_valid_term ~cost:term_cost ~reqs:(List.dedup_and_sort ~compare:State.compare % extract_unbranched_states)(*fun _ -> []*))*)
           end
         in
         c.min_term_state <- Some mts;

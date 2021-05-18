@@ -80,5 +80,8 @@ type t =
     ec : Exprs.t ;
     tc : Types.t ;
     vc : Variants.t ;
+    full_ec : Exprs.t ;
+    full_tc : Types.t ;
+    full_vc : Variants.t ;
     evals : (Id.t * Expr.t) list
   }

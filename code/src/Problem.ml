@@ -207,8 +207,6 @@ let process_spec
     | UPost e ->
       let (tin,tout) = st_to_pair synth_type in
       let t = Typecheck.typecheck_exp ec tc vc e in
-      print_endline (Type.show t);
-      print_endline (Type.show (Type.mk_arrow tin (Type.mk_arrow tout Type._bool)));
       assert
         (Typecheck.type_equiv
            tc
@@ -270,5 +268,8 @@ let extract_context
     ec = p.ec ;
     tc = p.tc ;
     vc = p.vc ;
+    full_ec = p.full_ec ;
+    full_tc = p.full_tc ;
+    full_vc = p.full_vc ;
     evals = p.eval_context ;
   }
