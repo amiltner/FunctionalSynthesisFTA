@@ -6,7 +6,48 @@ type list =
   | Nil
   | Cons of nat * list
 
-synth list -> (nat -> nat) -> list satisfying
+type bool =
+  | True
+  | False
 
-fun (in1in2:list*(nat->nat)) -> (fun (out : list) ->
-    out == in1in2.0)
+let is_even =
+  fix (is_even : nat -> bool) =
+    fun (x : nat) ->
+      match x with
+      | O -> True
+      | S O -> False
+      | S S xp -> is_even xp
+;;
+
+let is_nonzero =
+  fun (x : nat) ->
+    match x with
+    | O -> False
+    | S _ -> True
+;;
+
+synth (nat -> nat) -> list -> list satisfying
+
+let and =
+  fun (b1:bool) ->
+    fun (b2:bool) ->
+      match b1 with
+      | True -> b2
+      | False -> False
+;;
+
+let for_all =
+  fix (for_all : (nat -> nat) -> list -> list -> bool) =
+    fun (f : nat -> nat) ->
+      (fun (l1 : list) ->
+      (fun (l2 : list) ->
+      match l1 with
+      | Nil -> l2 == Nil
+      | Cons (h1,t1) ->
+        (match l2 with
+         | Nil -> False
+         | Cons (h2,t2) -> and ((f h1) == h2) (for_all f t1 t2))))
+;;
+
+fun (in1in2:(nat->nat)*list) -> (fun (out : list) ->
+    for_all in1in2.0 in1in2.1 out)
