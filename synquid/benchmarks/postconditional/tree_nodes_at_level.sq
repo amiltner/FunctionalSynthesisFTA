@@ -1,0 +1,46 @@
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+
+termination measure dec :: Nat -> {Int | _v >= 0} where
+  Z -> 0
+  S m -> 1 + dec m
+
+data List a where
+  Nil :: List a
+  Cons :: x: a -> xs: List a -> List a
+
+data Tree a where
+  Leaf :: Tree a
+  Node :: Tree a -> a -> Tree a -> Tree a
+
+data Opt a where
+  None :: Opt a
+  Some :: a -> Opt a
+
+measure hd :: List a -> Opt a where
+  Nil -> None
+  Cons x t -> Some x
+
+measure isNode :: Tree a -> Bool where
+  Leaf -> False
+  Node l x r -> True
+
+measure value :: Tree a -> Opt a where
+  Leaf -> None
+  Node l x r -> Some x
+
+measure left :: Tree a -> Tree a where
+  Leaf -> Leaf
+  Node l x r -> l
+
+measure right :: Tree a -> Tree a where
+  Leaf -> Leaf
+  Node l x r -> r
+
+tree_nodes_at_level :: t:Tree a -> n:Nat -> { List a |
+  ((t == Leaf) ==> (_v == Nil))
+  && ((n == Z) ==> (hd _v == value t))
+  && (((n == S Z) && (isNode (left t))) ==> (hd _v == value (left t)))
+}
+tree_nodes_at_level = ??
