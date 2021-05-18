@@ -6,27 +6,19 @@ type list =
   | Nil
   | Cons of nat * list
 
-type bool =
-  | True
-  | False
-
-let is_even =
-  fix (is_even : nat -> bool) =
-    fun (x : nat) ->
-      match x with
-      | O -> True
-      | S O -> False
-      | S S xp -> is_even xp
+let zero =
+  fun (n:nat) -> O
 ;;
 
-let is_nonzero =
-  fun (x : nat) ->
-    match x with
-    | O -> False
-    | S _ -> True
+let inc =
+  fun (n:nat) -> S (n)
 ;;
 
 synth (nat -> nat) -> list -> list satisfying
+
+type bool =
+  | True
+  | False
 
 let and =
   fun (b1:bool) ->
@@ -50,4 +42,4 @@ let for_all =
 ;;
 
 fun (in1in2:(nat->nat)*list) -> (fun (out : list) ->
-    for_all in1in2.0 in1in2.1 out)
+    (for_all in1in2.0 in1in2.1 out))

@@ -60,7 +60,7 @@ module T = struct
         | Named i ->
           elements_simple (Context.find_exn tc i) s
         | Arrow _ ->
-          let ids = List.filter (Map.to_alist context.full_ec) (fun (i,t') -> Typecheck.type_equiv tc t t') in
+          let ids = List.filter (Map.to_alist context.full_ec) (fun (i,t') -> Typecheck.type_equiv context.full_tc t t') in
           let vs = List.map ~f:(fun (i,_) -> Eval.evaluate_with_holes ~eval_context:context.evals (List.Assoc.find_exn context.evals ~equal:Id.equal i)) ids in
           if s = 1 then vs else []
         | Tuple ts ->
