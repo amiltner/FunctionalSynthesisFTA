@@ -1,0 +1,52 @@
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+  
+termination measure dec :: Nat -> {Int | _v >= 0} where
+  Z -> 0
+  S m -> 1 + dec m
+  
+data Boolean where
+  T :: Boolean
+  F :: Boolean
+  
+data NatList where
+  Nil :: NatList
+  Cons :: Nat -> NatList -> NatList
+  
+termination measure len :: NatList -> {Int | _v >= 0} where
+  Nil -> 0
+  Cons x xs -> 1 + len xs
+  
+measure head :: NatList -> Nat where
+    Nil -> Z
+    Cons h t -> h
+
+measure tail :: NatList -> NatList where
+    Nil -> Nil
+    Cons h t -> t
+    
+measure list_is_sorted :: NatList -> Boolean where
+  Nil -> F
+  Cons x y -> if y == Nil 
+                then T 
+                else  if (dec x >= dec (head y)) 
+                        then list_is_sorted(y) 
+                        else F
+                        
+measure contains :: NatList -> Boolean where
+  Nil -> F
+  Cons x y -> if (y == Nil) 
+                then F 
+                else if (x == (head y)) 
+                    then T 
+                    else (contains (Cons x (tail y)))
+
+                        
+list_sorted_insert :: l:NatList -> n:Nat -> { NatList | 
+   ((len l) + 1 == len _v) &&
+   (list_is_sorted _v == T) &&
+   -- ((l == Nil) ==> (_v == Cons n l)) &&
+   (contains (Cons n _v) == T)
+}
+list_sorted_insert = ??
