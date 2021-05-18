@@ -1,0 +1,16 @@
+type bool =
+  | True
+  | False
+
+type nat =
+  | O
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+synth list -> (nat -> bool) -> list satisfying
+
+fun (in1in2:list*(nat->bool)) -> (fun (out : list) ->
+    out == in1in2.0)

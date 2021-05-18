@@ -1,0 +1,12 @@
+type nat =
+  | O
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+synth list -> (nat * nat -> nat) -> nat -> nat satisfying
+
+fun (in1in2in3:list*(nat*nat->nat)*nat) -> (fun (out : nat) ->
+    out == in1in2in3.2)

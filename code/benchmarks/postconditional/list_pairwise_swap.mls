@@ -1,0 +1,34 @@
+type nat =
+  | O
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+synth list -> list satisfying
+
+type bool =
+  | True
+  | False
+
+let size =
+  fix (size : list -> nat) =
+    fun (x:list) ->
+      match x with
+        | Nil -> O
+        | Cons (_, t) -> S (size t)
+;;
+
+let isEven =
+  fix (isEven : list -> bool) =
+    fun (x:list) ->
+      match x with
+        | Nil -> True
+        | Cons (_, t) -> (isEven t) == False
+;;
+
+fun (input:list) -> (fun (out : list) ->
+    match (isEven input) with
+    | True -> (size out) == (size input)
+    | False -> out == Nil)
