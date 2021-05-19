@@ -45,5 +45,5 @@ data PNatList where
 measure valid :: PNatList -> Bool where
     P f l -> if l == Nil then True else (f (head l) == T && valid (P f (tail l)))
 
-list_filter :: f:(Nat -> Boolean) -> l:NatList -> {NatList | valid (P Z l)}
+list_filter :: f:(Nat -> Boolean) -> l:NatList -> {NatList | valid (P f l)}
 list_filter = ??
