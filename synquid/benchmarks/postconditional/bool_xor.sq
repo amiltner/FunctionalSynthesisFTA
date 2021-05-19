@@ -1,10 +1,6 @@
-data Boolean where
-  T :: Boolean
-  F :: Boolean
-  
-bool_xor :: p:Boolean -> q:Boolean -> { Boolean | 
+bool_xor :: p:Bool -> q:Bool -> { Bool |
 
-  p != q <==> _v == T
+  p != q <==> _v == True
 
 }
 bool_xor = ??

@@ -6,16 +6,31 @@ type list =
   | Nil
   | Cons of bool * list
 
+let not =
+  fun (b:bool) ->
+    match b with
+    | True -> False
+    | False -> True
+;;
+
 synth list -> bool satisfying
 
-let parity = 
-  fix (parity: list -> bool) =
+let isEven =
+  fix (isEven: list -> bool) =
     fun (x:list) ->
       match x with
         | Nil -> True
-        | Cons (True, t) -> (parity t) == False
-        | Cons (False, t) -> parity t
+        | Cons (_, t) -> (isEven t) == False
+;;
+
+let filter =
+  fix (filter: list -> list) =
+    fun (l:list) ->
+      match l with
+        | Nil -> Nil
+        | Cons (True, t) -> Cons (True, filter t)
+        | Cons (False, t) -> filter t
 ;;
 
 fun (input:list) -> (fun (out : bool) ->
-    out == (parity input))
+    out == (isEven (filter input)))

@@ -95,27 +95,15 @@ module T = struct
 
   let elements_of_type_and_size
       (context:Context.t)
-      (tc:Context.Types.t)
       (t:Type.t)
       (s:int)
     : Value.t list =
-    let res = elements_of_type_and_size_internal context tc t s in
+    let res = elements_of_type_and_size_internal context context.tc t s in
     if List.length res = 0 then num_nothing := !num_nothing+1;
     res
 
-  let elements_of_type_to_size
-      (context:Context.t)
-      (tc:Context.Types.t)
-      (t:Type.t)
-      (max_size:int)
-    : Value.t list =
-    List.concat_map
-      ~f:(fun s -> elements_of_type_and_size context tc t s)
-      (List.range 1 (max_size+1))
-
   let sequence_of_type
       (context:Context.t)
-      (tc:Context.Types.t)
       (t:Type.t)
     : Value.t Sequence.t =
     let num_seq =
@@ -127,7 +115,7 @@ module T = struct
             else
               None)
     in
-    Sequence.concat_map ~f:(Sequence.of_list % elements_of_type_and_size context tc t) num_seq
+    Sequence.concat_map ~f:(Sequence.of_list % elements_of_type_and_size context t) num_seq
 
   let satisfies_post
       ~(context:Context.t)
@@ -137,7 +125,7 @@ module T = struct
       ~(checker:Value.t -> Value.t -> bool)
     : Value.t option =
     num_nothing := 0;
-    let generator = sequence_of_type context context.tc tin in
+    let generator = sequence_of_type context tin in
     let io_seq =
       Sequence.map
         ~f:(fun v ->

@@ -1,8 +1,4 @@
-data Boolean where
-  T :: Boolean
-  F :: Boolean
-  
-bool_impl :: p:Boolean -> q:Boolean -> { Boolean | 
-   ( (p == T && q == F) <==> _v == F )
+bool_impl :: p:Bool -> q:Bool -> { Bool |
+  (p == True && q == False) <==> _v == False
 }
 bool_impl = ??
