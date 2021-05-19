@@ -6,7 +6,65 @@ type list =
   | Nil
   | Cons of nat * list
 
-synth list -> (nat * nat -> nat) -> nat -> nat satisfying
+type bool =
+  | True
+  | False
 
-fun (in1in2in3:list*(nat*nat->nat)*nat) -> (fun (out : nat) ->
-    out == in1in2in3.2)
+let sum =
+  fix (sum : nat -> nat -> nat) =
+    fun (n1 : nat) ->
+      fun (n2 : nat) ->
+        match n1 with
+        | O -> n2
+        | S n1p -> S (sum n1p n2)
+;;
+
+let is_odd =
+  fix (is_odd : nat -> bool) =
+    fun (x1 : nat) ->
+      match x1 with
+      | O -> False
+      | S O -> True
+      | S S x1p -> is_odd x1p
+;;
+
+let count_odd =
+  fun (n1:nat) ->
+    fun (n2:nat) ->
+      match is_odd n2 with
+      | True -> S n1
+      | False -> n1
+;;
+
+synth (nat -> nat -> nat) -> nat -> list -> nat satisfying
+
+let zero =
+  fun (n1:nat) ->
+    fun (n2:nat) -> O
+;;
+
+let count =
+  fun (n1:nat) ->
+    fun (n2:nat) -> S n2
+;;
+
+let size =
+  fix (size : list -> nat) =
+    fun (x:list) ->
+      match x with
+        | Nil -> O
+        | Cons (_, t) -> S (size t)
+;;
+
+let fold =
+  fix (fold : (nat -> nat -> nat) -> nat -> list -> nat) =
+    fun (f:nat->nat->nat) ->
+    fun (i:nat) ->
+    fun (x:list) ->
+      match x with
+        | Nil -> i
+        | Cons (y, t) -> f y (fold f i t)
+;;
+
+fun (in1in2in3:(nat->nat->nat)*nat*list) -> (fun (out : nat) ->
+   if (in1in2in3.0 == zero) then (out == O) else (if (in1in2in3.0 == count) then (out == (size in1in2in3.2)) else True))
