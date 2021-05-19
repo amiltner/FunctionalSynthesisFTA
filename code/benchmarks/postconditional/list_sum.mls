@@ -30,5 +30,3 @@ synth list -> nat satisfying
 [Nil] -> 0,
 [Cons(1,Nil)] -> 1,
 [Cons(2,Cons(1,Nil))] -> 3,
-
-(* needs extra examples *)

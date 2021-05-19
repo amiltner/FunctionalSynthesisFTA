@@ -75,13 +75,4 @@ let fullsize =
 ;;
 
 fun (in:llist) -> (fun (out : list) ->
-  (and
-    ((size out) == (fullsize in))
-    (match in with
-     | LNil -> True
-     | LCons inp ->
-       (match inp.0 with
-        | Nil -> True
-        | Cons inpp -> match out with
-                  | Nil -> False
-                  | Cons outp -> inpp.0 == outp.0))))
+    (size out) == (fullsize in))

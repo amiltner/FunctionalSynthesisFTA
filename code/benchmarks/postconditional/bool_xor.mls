@@ -9,4 +9,6 @@ let xor =
 ;;
 
 fun (in1in2:bool*bool) -> (fun (out : bool) ->
-    (in1in2.0 == in1in2.1) != out)
+    match (in1in2.0 == in1in2.1) with
+    | False -> out == True
+    | True -> out == False)
