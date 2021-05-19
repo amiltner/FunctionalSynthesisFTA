@@ -38,58 +38,17 @@ let plus =
         | S x1p -> S (plus x1p x2)
 ;;
 
-let and =
-  fun (b1:bool) ->
-    fun (b2:bool) ->
-      match b1 with
-      | True -> b2
-      | False -> False
+let sum =
+  fix (sum : list -> nat) =
+    fun (x:list) ->
+      match x with
+        | Nil -> O
+        | Cons (y,t) -> plus y (sum t)
 ;;
 
-let add =
-  fix (add : nat -> nat -> nat) =
-    fun (n1 : nat) ->
-      fun (n2 : nat) ->
-        match n1 with
-        | O -> n2
-        | S n1p -> S (add n1p n2)
-;;
-
-let minus =
-  fix (minus : nat -> nat -> nat) =
-    fun (n1 : nat) ->
-      fun (n2 : nat) ->
-        match n2 with
-        | O -> n1
-        | S n2p -> (match n1 with
-                | O -> O
-                | S n1p -> minus n1p n2p)
-;;
-
-let nat_lt =
-  fix (nat_lt : nat -> nat -> bool) =
-    fun (n1 : nat) ->
-      fun (n2 : nat) ->
-        match n2 with
-        | O -> False
-        | S n2p -> (match n1 with
-                | O -> True
-                | S n1p -> nat_lt n1p n2p)
-;;
-
-let all_lt =
-  fix (all_lt : list -> list -> bool) =
-    fun (l1 : list) ->
-      fun (l2 : list) ->
-        match l1 with
-        | Nil -> True
-        | Cons l1p -> (match l2 with
-                   | Nil -> True
-                   | Cons l2p ->
-                     and (nat_lt (l1p.0) (l2p.0)) (all_lt (l1p.1) (l2p.1)))
+let inc =
+  fun (x:nat) -> S x
 ;;
 
 fun (in:list) -> (fun (out : list) ->
-  (and
-    ((size in) == (size out))
-    (all_lt in out)))
+    (plus (size in) (sum in)) == (sum out))
