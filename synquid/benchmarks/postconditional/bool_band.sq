@@ -1,10 +1,6 @@
-data Boolean where
-  T :: Boolean
-  F :: Boolean
-  
-bool_band :: p:Boolean -> q:Boolean -> { Boolean | 
+bool_band :: p:Bool -> q:Bool -> { Bool |
 
-   if p == F || q == F then _v == F else _v == T
+   if p == False || q == False then _v == False else _v == True
 
 }
 bool_band = ??

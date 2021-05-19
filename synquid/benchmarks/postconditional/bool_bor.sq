@@ -1,10 +1,6 @@
-data Boolean where
-  T :: Boolean
-  F :: Boolean
-  
-bool_bor :: p:Boolean -> q:Boolean -> { Boolean | 
+bool_bor :: p:Bool -> q:Bool -> { Bool |
 
-   if p == T || q == T then _v == T else _v == F
+   if p == True || q == True then _v == True else _v == False
 
 }
 bool_bor = ??
