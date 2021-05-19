@@ -12,14 +12,13 @@ type opt =
 
 synth list -> opt satisfying
 
-let last =
-  fix (last : list -> opt) =
-    fun (x:list) ->
-      match x with
-      | Nil -> None
-      | Cons (n, Nil) -> Some n
-      | Cons (_, t) -> last t
-;;
+type bool =
+  | True
+  | False
 
 fun (input:list) -> (fun (out : opt) ->
-    out == (last input))
+    match input with
+    | Nil -> out == None
+    | Cons (x, Nil) -> out == (Some x)
+    | Cons (_, Cons (x, Nil)) -> out == (Some x)
+    | _ -> True)
