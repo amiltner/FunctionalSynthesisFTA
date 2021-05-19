@@ -7,13 +7,13 @@ data NatList where
   Nil :: NatList
   Cons :: Nat -> NatList -> NatList
 
+measure tl :: NatList -> NatList where
+  Nil -> Nil
+  Cons h t -> t
   
 list_tl :: xs:NatList -> { NatList | 
 
-   (xs == Nil ==> _v == Nil) &&
-   (xs == (Cons Z Nil) ==> _v == Nil) &&
-   (xs == (Cons Z (Cons Z Nil)) ==> _v == (Cons Z Nil)) 
+    _v == tl xs
 
 }
--- From the github
 list_tl = ??

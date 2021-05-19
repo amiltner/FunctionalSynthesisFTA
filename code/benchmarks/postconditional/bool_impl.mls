@@ -2,15 +2,7 @@ include "bool.decls"
 
 synth bool -> bool -> bool satisfying
 
-let bool_impl =
-  fun (b1:bool) ->
-    fun (b2:bool) ->
-      match b1 with
-      | True -> b2
-      | False -> True
-;;
-
 fun (in1in2:bool*bool) -> (fun (out : bool) ->
-    match in1in2.0 with
-    | True -> out == in1in2.1
-    | False -> out == True)
+    match in1in2 with
+    | (True,False) -> out == False
+    | _ -> out == True)

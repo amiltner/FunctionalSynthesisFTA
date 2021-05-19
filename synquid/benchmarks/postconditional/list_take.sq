@@ -17,8 +17,7 @@ termination measure len :: NatList -> {Int | _v >= 0} where
 list_take :: n:Nat -> xs:NatList -> { NatList | 
 
    (len xs < dec n ==> len _v == len xs) &&
-   (len xs >= dec n ==> len _v == dec n) &&
-   (len xs < dec n ==> _v == xs) 
+   (len xs >= dec n ==> len _v == dec n)
 
 }
 list_take = ??
