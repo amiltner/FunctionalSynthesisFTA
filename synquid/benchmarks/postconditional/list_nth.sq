@@ -13,24 +13,13 @@ data NatList where
 termination measure len :: NatList -> {Int | _v >= 0} where
   Nil -> 0
   Cons x xs -> 1 + len xs
+
+measure last :: NatList -> Nat where
+  Nil -> Z
+  Cons h t -> if t == Nil then h else last t
   
 list_nth :: n:Nat -> l:NatList -> { Nat | 
-
-   (dec n >= len l ==> _v == Z) &&
-   ((dec n == 0 && l == Cons (S Z) (Cons Z Nil)) ==> _v == (S Z)) &&
-   ((dec n == 1 && l == Cons (S Z) (Cons Z Nil)) ==> _v == Z) &&
-   ((dec n == 0 && l == Cons (S (S Z)) (Cons (S Z) (Cons Z Nil))) ==> _v == (S (S Z))) &&
-   ((dec n == 1 && l == Cons (S (S Z)) (Cons (S Z) (Cons Z Nil))) ==> _v == (S Z)) &&
-   ((dec n == 2 && l == Cons (S (S Z)) (Cons (S Z) (Cons Z Nil))) ==> _v == Z) &&
-   ((dec n == 0 && l == Cons Z (Cons Z (Cons Z Nil))) ==> _v == Z) &&
-   ((dec n == 1 && l == Cons Z (Cons Z (Cons Z Nil))) ==> _v == Z) &&
-   ((dec n == 2 && l == Cons Z (Cons Z (Cons Z Nil))) ==> _v == Z) &&
-   ((dec n == 0 && l == Cons (S Z) (Cons (S (S Z)) (Cons (S Z) (Cons Z Nil)))) ==> _v == (S Z)) &&
-   ((dec n == 2 && l == Cons (S Z) (Cons (S (S Z)) (Cons (S Z) (Cons Z Nil)))) ==> _v == (S Z)) &&
-   ((dec n == 1 && l == Cons (S Z) (Cons (S (S Z)) (Cons (S Z) (Cons Z Nil)))) ==> _v == (S (S Z))) &&
-   ((dec n == 3 && l == Cons (S Z) (Cons (S (S Z)) (Cons (S Z) (Cons Z Nil)))) ==> _v == Z) 
-   
-
+   ((dec n >= len l) ==> (_v == Z)) &&
+   ((dec n == len l - 1) ==> (_v == last l))
 }
 list_nth = ??
--- This one times out I think
