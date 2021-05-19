@@ -13,13 +13,14 @@ data NatList where
 termination measure len :: NatList -> {Int | _v >= 0} where
   Nil -> 0
   Cons x xs -> 1 + len xs
+
+measure hd :: NatList -> Nat where
+  Nil -> Z
+  Cons h t -> h
   
 list_stutter :: n:Nat -> m:Nat -> { NatList | 
 
-   (dec n == len _v) &&
-   (dec n == 2 ==> _v == Cons m (Cons m Nil)) &&
-   (dec n == 1 ==> _v == (Cons m Nil)) &&
-   (n == Z ==> _v == Nil) 
+  len _v == dec m && (m != Z ==> hd _v == n)
 
 }
 list_stutter = ??

@@ -13,15 +13,14 @@ data NatList where
 termination measure len :: NatList -> {Int | _v >= 0} where
   Nil -> 0
   Cons x xs -> 1 + len xs
+
+measure last :: NatList -> Nat where
+  Nil -> Z
+  Cons h t -> if t == Nil then h else last t
   
 list_snoc :: l:NatList -> n:Nat -> { NatList | 
 
-   (l == Nil && n == Z ==> _v == (Cons Z Nil)) &&
-   (l == Nil && n == (S Z) ==> _v == (Cons (S Z) Nil)) &&
-   (l == (Cons Z Nil) && n == Z ==> _v == (Cons Z (Cons Z Nil))) &&
-   (l == (Cons Z Nil) && n == (S Z) ==> _v == (Cons Z (Cons (S Z) Nil))) &&
-   (l == (Cons (S Z) (Cons Z Nil)) && n == Z ==> _v == (Cons (S Z) (Cons Z (Cons Z Nil)))) &&
-   (l == (Cons (S Z) (Cons Z Nil)) && n == (S Z) ==> _v == (Cons (S Z) (Cons Z (Cons (S Z) Nil)))) 
+   (len _v == len l + 1) && last _v == n
 
 }
 list_snoc = ??
