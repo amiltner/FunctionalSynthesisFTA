@@ -8,7 +8,9 @@ termination measure dec :: Nat -> {Int | _v >= 0} where
   
 nat_add :: in1:Nat -> in2:Nat -> { Nat | 
 
-   (dec _v == (dec in1) + (dec in2))
+   (dec _v >= (dec in1)) &&
+   (dec _v >= (dec in2)) &&
+   ((in1 == S (S Z) && in2 == S (S Z)) ==> _v == S (S (S (S Z))))
 
 }
 nat_add = ??

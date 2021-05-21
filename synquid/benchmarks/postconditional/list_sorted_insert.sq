@@ -25,7 +25,24 @@ measure head :: NatList -> Nat where
 measure tail :: NatList -> NatList where
     Nil -> Nil
     Cons h t -> t
-    
+
+data Cmp where
+  LT :: Cmp
+  EQ :: Cmp
+  GT :: Cmp
+  
+nat_compare :: Nat -> Nat -> Cmp
+nat_compare = \n1 . \n2 .
+  match n1 with
+    Z ->
+      match n2 with
+        Z   -> EQ
+        S _ -> LT
+    S m1 ->
+      match n2 with
+        Z    -> GT
+        S m2 -> nat_compare m1 m2
+
 measure list_is_sorted :: NatList -> Bool where
   Nil -> False
   Cons x y -> if y == Nil 
@@ -33,22 +50,13 @@ measure list_is_sorted :: NatList -> Bool where
                 else  if (dec x >= dec (head y)) 
                         then list_is_sorted(y) 
                         else False
-                        
-measure contains :: NatList -> Bool where
-  Nil -> False
-  Cons x y -> if (y == Nil) 
-                then False
-                else if (x == (head y)) 
-                    then True
-                    else (contains (Cons x (tail y)))
  
 measure elems :: NatList -> Set Nat where
   Nil -> []
   Cons x xs -> [x] + elems xs
-
                         
 list_sorted_insert :: l:NatList -> n:Nat -> { NatList |
-   if contains (Cons n l) then
+   if [n] <= elems l then
       l == _v
    else
       ((len l) + 1 == len _v) &&
