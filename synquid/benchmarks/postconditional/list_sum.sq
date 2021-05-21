@@ -1,3 +1,4 @@
+
 data Nat where
   Z :: Nat
   S :: Nat -> Nat
@@ -9,21 +10,36 @@ termination measure dec :: Nat -> {Int | _v >= 0} where
 data NatList where
   Nil :: NatList
   Cons :: Nat -> NatList -> NatList
-  
 
+termination measure len :: NatList -> {Int | _v >= 0} where
+  Nil -> 0
+  Cons x xs -> 1 + len xs
+
+measure hd :: NatList -> Nat where
+  Nil -> Z
+  Cons x xs -> x
+
+measure tl :: NatList -> NatList where
+  Nil -> Nil
+  Cons x xs -> xs
+  
+list_fold :: (Nat -> Nat -> Nat) -> Nat -> NatList -> Nat
+list_fold = \f . \acc . \xs .
+  match xs with
+    Nil            -> acc
+    Cons head tail -> f (list_fold f acc tail) head
+  
+nat_add :: Nat -> Nat -> Nat
+nat_add = \n1 . \n2 .
+  match n1 with
+    Z   -> n2
+    S m -> S (nat_add m n2)
   
 list_sum :: xs:NatList -> { Nat | 
 
-   (xs == Nil ==> _v == Z) &&
-   (xs == (Cons (S Z) Nil) ==> _v == (S Z)) &&
-   (xs == (Cons (S (S Z)) (Cons (S Z) Nil)) ==> _v == (S (S (S Z)))) &&
-   (xs == (Cons (S (S (S Z))) Nil) ==> _v == (S (S (S Z)))) &&
-   (xs == (Cons (S (S Z)) (Cons (S (S Z)) Nil)) ==> _v == (S (S (S (S Z))))) &&
-   (xs == (Cons Z Nil) ==> _v == Z) &&
-   --(xs == (Cons Z (Cons Z Nil)) ==> _v == Z) &&
-   True	
-}
--- This gives an error, as does the benchmark provided in the GitHub link
--- With the line commented out, it is just wrong, with no error
-list_sum = ??
+   (xs == Nil ==> dec _v == 0) &&
+   ((xs != Nil && tl xs == Nil) ==> dec _v == dec (hd xs)) &&
+   ((xs != Nil && tl xs != Nil && tl (tl xs) == Nil) ==> dec _v == dec (hd xs) + dec (hd (tl xs)))
 
+}
+list_sum = ??
