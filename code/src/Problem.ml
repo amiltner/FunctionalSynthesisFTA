@@ -272,4 +272,5 @@ let extract_context
     full_tc = p.full_tc ;
     full_vc = p.full_vc ;
     evals = p.eval_context ;
+    full_evals = p.full_eval_context ;
   }

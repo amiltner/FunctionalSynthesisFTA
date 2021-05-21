@@ -67,4 +67,8 @@ let fold =
 ;;
 
 fun (in1in2in3:(nat->nat->nat)*nat*list) -> (fun (out : nat) ->
-   if (in1in2in3.0 == zero) then (out == O) else (if (in1in2in3.0 == count) then (out == (size in1in2in3.2)) else True))
+   match (in1in2in3.0 == zero) with
+   | True -> (out == O)
+   | False -> (match (in1in2in3.0 == count) with
+               | True -> (out == (size in1in2in3.2))
+               | False -> True))
