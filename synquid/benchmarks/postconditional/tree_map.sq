@@ -30,14 +30,26 @@ measure right :: Tree -> Tree where
   Leaf -> Leaf
   Node l x r -> r
 
-nat_add :: Nat -> Nat -> Nat
-nat_add = \n1 . \n2 .
+measure sum :: Tree -> {Int | _v >= 0} where
+  Leaf -> 0
+  Node l x r -> dec x + sum l + sum r
+
+div2 :: Nat -> Nat
+div2 = \n1 .
   match n1 with
-    Z   -> n2
-    S m -> S (nat_add m n2)
+    Z -> Z
+    S np -> (match np with
+              Z -> Z
+              S m -> S (div2 m))
+
+inc :: Nat -> Nat
+inc = \n1 . S n1
+
+zero :: Nat -> Nat
+zero = \n1 . Z
 
 tree_map :: t:Tree -> f:(nat -> nat) -> { Tree |
-  ((t == Leaf) ==> (_v == Leaf))
-  && ((isNode t) ==> ((isNode _v) && f(value t) == (value _v)))
+  ((t == inc) ==> (sum t + size t == sum _v)) &&
+  ((t == zero) ==> (0 == sum _v))
 }
 tree_map = ??
