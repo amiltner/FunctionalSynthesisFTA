@@ -1,4 +1,8 @@
-bool_neg :: p:Bool -> { Bool |
+data Boolean where
+  T :: Boolean
+  F :: Boolean
+
+bool_neg :: p:Boolean -> { Boolean |
   _v != p
 }
 bool_neg = ??

@@ -31,14 +31,14 @@ let and =
 let for_all =
   fix (for_all : (nat -> nat) -> list -> list -> bool) =
     fun (f : nat -> nat) ->
-      (fun (l1 : list) ->
-      (fun (l2 : list) ->
+    fun (l1 : list) ->
+    fun (l2 : list) ->
       match l1 with
       | Nil -> l2 == Nil
       | Cons (h1,t1) ->
-        (match l2 with
+        match l2 with
          | Nil -> False
-         | Cons (h2,t2) -> and ((f h1) == h2) (for_all f t1 t2))))
+         | Cons (h2,t2) -> and ((f h1) == h2) (for_all f t1 t2)
 ;;
 
 fun (in1in2:(nat->nat)*list) -> (fun (out : list) ->
