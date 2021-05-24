@@ -21,4 +21,4 @@ synth list -> list satisfying
 [Cons(0,Nil)] -> Cons(0,Nil),
 [Cons(1,Nil)] -> Cons(1,Nil),
 [Cons(0,Cons(1,Nil))] -> Cons(1,Cons(0,Nil)),
-[Cons(0,Cons(0,Cons(1,Nil)))] -> Cons(1,Cons(0,Cons(0,Nil))),
+[Cons(0,Cons(1,Cons(2,Nil)))] -> Cons(2,Cons(1,Cons(0,Nil))),
