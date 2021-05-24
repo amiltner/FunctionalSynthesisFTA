@@ -12,17 +12,49 @@ type opt =
 
 synth list -> nat -> opt satisfying
 
-let nth =
-  fix (nth : list -> nat -> opt) =
+type bool =
+  | True
+  | False
+
+let size =
+  fix (size : list -> nat) =
     fun (x:list) ->
-      fun (n:nat) ->
-        match x with
-          | Nil -> None
-          | Cons (n, t) -> (
-            match n with
-            | O -> Some n
-            | S m -> nth t m)
+      match x with
+        | Nil -> O
+        | Cons (_, t) -> S (size t)
+;;
+
+let gt =
+  fix (gt : nat -> nat -> bool) =
+    fun (x1:nat) ->
+    fun (x2:nat) ->
+      match x1 with
+        | O -> False
+        | S y1 ->
+          match x2 with
+          | O -> True
+          | S y2 -> gt y1 y2
+;;
+
+let hd =
+  fun (x:list) ->
+    match x with
+    | Nil -> None
+    | Cons (n, _) -> Some n
+;;
+
+let hd2 =
+  fun (x:list) ->
+    match x with
+    | Cons (_, Cons (x, _)) -> Some x
+    | _ -> None
 ;;
 
 fun (in1in2:list*nat) -> (fun (out : opt) ->
-    out == (nth in1in2.0 in1in2.1))
+    match (gt in1in2.1 (size in1in2.0)) with
+    | True -> out == None
+    | False ->
+      match in1in2.1 with
+      | O -> out == (hd in1in2.0)
+      | S O -> out == (hd2 in1in2.0)
+      | _ -> True)
