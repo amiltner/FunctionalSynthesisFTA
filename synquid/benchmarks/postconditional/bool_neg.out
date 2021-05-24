@@ -1,0 +1,7 @@
+bool_neg :: p:Bool -> {Bool|_v != p}
+benchmarks/postconditional/bool_neg.sq:4: Error:
+  Cannot match shape 'Bool'
+  with shape '_'
+  when checking p :: _ in
+  \p . 
+    match p with

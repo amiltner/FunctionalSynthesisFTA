@@ -1,0 +1,7 @@
+bool_xor :: p:Bool -> q:Bool -> {Bool|p != q <==> _v == True}
+benchmarks/postconditional/bool_xor.sq:6: Error:
+  Cannot match shape 'Bool'
+  with shape '_'
+  when checking q :: _ in
+  \p . \q . 
+      match q with

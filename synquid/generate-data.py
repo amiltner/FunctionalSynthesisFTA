@@ -72,7 +72,7 @@ def ensure_dir(f):
         os.makedirs(d)
 
 def transpose(matrix):
-    return zip(*matrix)
+    return list(zip(*matrix))
 
 def check_equal(path,base,data):
     infofname = join(path,base + TEST_EXT)
@@ -136,7 +136,7 @@ def gather_data(rootlength, path, base,name):
             if datum == "":
                 memout = True
                 break
-            this_run_data = map(lambda d: d.strip(),datum.split(";")) + [time]
+            this_run_data = list(map(lambda d: d.strip(),datum.split(";"))) + [time]
             if iteration == 0 and compare and not check_equal(path,base,this_run_data[0]):
                 incorrect = True
             run_data.append(this_run_data)
@@ -193,7 +193,7 @@ def clean_full_data(data):
 def print_data(data):
     clean_full_data(data)
     ensure_dir("generated-data/")
-    with open("generated-data/data.csv", "wb") as csvfile:
+    with open("generated-data/data.csv", "w") as csvfile:
         datawriter = csv.DictWriter(csvfile,fieldnames=data[0].keys())
         datawriter.writeheader()
         datawriter.writerows(data)

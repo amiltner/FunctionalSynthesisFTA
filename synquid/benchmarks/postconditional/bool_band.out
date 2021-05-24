@@ -1,0 +1,7 @@
+bool_band :: p:Bool -> q:Bool -> {Bool|if p == False || q == False then _v == False else _v == True}
+benchmarks/postconditional/bool_band.sq:6: Error:
+  Cannot match shape 'Bool'
+  with shape '_'
+  when checking q :: _ in
+  \p . \q . 
+      match q with

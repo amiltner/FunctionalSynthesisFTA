@@ -1,0 +1,8 @@
+list_stutter :: n:Nat -> m:Nat -> {NatList|len _v == dec m && (m != (Z) ==> hd _v == n)}
+benchmarks/postconditional/list_stutter.sq:26: Error:
+  Cannot find sufficiently strong refinements
+  when checking Z ::
+  {Nat|dec _v >= 0 && dec _v < dec n}
+  in
+  \n . \m . 
+      match list_stutter Z ?? with
