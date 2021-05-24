@@ -31,13 +31,25 @@ synth (nat -> bool) -> list -> list satisfying
 let for_all =
   fix (for_all : (nat -> bool) -> list -> bool) =
     fun (f : nat -> bool) ->
-      (fun (l : list) ->
+    fun (l : list) ->
       match l with
       | Nil -> True
       | Cons (h,t) ->
-        (match f h with
+        match f h with
          | True -> for_all f t
-         | False -> False))
+         | False -> False
+;;
+
+let any =
+  fix (any : (nat -> bool) -> list -> bool) =
+    fun (f : nat -> bool) ->
+    fun (l : list) ->
+      match l with
+      | Nil -> False
+      | Cons (h,t) ->
+        match f h with
+         | True -> True
+         | False -> any f t
 ;;
 
 let and =
@@ -50,7 +62,11 @@ let and =
 
 fun (in1in2:(nat->bool)*list) -> (fun (out : list) ->
   (and
+  (and
     (for_all in1in2.0 out)
     (match for_all in1in2.0 in1in2.1 with
      | True -> in1in2.1 == out
-     | False -> True)))
+     | False -> True))
+  (match any in1in2.0 in1in2.1 with
+   | True -> out != Nil
+   | False -> out == Nil)))

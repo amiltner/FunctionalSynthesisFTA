@@ -27,6 +27,40 @@ let fold =
 
 synth list -> list satisfying
 
-[Nil] -> Nil,
-[Cons(1,Nil)] -> Cons(1,Nil),
-[Cons(0,Cons(1,Nil))] -> Cons(1,Cons(0,Nil)),
+type bool =
+  | True
+  | False
+
+type opt =
+  | None
+  | Some of nat
+
+let size =
+  fix (size : list -> nat) =
+    fun (x:list) ->
+      match x with
+        | Nil -> O
+        | Cons (_, t) -> S (size t)
+;;
+
+let last =
+  fix (last : list -> opt) =
+    fun (x:list) ->
+      match x with
+      | Nil -> None
+      | Cons (n, Nil) -> Some n
+      | Cons (_, t) -> last t
+;;
+
+let and =
+  fun (b1:bool) ->
+    fun (b2:bool) ->
+      match b1 with
+      | True -> b2
+      | False -> False
+;;
+
+fun (input:list) -> (fun (out : list) ->
+    match input with
+    | Nil -> out == Nil
+    | Cons (x, _) -> and ((size out) == (size input)) ((Some x) == (last out)))
