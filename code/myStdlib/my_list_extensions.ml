@@ -74,6 +74,18 @@ let rec sublist_on_sorted
     | _ -> false
   end
 
+let rec sub_multi_set
+    ~(cmp:'a -> 'a -> int)
+    (l1:'a list)
+    (l2:'a list)
+  : bool =
+  let l1 = List.sort ~compare:cmp l1 in
+  let l2 = List.sort ~compare:cmp l2 in
+  sublist_on_sorted
+    ~cmp
+    l1
+    l2
+
 let or_unequal_lengths_to_option
     (x:'a List.Or_unequal_lengths.t)
   : 'a option =

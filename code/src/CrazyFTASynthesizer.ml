@@ -147,38 +147,61 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
 
   module GlobalState = struct
     module D = DictOf(Value)(IndividualSettings)
-    type t = D.t * int
+    type t =
+      {
+        d : D.t ;
+        s : int ;
+        kb : KnowledgeBase.t ;
+      }
     [@@deriving eq, hash, ord, show]
 
-    let empty : t = (D.empty,4)
+    let empty : t =
+      {
+        d = D.empty ;
+        s = 4;
+        kb = KnowledgeBase.empty
+      }
 
     let lookup
-        ((gs,n):t)
+        (gs:t)
         (v:Value.t)
       : IndividualSettings.t =
-      begin match D.lookup gs v with
+      begin match D.lookup gs.d v with
         | None -> IndividualSettings.initial
         | Some is -> is
       end
 
     let upgrade_from_failed_isect
-        ((d,n):t)
+        (gs:t)
       : t =
-      (d,n+1)
+      { gs with s = gs.s+1; kb = KnowledgeBase.empty }
+
+    let upgrade_kb
+        (gs:t)
+        (nppfc:KnowledgeBase.NPPFConj.t)
+      : t =
+      { gs with kb = KnowledgeBase.add gs.kb nppfc }
+
+    let get_kb
+        (gs:t)
+      : KnowledgeBase.t =
+      gs.kb
 
     let increase_max_multiplier
-        ((d,n) as gs:t)
+        (gs:t)
         (v:Value.t)
       : t =
       let is = lookup gs v in
       let is = IndividualSettings.increase_mvm is in
-      (D.insert d v is,n)
+      { gs with
+        d = D.insert gs.d v is
+      }
 
     let get_num_applications
-        ((_,n):t)
+        (gs:t)
         (v:Value.t)
       : int =
-      n
+      gs.s
 
     let get_max_value_multiplier
         (s:t)
@@ -885,10 +908,22 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~(constraints:Constraints.t)
         ~(nonpermitted:StatePairSet.t)
         ~(v_to_c:ValToC.t)
-      : t option =
+      : (t,KnowledgeBase.NPPFConj.t) either =
       let rep_o = C.min_term_state c in
-      Option.map
-        ~f:(fun rep ->
+      begin match rep_o with
+        | None ->
+          Right
+            (StatePairSet.as_list nonpermitted
+            ,List.filter_map
+                ~f:(fun v ->
+                    begin match Constraints.lookup constraints v with
+                      | None -> None
+                      | Some StandardConstraint -> None
+                      | Some (AddedConstraint v') -> Some (v,v')
+                    end)
+                c.inputs)
+        | Some rep ->
+          Left
             {
               inputs       ;
               c            ;
@@ -897,8 +932,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
               rep          ;
               v_to_c       ;
               to_intersect ;
-            })
-        rep_o
+            }
+      end
 
     let extract_possible_calls
         (x:t)
@@ -919,7 +954,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         (context:Context.t)
         (ds:C.TypeDS.t)
         (pqe:t)
-      : t option option =
+      : ((t,KnowledgeBase.NPPFConj.t) either) option =
       let e_o =
         Option.map
           ~f:(C.term_to_angelic_exp Type._unit % A.TermState.to_term)
@@ -1050,7 +1085,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~(all_ins:Value.t list)
         ~(new_ins:Value.t list)
         ~(constraints:Constraints.t)
-      : t option =
+      : (t,KnowledgeBase.NPPFConj.t) either =
       let process_c (c:C.t) v v_to_outs : C.t =
         let c = C.copy c in
         let all_transitions = A.transitions c.a in
@@ -1175,7 +1210,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     let update_nonpermitted
         (qe:t)
         ((s1,s2,io):A.TermState.t * FTAConstructor.State.t * (int option))
-      : t option =
+      : (t,KnowledgeBase.NPPFConj.t) either =
       let s1 = A.TermState.get_state s1 in
       (*print_endline (FTAConstructor.State.show (s1));
         print_endline (FTAConstructor.State.show s2);
@@ -1247,6 +1282,18 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           ~v_to_c
       in
       ans
+
+    let to_nppf_conj
+        (qe:t)
+      : KnowledgeBase.NPPFConj.t =
+      (StatePairSet.as_list qe.nonpermitted
+      ,List.filter_map
+          ~f:(fun (v,c) ->
+              begin match c with
+                | StandardConstraint -> None
+                | AddedConstraint v' -> Some (v,v')
+              end)
+          (Constraints.as_kvp_list qe.constraints))
 
     let priority
         (qe:t)
@@ -1333,7 +1380,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
 
   type qe_res =
     | NewQEs of PQE.t list
-    | Intersected of PQE.t option
+    | Intersected of (PQE.t,KnowledgeBase.NPPFConj.t) either
     | FoundResultProp of A.Term.t
 
   type synth_res =
@@ -1397,6 +1444,9 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                  v)
               v
         in
+        if KnowledgeBase.falsifies (GlobalState.get_kb gs) (PQE.to_nppf_conj pqe) then
+          (NewQEs [],gs)
+        else
         begin match PQE.intersect subcalls context ds pqe with
           | Some pqeo ->
             (Intersected pqeo,gs)
@@ -1498,15 +1548,21 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                     begin match merged_constraints_o with
                       | None ->
                         Consts.log
-                          (fun _ -> "popped value was found impossible with new constraints"
+                          (fun _ -> "Falsified: popped value was found impossible with new constraints"
                                     ^ (string_of_list (string_of_pair Value.show Value.show) new_constraints));
-                        (NewQEs
-                           (List.filter_map
-                              ~f:(fun r ->
-                                  PQE.update_nonpermitted
-                                    pqe
-                                    r)
-                              rcs)
+                        let gs = GlobalState.upgrade_kb gs (PQE.to_nppf_conj pqe) in
+                        let (gs,qes) =
+                          List.fold
+                            ~f:(fun (gs,qes) r ->
+                                begin match PQE.update_nonpermitted pqe r with
+                                  | Left qe -> (gs,qe::qes)
+                                  | Right nppf ->
+                                    (GlobalState.upgrade_kb gs nppf,qes)
+                                end)
+                            ~init:(gs,[])
+                            rcs
+                        in
+                        (NewQEs qes
                         ,gs)
                       | Some merged_constraints ->
                         Consts.log (fun _ -> "constraints were merged");
@@ -1531,16 +1587,19 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                             pqe.inputs
                             (List.map ~f:fst new_constraints)
                           in*)
-                        let nonpermitteds =
-                          List.filter_map
-                            ~f:(fun r ->
+                        let (gs,nonpermitteds) =
+                          List.fold
+                            ~f:(fun (gs,qes) r ->
                                 let (s1,s2,_) = r in
                                 if FTAConstructor.State.is_top (A.TermState.get_state s1) || FTAConstructor.State.is_top s2 then
-                                  None
+                                  (gs,qes)
                                 else
-                                  PQE.update_nonpermitted
-                                    pqe
-                                    r)
+                                  begin match PQE.update_nonpermitted pqe r with
+                                    | Left qe -> (gs,qe::qes)
+                                    | Right nppf ->
+                                      (GlobalState.upgrade_kb gs nppf,qes)
+                                  end)
+                            ~init:(gs,[])
                             rcs
                         in
                         let qe =
@@ -1572,33 +1631,44 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                             ~v_to_c
                           in*)
                         begin match qe with
-                          | Some qe ->
+                          | Left qe ->
                             (NewQEs (qe::nonpermitteds),gs)
-                          | None ->
-                            Consts.log (fun _ -> "popped value was found impossible2");
+                          | Right nppf ->
+                            Consts.log (fun _ -> "Falsified: popped value was found impossible2");
+                            let gs = GlobalState.upgrade_kb gs nppf in
                             (NewQEs nonpermitteds,gs)
                         end
                     end
                 | None ->
-                  Consts.log (fun _ -> "popped value was found impossible3");
-                  (NewQEs
-                     (List.filter_map
-                        ~f:(fun r ->
-                            PQE.update_nonpermitted
-                              pqe
-                              r)
-                        rcs),gs)
+                  Consts.log (fun _ -> "Falsified: popped value was found impossible3");
+                  let (gs,qes) =
+                    List.fold
+                      ~f:(fun (gs,qes) r ->
+                          begin match PQE.update_nonpermitted pqe r with
+                            | Left qe -> (gs,qe::qes)
+                            | Right nppf ->
+                              (GlobalState.upgrade_kb gs nppf,qes)
+                          end)
+                      ~init:(gs,[])
+                      rcs
+                  in
+                  (NewQEs qes,gs)
               end
             else
               begin
-                Consts.log (fun _ -> "popped value did not use rrs");
-                (NewQEs
-                   (List.filter_map
-                      ~f:(fun r ->
-                          PQE.update_nonpermitted
-                            pqe
-                            r)
-                      rcs),gs)
+                Consts.log (fun _ -> "Falsified: popped value did not use rrs");
+                let (gs,qes) =
+                  List.fold
+                    ~f:(fun (gs,qes) r ->
+                        begin match PQE.update_nonpermitted pqe r with
+                          | Left qe -> (gs,qe::qes)
+                          | Right nppf ->
+                            (GlobalState.upgrade_kb gs nppf,qes)
+                        end)
+                    ~init:(gs,[])
+                    rcs
+                in
+                (NewQEs qes,gs)
               end
         end
       in
@@ -1630,13 +1700,14 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
               | FoundResultProp e -> (FoundResult e,gs)
               | Intersected qe ->
                 begin match qe with
-                  | None ->
-                    Consts.log (fun () -> "failed intersect");
-                    find_it_out gs a specs
-                  | Some qe ->
+                  | Left qe ->
                     Consts.log (fun () -> "succeeded intersect with priority: " ^ (PQE.Priority.show (PQE.priority qe)));
                     Consts.log (fun () -> "new discovered value was: " ^ Expr.show (C.term_to_exp_internals (A.TermState.to_term qe.rep)));
                     find_it_out gs a (PQ.push specs qe)
+                  | Right nppf ->
+                    Consts.log (fun () -> "failed intersect");
+                    let gs = GlobalState.upgrade_kb gs nppf in
+                    find_it_out gs a specs
                 end
             end
           | None -> (IncreaseSize,gs)
