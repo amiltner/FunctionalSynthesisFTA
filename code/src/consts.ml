@@ -6,7 +6,7 @@ let print = ref false
 
 let log thunk =
   if !logging then
-    print_endline (thunk ())
+    print_endline (Core.Time.to_string (Core.Time.now ()) ^ " " ^ thunk ())
   else
     ()
 

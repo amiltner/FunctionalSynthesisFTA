@@ -60,6 +60,12 @@ module NPPFConj = struct
   type t = Nonpermitted.t * PartialFunction.t
   [@@deriving eq, hash, ord, show]
 
+  let add_partial_function_constraints
+      ((np1,pf1):t)
+      (pf2:PartialFunction.t)
+    : t =
+    (np1,pf1@pf2)
+
   let implies
       ((np1,pf1):t)
       ((np2,pf2):t)

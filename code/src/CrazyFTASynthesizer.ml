@@ -73,23 +73,21 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
 
   module Constraints =
   struct
-    include DictOf(Value)(Spec)
-
-    let lookup_default = lookup_default ~default:Spec.StandardConstraint
+    include DictOf(Value)(Value)
 
     let merge_single
         (c:t)
         (vin:Value.t)
         (vout:Value.t)
       : t option =
-      begin match lookup_default c vin with
-        | Spec.StandardConstraint ->
+      begin match lookup c vin with
+        | None ->
           Some
             (insert
                c
                vin
-               (Spec.AddedConstraint vout))
-        | Spec.AddedConstraint vout' ->
+               vout)
+        | Some vout' ->
           if Value.equal vout vout' then
             Some c
           else
@@ -115,10 +113,9 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         (c:t)
       : Value.t -> Value.t -> bool =
       let checker v1 v2 =
-        let s = lookup_default c v1 in
-        begin match s with
-          | StandardConstraint -> checker v1 v2
-          | AddedConstraint v ->
+        begin match lookup c v1 with
+          | None -> checker v1 v2
+          | Some v ->
             Value.equal v2 v
         end
       in
@@ -126,7 +123,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
   end
   module ValToC = DictOf(Value)(C)
   module ValueSet = SetOf(Value)
-  module StatePairSet = SetOf(PairOf(FTAConstructor.State)(FTAConstructor.State))
+  module ValuePairSet = SetOf(PairOf(FTAConstructor.State)(FTAConstructor.State))
   module IndividualSettings = struct
     type t =
       {
@@ -708,10 +705,9 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     (*print_endline "all ins";
       List.iter ~f:(print_endline % Value.show) all_ins;*)
     let checker v1 v2 =
-      let s = Constraints.lookup_default constraints v1 in
-      begin match s with
-        | StandardConstraint -> checker v1 v2
-        | AddedConstraint v ->
+      begin match Constraints.lookup constraints v1 with
+        | None -> checker v1 v2
+        | Some v ->
           Value.equal v2 v
       end
     in
@@ -895,7 +891,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         c            : C.t            ;
         to_intersect : C.t list       ;
         constraints  : Constraints.t  ;
-        nonpermitted : StatePairSet.t ;
+        nonpermitted : ValuePairSet.t ;
         rep          : A.TermState.t  ;
         v_to_c       : ValToC.t       ;
       }
@@ -918,8 +914,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                 ~f:(fun v ->
                     begin match Constraints.lookup constraints v with
                       | None -> None
-                      | Some StandardConstraint -> None
-                      | Some (AddedConstraint v') -> Some (v,v')
+                      | Some v' -> Some (v,v')
                     end)
                 c.inputs)
         | Some rep ->
@@ -1287,13 +1282,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         (qe:t)
       : KnowledgeBase.NPPFConj.t =
       (StatePairSet.as_list qe.nonpermitted
-      ,List.filter_map
-          ~f:(fun (v,c) ->
-              begin match c with
-                | StandardConstraint -> None
-                | AddedConstraint v' -> Some (v,v')
-              end)
-          (Constraints.as_kvp_list qe.constraints))
+      ,Constraints.as_kvp_list qe.constraints)
 
     let priority
         (qe:t)
@@ -1353,7 +1342,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     if List.mem ~equal:Value.equal vouts restriction then
       Some (List.length vouts = 1)
     else
-      (None)
+      (failwith "inv" ^ (Value.show inchoice) ^ "outv" ^ (Value.show restriction); None)
 
   let safely_restricts_outputs
       (pqe:PQE.t)
@@ -1445,7 +1434,10 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
               v
         in
         if KnowledgeBase.falsifies (GlobalState.get_kb gs) (PQE.to_nppf_conj pqe) then
-          (NewQEs [],gs)
+          begin
+            Consts.log (fun _ -> "Falsified: by knowledge base");
+            (NewQEs [],gs)
+          end
         else
         begin match PQE.intersect subcalls context ds pqe with
           | Some pqeo ->
@@ -1478,16 +1470,12 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                 rrs
             in
             if List.for_all
-                ~f:(fun (v1,c) ->
-                    begin match c with
-                      | StandardConstraint -> true
-                      | AddedConstraint v2 ->
-                        List.mem
-                          ~equal:(fun (v11,v12) (v21,v22) ->
-                              Value.equal v11 v21 && Value.equal v12 v22)
-                          pure_rrs
-                          (v1,v2)
-                    end)
+                ~f:(fun (v1,v2) ->
+                    List.mem
+                      ~equal:(fun (v11,v12) (v21,v22) ->
+                          Value.equal v11 v21 && Value.equal v12 v22)
+                      pure_rrs
+                      (v1,v2))
                 (Constraints.as_kvp_list pqe.constraints) then
               let approvals =
                 List.map
@@ -1550,7 +1538,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                         Consts.log
                           (fun _ -> "Falsified: popped value was found impossible with new constraints"
                                     ^ (string_of_list (string_of_pair Value.show Value.show) new_constraints));
-                        let gs = GlobalState.upgrade_kb gs (PQE.to_nppf_conj pqe) in
+                        let gs = GlobalState.upgrade_kb gs (KnowledgeBase.NPPFConj.add_partial_function_constraints (PQE.to_nppf_conj pqe) new_constraints) in
                         let (gs,qes) =
                           List.fold
                             ~f:(fun (gs,qes) r ->
@@ -1640,7 +1628,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                         end
                     end
                 | None ->
-                  Consts.log (fun _ -> "Falsified: popped value was found impossible3");
+                  Consts.log (fun _ -> "Falsified: popped value was found impossible, and should not happen");
                   let (gs,qes) =
                     List.fold
                       ~f:(fun (gs,qes) r ->
@@ -1657,6 +1645,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
             else
               begin
                 Consts.log (fun _ -> "Falsified: popped value did not use rrs");
+                let gs = GlobalState.upgrade_kb gs (PQE.to_nppf_conj pqe) in
                 let (gs,qes) =
                   List.fold
                     ~f:(fun (gs,qes) r ->
