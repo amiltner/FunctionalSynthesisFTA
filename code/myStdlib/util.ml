@@ -112,18 +112,6 @@ let thunk_of
 type comparison = int
 [@@deriving ord, show, hash]
 
-let is_equal (c:comparison) : bool =
-  c = 0
-
-let is_lt (c:comparison) : bool =
-  c < 0
-
-let is_gt (c:comparison) : bool =
-  c > 0
-
-type 'a comparer = 'a -> 'a -> int
-type 'a equality_check = 'a -> 'a -> bool
-
 type matchable_comparison =
     EQ
   | LT
@@ -135,6 +123,20 @@ type partial_order_comparison =
   | PO_LT
   | PO_GT
   | PO_INCOMPARABLE
+
+let is_equal (c:comparison) : bool = c = 0
+let is_lt    (c:comparison) : bool = c < 0
+let is_gt    (c:comparison) : bool = c > 0
+
+type 'a comparer = 'a -> 'a -> comparison
+type 'a comparer_option = 'a -> 'a -> comparison option
+type 'a equality_check = 'a -> 'a -> bool
+
+let comparer_to_equality_check (c:'a comparer) : 'a equality_check =
+  (fun x y -> is_equal (c x y))
+
+let make_matchable (cmp : comparison) : matchable_comparison =
+  if cmp < 0 then LT else if cmp > 0 then GT else EQ
 
 let compare_list
     ~cmp:(cmp:'a comparer)
@@ -174,37 +176,12 @@ let is_submultiset
   let sorted_l2 = List.sort ~compare:cmp l2 in
   is_sublist ~cmp:cmp sorted_l1 sorted_l2
 
-let make_matchable (n:comparison) : matchable_comparison =
-  if n = 0 then
-    EQ
-  else if n < 0 then
-    LT
-  else
-    GT
-
-let make_comparison (c:matchable_comparison) : comparison =
-  begin match c with
-  | EQ -> 0
-  | LT -> -1
-  | GT -> 1
-  end
-
-
-let comparison_to_equality (c:comparison) : bool =
-  c = 0
-
-
-let comparer_to_equality_check (c:'a comparer) : 'a equality_check =
-  (fun x y -> comparison_to_equality (c x y))
-
-
 let compare_to_equals
     (f:'a comparer)
     (x:'a)
     (y:'a)
   : bool =
-  comparison_to_equality
-    (f x y)
+  is_equal (f x y)
 
 module type Data = sig
   type t
@@ -1178,7 +1155,7 @@ let ordered_partition_order (f:'a -> 'a -> comparison)
   if (cmp = 0) then
     List.fold_left
       ~f:(fun acc (l1',l2') ->
-          if (is_equal acc) then
+          if is_equal acc then
             compare_list ~cmp:f l1' l2'
           else
             acc)
@@ -1222,7 +1199,7 @@ let pair_compare
     ((y1,y2):('a * 'b))
   : comparison =
   let cmp = fst_compare x1 y1 in
-  if (is_equal cmp) then
+  if is_equal cmp then
     snd_compare x2 y2
   else
     cmp
@@ -1235,7 +1212,7 @@ let triple_compare
     ((y1,y2,y3):('a * 'b * 'c))
   : comparison =
   let cmp = fst_compare x1 y1 in
-  if (is_equal cmp) then
+  if is_equal cmp then
     pair_compare
       snd_compare
       trd_compare
@@ -1253,7 +1230,7 @@ let quad_compare
     ((y1,y2,y3,y4):('a * 'b * 'c * 'd))
   : comparison =
   let cmp = fst_compare x1 y1 in
-  if (is_equal cmp) then
+  if is_equal cmp then
     triple_compare
       snd_compare
       trd_compare
@@ -1273,7 +1250,7 @@ let quint_compare
     ((y1,y2,y3,y4,y5):('a * 'b * 'c * 'd * 'e))
   : comparison =
   let cmp = fst_compare x1 y1 in
-  if (is_equal cmp) then
+  if is_equal cmp then
     quad_compare
       snd_compare
       trd_compare
@@ -1295,7 +1272,7 @@ let sext_compare
     ((y1,y2,y3,y4,y5,y6):('a * 'b * 'c * 'd * 'e * 'f))
   : comparison =
   let cmp = fst_compare x1 y1 in
-  if (is_equal cmp) then
+  if is_equal cmp then
     quint_compare
       snd_compare
       trd_compare
@@ -1335,13 +1312,11 @@ let intersect_map_lose_order_and_dupes
   let rec intersect_ordered (l1:a list) (l2:a list) : b list =
     begin match (l1,l2) with
       | (h1::t1,h2::t2) ->
-        let cmp = (cmp h1 h2) in
-        if is_equal cmp then
-          (f h1 h2)::(intersect_ordered t1 t2)
-        else if is_lt cmp then
-          intersect_ordered t1 l2
-        else
-          intersect_ordered l1 t2
+        begin match make_matchable (cmp h1 h2) with
+        | EQ -> (f h1 h2)::(intersect_ordered t1 t2)
+        | LT -> intersect_ordered t1 l2
+        | GT -> intersect_ordered l1 t2
+        end
     | ([],_) -> []
     | (_,[]) -> []
     end
@@ -1368,13 +1343,11 @@ let minus_keys_lose_order
     : ('a * 'b) list =
     begin match (l1,l2) with
       | ((h1,v1)::t1,h2::t2) ->
-        let cmp = cmp h1 h2 in
-        if (is_equal cmp) then
-          set_minus_ordered t1 l2
-        else if (is_lt cmp) then
-          (h1,v1)::(set_minus_ordered t1 l2)
-        else
-          set_minus_ordered l1 t2
+        begin match make_matchable (cmp h1 h2) with
+        | EQ -> set_minus_ordered t1 l2
+        | LT -> (h1,v1) :: (set_minus_ordered t1 l2)
+        | GT -> set_minus_ordered l1 t2
+        end
     | ([],_) -> []
     | (_,[]) -> l1
     end
@@ -1398,13 +1371,11 @@ let set_minus_lose_order (cmp:'a -> 'a -> comparison)
   let rec set_minus_ordered (l1:'a list) (l2:'a list) : 'a list =
     begin match (l1,l2) with
       | (h1::t1,h2::t2) ->
-        let cmp = cmp h1 h2 in
-        if (is_equal cmp) then
-          set_minus_ordered t1 t2
-        else if (is_lt cmp) then
-          h1::(set_minus_ordered t1 l2)
-        else
-          set_minus_ordered l1 t2
+        begin match make_matchable (cmp h1 h2) with
+        | EQ -> set_minus_ordered t1 t2
+        | LT -> h1::(set_minus_ordered t1 l2)
+        | GT -> set_minus_ordered l1 t2
+        end
     | ([],_) -> []
     | (_,[]) -> l1
     end
@@ -1688,18 +1659,14 @@ sig
 end
 
 let rec extract_min_exn
-    ~(compare:'a -> 'a -> int)
+    ~(compare:'a comparer)
     (l:'a list)
   : 'a * 'a list =
   begin match l with
     | [] -> failwith "no min"
     | [x] -> (x,[])
     | h::t ->
-      let (tmin,tt) =
-        extract_min_exn
-          ~compare
-          t
-      in
+      let (tmin, tt) = extract_min_exn ~compare t in
       if is_lt (compare h tmin) then
         (h,tmin::tt)
       else
@@ -1721,7 +1688,7 @@ let rec extract_nth_exn
   end
 
 let extract_min
-    ~(compare:'a -> 'a -> int)
+    ~(compare:'a comparer)
     (l:'a list)
   : ('a * 'a list) option =
   begin match l with
@@ -1730,7 +1697,7 @@ let extract_min
   end
 
 let extract_max_exn
-    ~(compare:'a -> 'a -> int)
+    ~(compare:'a comparer)
     (l:'a list)
   : 'a * 'a list =
   let compare x y = (compare y x) in
@@ -1750,7 +1717,7 @@ let rec extract_first
   end
 
 let extract_min_where
-    ~(compare:'a -> 'a -> int)
+    ~(compare:'a comparer)
     ~(f:'a -> bool)
     (l:'a list)
   : ('a * 'a list) option =
@@ -1761,7 +1728,7 @@ let extract_min_where
     Option.map ~f:(fun (min,r') -> (min,r'@remainder)) min_r'_o*)
 
 let rec merge_by_size_exn
-    ~(compare:'a -> 'a -> int)
+    ~(compare:'a comparer)
     ~(merge:'a -> 'a -> 'a)
     (elts:'a list)
   : 'a =
@@ -1776,7 +1743,7 @@ let rec merge_by_size_exn
 
 let merge_by_size_applies_exn
     (type a)
-    ~(compare:a -> a -> int)
+    ~(compare:a comparer)
     ~(merge:a -> a -> a)
     ~(needs_merge:a -> a -> bool)
     (elts:a list)
@@ -1801,7 +1768,7 @@ let merge_by_size_applies_exn
 
 let safe_sort
     (type a)
-    ~(compare:a -> a -> int option)
+    ~(compare:a comparer_option)
   : a list -> a list =
   let extract_maximal =
     (fold_until_completion
@@ -1809,7 +1776,7 @@ let safe_sort
            let sat x =
              begin match compare h x with
                | None -> false
-               | Some i -> i < 0
+               | Some c -> is_lt c
              end
            in
            let extraction_o = split_by_first_satisfying sat t in

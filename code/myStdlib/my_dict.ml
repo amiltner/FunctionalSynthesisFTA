@@ -642,7 +642,7 @@ struct
       (d1:t)
       (d2:t)
     : bool =
-    comparison_to_equality (compare d1 d2)
+    is_equal (compare d1 d2)
 
   let merge
       ~combiner:(combiner:value -> value -> 'a)

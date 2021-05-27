@@ -52,8 +52,7 @@ struct
       (n1:t)
       (n2:t)
     : bool =
-    comparison_to_equality
-      (compare n1 n2)
+    is_equal (compare n1 n2)
 end
 
 
