@@ -41,17 +41,19 @@ module NonpermittedElt = struct
 end
 
 module Nonpermitted = struct
-  type t = (Value.t * Value.t) list
+  type t = (FTAConstructor.State.t * FTAConstructor.State.t) list
   [@@deriving eq, hash, ord, show]
 
   let implies
       (npes1:t)
       (npes2:t)
     : bool =
-    sub_multi_set
-      ~cmp:(pair_compare Value.compare Value.compare)
+    List.for_all
+      ~f:(fun npe2 ->
+          List.exists
+            ~f:(fun npe1 -> NonpermittedElt.implies npe1 npe2)
+            npes1)
       npes2
-      npes1
 end
 
 module NPPFConj = struct
