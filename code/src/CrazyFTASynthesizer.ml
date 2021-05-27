@@ -123,7 +123,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
   end
   module ValToC = DictOf(Value)(C)
   module ValueSet = SetOf(Value)
-  module ValuePairSet = SetOf(PairOf(FTAConstructor.State)(FTAConstructor.State))
+  module StatePairSet = SetOf(PairOf(FTAConstructor.State)(FTAConstructor.State))
   module IndividualSettings = struct
     type t =
       {
@@ -891,7 +891,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         c            : C.t            ;
         to_intersect : C.t list       ;
         constraints  : Constraints.t  ;
-        nonpermitted : ValuePairSet.t ;
+        nonpermitted : StatePairSet.t ;
         rep          : A.TermState.t  ;
         v_to_c       : ValToC.t       ;
       }
