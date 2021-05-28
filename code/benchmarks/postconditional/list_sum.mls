@@ -27,6 +27,19 @@ let add =
 
 synth list -> nat satisfying
 
+type bool =
+  | True
+  | False
+
+fun (input:list) -> (fun (out : nat) ->
+    match input with
+    | Nil -> out == O
+    | Cons (a, Nil) -> out == a
+    | Cons (a, Cons (b, Nil)) -> out == (add a b)
+    | _ -> True)
+
+(*
 [Nil] -> 0,
 [Cons(1,Nil)] -> 1,
 [Cons(2,Cons(1,Nil))] -> 3,
+*)

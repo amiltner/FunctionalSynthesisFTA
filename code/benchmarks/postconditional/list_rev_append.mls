@@ -33,6 +33,13 @@ let size =
         | Cons (_, t) -> S (size t)
 ;;
 
+let hd =
+  fix (hd: list -> opt) =
+    fun (x:list) ->
+      match x with
+      | Nil -> None
+      | Cons (n, _) -> Some n
+;;
 let last =
   fix (last : list -> opt) =
     fun (x:list) ->
@@ -51,6 +58,4 @@ let and =
 ;;
 
 fun (input:list) -> (fun (out : list) ->
-    match input with
-    | Nil -> out == Nil
-    | Cons (x, _) -> and ((size out) == (size input)) ((Some x) == (last out)))
+    (and ((size out) == (size input)) ((hd input) == (last out))))

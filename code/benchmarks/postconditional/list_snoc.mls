@@ -8,13 +8,49 @@ type list =
 
 synth list -> nat -> list satisfying
 
-[Nil,0] -> Cons(0,Nil),
-[Nil,1] -> Cons(1,Nil),
-[Cons(0,Nil),0] -> Cons(0,Cons(0,Nil)),
-[Cons(0,Nil),1] -> Cons(0,Cons(1,Nil)),
-[Cons(1,Cons(0,Nil)),0] -> Cons(1,Cons(0,Cons(0,Nil))),
-[Cons(1,Cons(0,Nil)),1] -> Cons(1,Cons(0,Cons(1,Nil))),
-[Cons(2,Cons(1,Cons(0,Nil))),0] -> Cons(2,Cons(1,Cons(0,Cons(0,Nil)))),
-[Cons(2,Cons(1,Cons(0,Nil))),1] -> Cons(2,Cons(1,Cons(0,Cons(1,Nil)))),
+type bool =
+  | True
+  | False
 
-(* This also goes too high in terms of numbers of asts required, bug *)
+type opt =
+  | None
+  | Some of nat
+
+let size =
+  fix (size : list -> nat) =
+    fun (x:list) ->
+      match x with
+        | Nil -> O
+        | Cons (_, t) -> S (size t)
+;;
+
+let last =
+  fix (last : list -> opt) =
+    fun (x:list) ->
+      match x with
+      | Nil -> None
+      | Cons (n, Nil) -> Some n
+      | Cons (_, t) -> last t
+;;
+
+let and =
+  fun (b1:bool) ->
+    fun (b2:bool) ->
+      match b1 with
+      | True -> b2
+      | False -> False
+;;
+
+let hd =
+  fun (x:list) ->
+    match x with
+    | Nil -> None
+    | Cons (n, _) -> Some n
+;;
+
+fun (in1in2 : list * nat) -> fun (out : list) ->
+    match in1in2.0 with
+    | Nil -> out == Cons (in1in2.1, Nil)
+    | Cons (x, _) ->
+      and ((hd out) == Some x)
+          (and ((size out) == S (size in1in2.0)) ((last out) == Some (in1in2.1)))

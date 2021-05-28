@@ -21,6 +21,14 @@ let sum =
 
 synth tree -> nat satisfying
 
+fun (input:tree) -> (fun (out:nat) ->
+    match input with
+    | Leaf -> out == (S O)
+    | Node (Leaf, _, Leaf) -> out == (S (S O))
+    | Node (Node (Leaf, _, Leaf), _, Leaf) -> out == (S (S (S O)))
+    | Node (Leaf, _, Node (Leaf, _, Leaf)) -> out == (S (S (S O)))
+    | _ -> True)
+(*
 [Leaf] -> 1,
 [Node (Leaf, True, Leaf)] -> 2,
 [Node (Node (Leaf, True, Leaf), True, Leaf)] -> 3,
@@ -28,3 +36,4 @@ synth tree -> nat satisfying
 [Node (Node (Node (Leaf, True, Leaf), True, Leaf), True, Leaf)] -> 4,
 [Node (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf))] -> 4,
 [Node (Node (Leaf, True, Leaf), True, Node (Node (Leaf, True, Leaf), True, Node (Leaf, True, Leaf)))] -> 6,
+*)

@@ -41,5 +41,49 @@ let for_all =
          | Cons (h2,t2) -> and ((f h1) == h2) (for_all f t1 t2)
 ;;
 
+let plus =
+  fix (plus : nat -> nat -> nat) =
+    fun (x1:nat) ->
+      fun (x2:nat) ->
+        match x1 with
+        | O -> x2
+        | S x1p -> S (plus x1p x2)
+;;
+
+let sum =
+  fix (sum : list -> nat) =
+    fun (l:list) ->
+      match l with
+      | Nil -> O
+      | Cons (x, t) -> plus x (sum t)
+;;
+
+let size =
+  fix (size : list -> nat) =
+    fun (x:list) ->
+      match x with
+      | Nil -> O
+      | Cons (_, t) -> S (size t)
+;;
+
+let is_zero =
+  fix (is_zero : list -> bool) =
+    fun (l:list) ->
+      match l with
+      | Nil -> True
+      | Cons (z, t) -> and (z == O) (is_zero t)
+;;
+
+fun (in1in2:(nat->nat)*list) -> (fun (out : list) ->
+    match size in1in2.1 with | sin ->
+    (and
+      ((size out) == sin) (
+      match in1in2.0 with
+      | zero -> is_zero out
+      | inc -> (sum out) == (plus sin (sum in1in2.1))
+      | _ -> True)))
+(*
+
 fun (in1in2:(nat->nat)*list) -> (fun (out : list) ->
     (for_all in1in2.0 in1in2.1 out))
+*)
