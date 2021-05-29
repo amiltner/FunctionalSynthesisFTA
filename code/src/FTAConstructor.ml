@@ -777,23 +777,25 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       ~f:(fun fs ->
           print_endline (State.show fs))
       final_states;*)
-    List.concat_map
-      ~f:(fun s ->
-          begin match s with
-            | ((vinsvouts),_) ->
-              List.filter_map
-                ~f:(fun (vin',vout) ->
-                    begin match vout with
-                      | None -> failwith "bad final states"
-                      | Some vout ->
-                        if Value.equal vin vin' then
-                          Some vout
-                        else
-                          None
-                    end)
-                vinsvouts
-          end)
-      final_states
+    List.dedup_and_sort
+      ~compare:Value.compare
+      (List.concat_map
+         ~f:(fun s ->
+             begin match s with
+               | ((vinsvouts),_) ->
+                 List.filter_map
+                   ~f:(fun (vin',vout) ->
+                       begin match vout with
+                         | None -> failwith "bad final states"
+                         | Some vout ->
+                           if Value.equal vin vin' then
+                             Some vout
+                           else
+                             None
+                       end)
+                   vinsvouts
+             end)
+         final_states)
 
   let get_states
       (c:t)

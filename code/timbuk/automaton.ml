@@ -235,7 +235,7 @@ module MakeBase (F : Symbol.S) (Q : STATE) = struct
       roots = StateSet.copy x.roots ;
       state_confs = state_confs ;
       conf_states = conf_states ;
-      state_parents = x.state_parents ;
+      state_parents = state_parents ;
     }
 
   let final_states a = a.roots
