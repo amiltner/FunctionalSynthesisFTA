@@ -62,9 +62,9 @@ sig
   val minimize : t -> t
   val size : t -> int
   val min_term_state :
-    f:(term -> bool) ->
-    cost:(term -> Float.t) ->
-    reqs:(TermState.t -> State.t list) ->
+    f:(TermState.t -> bool) ->
+    cost:(TermState.t -> Float.t) ->
+    reqs:(TermState.t -> (Lang.Value.t * Lang.Value.t) list) ->
     t ->
     term_state option
 end
@@ -262,12 +262,12 @@ module TimbukBuilder : AutomatonBuilder =
       | StrictlyLess
       | StrictlyGreater
 
-    module TSData = ListOf(TripleOf(FloatModule)(ListOf(State))(TermState))
+    module TSData = ListOf(TripleOf(FloatModule)(ListOf(PairOf(Lang.Value)(Lang.Value)))(TermState))
     module StateToTS = DictOf(State)(TSData)
 
     let compare_terms
-        ((c1,r1s,t1):Float.t * State.t list * TermState.t)
-        ((c2,r2s,t2):Float.t * State.t list * TermState.t)
+        ((c1,r1s,t1):Float.t * (Lang.Value.t * Lang.Value.t) list * TermState.t)
+        ((c2,r2s,t2):Float.t * (Lang.Value.t * Lang.Value.t) list * TermState.t)
       : comparison =
       let cc =
         Float.(
@@ -282,17 +282,21 @@ module TimbukBuilder : AutomatonBuilder =
         let size1 = List.length r1s in
         let size2 = List.length r2s in
         if size1 = size2 then
-          if List.equal State.equal r1s r2s then
+          if List.equal
+              (fun (v11,v12) (v21,v22) ->
+                 Lang.Value.equal v11 v21 && Lang.Value.equal v12 v22)
+              r1s
+              r2s then
             Equal
           else
             Incomparable
         else if size1 < size2 then
-          if sublist_on_sorted ~cmp:(State.compare) r1s r2s then
+          if sublist_on_sorted ~cmp:(pair_compare Lang.Value.compare Lang.Value.compare) r1s r2s then
               StrictlyLess
             else
               Incomparable
           else
-          if sublist_on_sorted ~cmp:(State.compare) r2s r1s then
+          if sublist_on_sorted ~cmp:(pair_compare Lang.Value.compare Lang.Value.compare) r2s r1s then
             StrictlyGreater
           else
             Incomparable
@@ -308,13 +312,13 @@ module TimbukBuilder : AutomatonBuilder =
       end
 
     let extract_minimal_list
-        (ls:(Float.t * State.t list * TermState.t) list)
-        (input:(Float.t * State.t list * TermState.t))
-      : (Float.t * State.t list * TermState.t) list option =
+        (ls:(Float.t * (Lang.Value.t * Lang.Value.t) list * TermState.t) list)
+        (input:(Float.t * (Lang.Value.t * Lang.Value.t) list * TermState.t))
+      : (Float.t * (Lang.Value.t * Lang.Value.t) list * TermState.t) list option =
       let rec extract_minimal_list_internal
-          (acc:(Float.t * State.t list * TermState.t) list)
-          (ls:(Float.t * State.t list * TermState.t) list)
-        : (Float.t * State.t list * TermState.t) list option =
+          (acc:(Float.t * (Lang.Value.t * Lang.Value.t) list * TermState.t) list)
+          (ls:(Float.t * (Lang.Value.t * Lang.Value.t) list * TermState.t) list)
+        : (Float.t * (Lang.Value.t * Lang.Value.t) list * TermState.t) list option =
         begin match ls with
           | [] ->
             Some (input::acc)
@@ -335,18 +339,18 @@ module TimbukBuilder : AutomatonBuilder =
         end
       in
       let mlo = extract_minimal_list_internal [] ls in
-      Option.map ~f:(List.sort ~compare:(triple_compare Float.compare (compare_list ~cmp:State.compare) compare_term_state)) mlo
+      Option.map ~f:(List.sort ~compare:(triple_compare Float.compare (List.compare (pair_compare Lang.Value.compare Lang.Value.compare)) compare_term_state)) mlo
 
     module TSPQ = PriorityQueueOf(struct
         module Priority = FloatModule
-        type t = Float.t * State.t list * TermState.t * State.t
+        type t = Float.t * (Lang.Value.t * Lang.Value.t) list * TermState.t * State.t
         [@@deriving eq, hash, ord, show]
         let priority = fun (x,_,_,_) -> x
       end)
     let min_term_state
-        ~(f:Term.t -> bool)
-        ~(cost:Term.t -> Float.t)
-        ~(reqs:TermState.t -> State.t list)
+        ~(f:TermState.t -> bool)
+        ~(cost:TermState.t -> Float.t)
+        ~(reqs:TermState.t -> (Lang.Value.t * Lang.Value.t) list)
         (a:t)
       : TermState.t option =
       let pops = ref 0 in
@@ -355,7 +359,7 @@ module TimbukBuilder : AutomatonBuilder =
           (t:Symbol.t)
           (s:State.t)
           (ss:State.t list)
-        : (Float.t * State.t list * TermState.t) list =
+        : (Float.t * (Lang.Value.t * Lang.Value.t) list * TermState.t) list =
         let subs =
           List.map
             ~f:(fun s -> StateToTS.lookup_default ~default:[] st s)
@@ -366,8 +370,7 @@ module TimbukBuilder : AutomatonBuilder =
               let (ints,_,ss) = List.unzip3 iss in
               let ts = TS (t,s,ss) in
               let reqs = reqs ts in
-              let term = TermState.to_term ts in
-              let size = cost term in
+              let size = cost ts in
               (size,reqs,TS (t,s,ss)))
           (combinations subs)
       in
@@ -383,8 +386,8 @@ module TimbukBuilder : AutomatonBuilder =
         begin match TSPQ.pop pq with
           | Some ((c,rs,t,s),_,pq) ->
             (*print_endline ("State: " ^ (State.show s));*)
-            (*if f (TermState.to_term t) then*)
-              if is_final_state a s && List.is_empty rs then
+            if f t then
+              if is_final_state a s (*&& List.is_empty rs*) then
                 begin
                   (*print_endline (string_of_int !pops);*)
                   (*print_endline (Float.to_string c);*)
@@ -426,7 +429,7 @@ module TimbukBuilder : AutomatonBuilder =
                         min_tree_internal st pq
                       | Some ml ->
                         (*print_endline "OLD ONE YES CHANGE";
-                        print_endline (StateToTS.show_value ts);
+                          print_endline (StateToTS.show_value ts);
                           print_endline (StateToTS.show_value ml);*)
                         let st = StateToTS.insert st s ml in
                         let st_for_produced = StateToTS.insert st s [(c,rs,t)] in
@@ -443,8 +446,8 @@ module TimbukBuilder : AutomatonBuilder =
                         min_tree_internal st pq
                     end
                 end
-            (*else
-              min_tree_internal st pq*)
+            else
+              min_tree_internal st pq
           | None ->
             (*List.iter
               ~f:(fun kv -> print_endline @$ (string_of_pair State.show TSData.show) kv)

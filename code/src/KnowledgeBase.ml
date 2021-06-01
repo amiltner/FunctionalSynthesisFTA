@@ -15,31 +15,6 @@ module PartialFunction = struct
       insout1
 end
 
-module NonpermittedElt = struct
-  type t = FTAConstructor.State.t * FTAConstructor.State.t
-  [@@deriving eq, hash, ord, show]
-
-  let implies
-      (((vals1in,_),(vals1out,_)):t)
-      (((vals2in,_),(vals2out,_)):t)
-    : bool =
-    let to_inout valsin valsout =
-      List.map2_exn
-        ~f:(fun (dom,inv) (dom',outv) ->
-            assert (Value.equal dom dom');
-            (dom,inv,outv))
-        valsin
-        valsout
-    in
-    let vals1inout = to_inout vals1in vals1out in
-    let vals2inout = to_inout vals2in vals2out in
-    let valopt_compare = compare_option Value.compare in
-    sub_multi_set
-      ~cmp:(triple_compare Value.compare valopt_compare valopt_compare)
-      vals2inout
-      vals1inout
-end
-
 module Nonpermitted = struct
   type t = (Value.t * Value.t) list
   [@@deriving eq, hash, ord, show]

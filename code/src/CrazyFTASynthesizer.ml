@@ -444,7 +444,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                          ~f:(fun t -> (t,TermClassification.Introduction))
                          ts
                      in
-                     Some (FTAConstructor.Transition.TupleConstruct
+                     Some (FTAConstructor.Transition.TupleConstruct (List.length ts)
                           ,(fun vs -> [Value.mk_tuple vs])
                           ,ts
                           ,(t,TermClassification.Introduction))
@@ -458,7 +458,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                      | Type.Tuple ts ->
                        List.concat_mapi
                          ~f:(fun i tout ->
-                             [(FTAConstructor.Transition.TupleDestruct i
+                             [(FTAConstructor.Transition.TupleDestruct (i)
                               ,(fun vs ->
                                  [begin match Value.node (List.hd_exn vs) with
                                     | Tuple vs ->
@@ -765,25 +765,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     (*print_endline (string_of_bool @$ C.accepts_term c desired_term);*)
     (cs,inmap,gs)
 
-  let extract_recursive_requirements
-      (sin:A.TermState.t)
-      (sout:FTAConstructor.State.t)
-      (io:int option)
-    : (Value.t * Value.t * Value.t * int option * A.Term.t) list =
-    let (vvsin,_) = A.TermState.get_state sin in
-    let t = A.TermState.to_term sin in
-    let (vvsout,_) = sout in
-    let vvsin_vvsout = List.zip_exn vvsin vvsout in
-    List.filter_map
-      ~f:(fun ((exv,vino),(_,vouto)) ->
-          begin match (vino,vouto) with
-            | (Some vin,Some vout) ->
-              Some (exv,vin,vout,io,t)
-            | (None,None) -> None
-            | _ -> failwith "shouldnt happen"
-          end)
-      vvsin_vvsout
-
   let get_all_sorted_inputs_of_same_type
       (context:Context.t)
       (ds:C.TypeDS.t)
@@ -849,24 +830,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     in
     relevant_ins
 
-  let rec extract_recursive_calls
-      (c:C.t)
-      (ts:A.TermState.t)
-    : (A.TermState.t * FTAConstructor.State.t) list =
-    begin match ts with
-      | TS (t,target,[source_ts]) ->
-        if FTAConstructor.Transition.equal_id (FTAConstructor.Transition.id t) FTAConstructor.Transition.Rec then
-          (source_ts,target)::(extract_recursive_calls c source_ts)
-        else
-          List.concat_map
-            ~f:(extract_recursive_calls c)
-            [source_ts]
-      | TS (_,_,tss) ->
-        List.concat_map
-          ~f:(extract_recursive_calls c)
-          tss
-    end
-
   module PQE = struct
     module Priority =
     struct
@@ -876,7 +839,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       let compare (f1,i1,j1) (f2,i2,j2) =
         let fc = Float.compare f1 f2 in
         if fc = 0 then
-          let ic = Int.compare i1 i2 in
+          let ic = Int.compare i2 i1 in
           if ic = 0 then
             Int.compare j2 j1
           else
@@ -1090,25 +1053,26 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           List.filter
             ~f:(fun (t,ss,s) ->
                 if FTAConstructor.Transition.equal_id (FTAConstructor.Transition.id t) FTAConstructor.Transition.Rec then
-                  begin match (ss,s) with
-                    | ([(sins,_)],(souts,_)) ->
+                  let so = FTAConstructor.State.destruct_vals s in
+                  let sso =
+                    distribute_option
+                      (List.map ~f:FTAConstructor.State.destruct_vals ss)
+                  in
+                  begin match (sso,so) with
+                    | (Some [(sins,_)],Some (souts,_)) ->
                       not
                         (List.for_all2_exn
-                           ~f:(fun (v',sin_o) (v'',sout_o) ->
+                           ~f:(fun (v',vin) (v'',vout) ->
                                if Value.equal v v' then
                                  (assert (Value.equal v' v'');
-                                  begin match (sin_o,sout_o) with
-                                    | (None,None) -> true
-                                    | (Some vin, Some vout) ->
-                                      let finals = v_to_outs vin in
-                                      (List.mem ~equal:Value.equal finals vout) &&
-                                      (not (ValuePairSet.member nonpermitted (vin,vout)))
-                                    | _ -> failwith "shouldnt happen"
-                                  end)
+                                  let finals = v_to_outs vin in
+                                  (List.mem ~equal:Value.equal finals vout) &&
+                                  (not (ValuePairSet.member nonpermitted (vin,vout))))
                                else
                                  true)
                            sins
                            souts)
+                    | (None,None) -> false
                     | _ -> failwith "shouldn't happen"
                   end
                 else
@@ -1313,14 +1277,13 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~f:(fun i c ->
             List.map
               ~f:(fun (s1,s2) -> (s1,s2,Some i))
-              (extract_recursive_calls
-                 c
+              (C.extract_recursive_calls
                  (Option.value_exn
                     (A.accepting_term_state
                        c.a
                        t))))
         qe.to_intersect
-      @(List.map ~f:(fun (r1,r2) -> (r1,r2,None)) (extract_recursive_calls qe.c ts))
+      @(List.map ~f:(fun (r1,r2) -> (r1,r2,None)) (C.extract_recursive_calls ts))
 
     let to_added_key
         (qe:t)
@@ -1356,7 +1319,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (vtoc:ValToC.t)
       (inchoice:Value.t)
       (restriction:Value.t)
-      (io:int option)
     : bool option =
     if ValueSet.member inset inchoice then
       begin
@@ -1467,14 +1429,14 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                   rcs);
             let rrs =
               List.concat_map
-                ~f:(uncurry3 extract_recursive_requirements)
+                ~f:(uncurry C.extract_recursive_requirements % (fun (v1,v2,_) -> (v1,v2)))
                 rcs
             in
             let pure_rrs =
               List.dedup_and_sort
                 ~compare:(pair_compare Value.compare Value.compare)
                 (List.map
-                   ~f:(fun (_,v1,v2,_,_) -> (v1,v2))
+                   ~f:(fun (_,v1,v2,_) -> (v1,v2))
                    rrs)
             in
             print_endline (string_of_list (string_of_pair Value.show Value.show) pure_rrs);
@@ -1490,11 +1452,11 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                 (Constraints.as_kvp_list pqe.constraints) then
               let approvals =
                 List.map
-                  ~f:(fun (_,v1,v2,io,_) ->
+                  ~f:(fun (v1,v2) ->
                       Option.map
                         ~f:(fun ro -> (ro,(v1,v2)))
-                        (safely_restricts_outputs pqe pqe.inputs pqe.v_to_c v1 v2 io))
-                  rrs
+                        (safely_restricts_outputs pqe pqe.inputs pqe.v_to_c v1 v2))
+                  pure_rrs
               in
               (*print_endline
                 (string_of_list
@@ -1725,6 +1687,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                 in
                 let (keys,qes) = List.unzip keys_qes in
                 Consts.log (fun () -> "New qes added is: " ^ string_of_int (List.length qes));
+                Consts.log (fun () -> "New qes priorities: " ^ string_of_list PQE.Priority.show (List.map ~f:PQE.priority qes));
                 let a = Added.insert_all a keys in
                 find_it_out gs a (PQ.push_all specs qes)
               | FoundResultProp e -> (FoundResult e,gs)
@@ -1864,7 +1827,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         | h::qns ->
           let (ins,conversion,pred) = h in
           let (rcs,ps) = abstract_node context ins input ios tin conversion pred in
-          let tpacc = (List.map ~f:(fun (Term (tr,_),p) -> (fst @$ FTAConstructor.Transition.get_output_type tr,p)) ps)@tpacc in
+          let tpacc = (List.map ~f:(fun (Term (tr,_),p) -> (FTAConstructor.Transition.get_type tr,p)) ps)@tpacc in
           let rcacc = rcs@rcacc in
           let new_qns =
             List.map

@@ -396,17 +396,17 @@ module Make : AutomatonBuilder =
         create_from_fname new_fname
 
     let min_term_state
-        ~(f:term -> bool)
-        ~(cost:term -> Float.t)
-        ~(reqs:TermState.t -> State.t list)
+        ~(f:TermState.t -> bool)
+        ~(cost:TermState.t -> Float.t)
+        ~(reqs:TermState.t -> (Lang.Value.t * Lang.Value.t) list)
         (x:t)
       : term_state option =
       (*let x = get_small_aut x in*)
       let aut = get_aut x in
       let tso =
         TimbukAut.min_term_state
-          ~f:(f % from_timbuk_term)
-          ~cost:(cost % from_timbuk_term)
+          ~f:(f % from_timbuk_termstate)
+          ~cost:(cost % from_timbuk_termstate)
           ~reqs:(reqs % from_timbuk_termstate)
           aut
       in
