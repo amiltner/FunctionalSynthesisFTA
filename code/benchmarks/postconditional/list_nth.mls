@@ -6,6 +6,55 @@ type list =
   | Nil
   | Cons of nat * list
 
+synth list -> nat -> nat satisfying
+
+type bool =
+  | True
+  | False
+
+let size =
+  fix (size : list -> nat) =
+    fun (x:list) ->
+      match x with
+        | Nil -> O
+        | Cons (_, t) -> S (size t)
+;;
+
+let gt =
+  fix (gt : nat -> nat -> bool) =
+    fun (x1:nat) ->
+    fun (x2:nat) ->
+      match x1 with
+        | O -> False
+        | S y1 ->
+          match x2 with
+          | O -> True
+          | S y2 -> gt y1 y2
+;;
+
+let hd =
+  fun (x:list) ->
+    match x with
+    | Nil -> O
+    | Cons (n, _) -> n
+;;
+
+let hd2 =
+  fun (x:list) ->
+    match x with
+    | Cons (_, Cons (x, _)) -> x
+    | _ -> O
+;;
+
+fun (in1in2:list*nat) -> (fun (out : nat) ->
+    match (gt in1in2.1 (size in1in2.0)) with
+    | True -> out == O
+    | False ->
+      match in1in2.1 with
+      | O -> out == (hd in1in2.0)
+      | S O -> out == (hd2 in1in2.0)
+      | _ -> True)
+(*
 type opt =
   | None 
   | Some of nat
@@ -58,3 +107,4 @@ fun (in1in2:list*nat) -> (fun (out : opt) ->
       | O -> out == (hd in1in2.0)
       | S O -> out == (hd2 in1in2.0)
       | _ -> True)
+*)

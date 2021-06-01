@@ -4,9 +4,11 @@ synth nat -> bool satisfying
 
 fun (input:nat) -> (fun (out : bool) ->
     match input with
+    | O -> out == True
     | S O -> out == False
     | S S O -> out == True
     | S S S O -> out == False
+    | S S S S O -> out == True
     | _ -> True)
 
 (*

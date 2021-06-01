@@ -21,4 +21,5 @@ fun (input:list) -> (fun (out : opt) ->
     | Nil -> out == None
     | Cons (x, Nil) -> out == (Some x)
     | Cons (_, Cons (x, Nil)) -> out == (Some x)
+    | Cons (_, Cons (_, Cons (x, Nil))) -> out == (Some x)
     | _ -> True)
