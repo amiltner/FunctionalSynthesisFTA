@@ -62,11 +62,7 @@ let and =
 
 fun (in1in2:(nat->bool)*list) -> (fun (out : list) ->
   (and
-  (and
     (for_all in1in2.0 out)
     (match for_all in1in2.0 in1in2.1 with
      | True -> in1in2.1 == out
-     | False -> True))
-  (match any in1in2.0 in1in2.1 with
-   | True -> out != Nil
-   | False -> out == Nil)))
+     | False -> True)))

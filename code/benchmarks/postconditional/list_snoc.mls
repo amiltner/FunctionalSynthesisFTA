@@ -49,8 +49,4 @@ let hd =
 ;;
 
 fun (in1in2 : list * nat) -> fun (out : list) ->
-    match in1in2.0 with
-    | Nil -> out == Cons (in1in2.1, Nil)
-    | Cons (x, _) ->
-      and ((hd out) == Some x)
           (and ((size out) == S (size in1in2.0)) ((last out) == Some (in1in2.1)))
