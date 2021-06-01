@@ -21,10 +21,22 @@ let append =
 
 synth tree -> list satisfying
 
+type bool =
+  | True
+  | False
+
+fun (input:tree) -> (fun (out:list) ->
+    match input with
+    | Leaf -> out == Nil
+    | Node (Leaf, x, Leaf) -> out == (Cons (x, Nil))
+    | Node (Node (Leaf, x, Leaf), y, Leaf) -> out == (Cons (x, Cons (y, Nil)))
+    | Node (Leaf, x, Node (Leaf, y, Leaf)) -> out == (Cons (x, Cons (y, Nil)))
+    | _ -> True)
+(*
 [Leaf] -> Nil,
 [Node (Leaf, 1, Leaf)] -> Cons(1, Nil),
 [Node (Leaf, 2, Leaf)] -> Cons(2, Nil),
 [Node (Node (Leaf, 1, Leaf), 2, Leaf)] -> Cons(1, Cons(2, Nil)),
 [Node (Leaf, 1, Node (Leaf, 2, Leaf))] -> Cons(1, Cons(2, Nil)),
-
+*)
 (* this slow *)

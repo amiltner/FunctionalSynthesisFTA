@@ -54,9 +54,3 @@ fun (input:list) -> (fun (out : list) ->
     match input with
     | Nil -> out == Nil
     | Cons (x, _) -> and ((size out) == (size input)) ((Some x) == (last out)))
-(*
-[Nil] -> Nil,
-[Cons(0,Nil)] -> Cons(0,Nil),
-[Cons(1,Nil)] -> Cons(1,Nil),
-[Cons(0,Cons(1,Nil))] -> Cons(1,Cons(0,Nil)),
-[Cons(0,Cons(0,Cons(1,Nil)))] -> Cons(1,Cons(0,Cons(0,Nil))),*)
