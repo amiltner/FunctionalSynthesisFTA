@@ -38,30 +38,3 @@ fun (in1in2:nat * nat) -> (fun (out : nat) ->
      | S S O -> out == (S (S (S (S (O)))))
      | _ -> True)
      | _ -> True)))
-
-(*
-let plus =
-  fix (plus : nat -> nat -> nat) =
-    fun (x1:nat) ->
-      fun (x2:nat) ->
-        match x1 with
-        | O -> x2
-        | S x1p -> S (plus x1p x2)
-;;
-
-fun (in1in2:nat * nat) -> (fun (out : nat) ->
-    match in1in2.0 with
-     | O -> out == in1in2.1
-     | S O -> out == (S (in1in2.1))
-     | _ -> 
-    match in1in2.1 with
-     | O -> out == in1in2.0
-     | S O -> out == (S (in1in2.0))
-     | _ ->  True)
-
-    (*and
-    (and (geq out in1in2.0) (geq out in1in2.1))*)
-// This spec works
-fun (in1in2:nat * nat) -> (fun (out : nat) ->
-    out == (plus in1in2.0 in1in2.1))
-*)
