@@ -30,26 +30,6 @@ sum = \n1 . \n2.
   match n1 with
     Z -> n2
     S n' -> S (sum n' n2)
-  
-is_nonzero :: Nat -> Boolean
-is_nonzero = \n .
-  match n with
-    Z -> T
-    S _ -> F
-    
-is_odd :: Nat -> Boolean
-is_odd = \n .
-  match n with
-    Z -> F
-    S n' -> match n' with
-              Z -> T
-              S n'' -> is_odd n''
-
-count_odd :: Nat -> Nat -> Nat
-count_odd = \n1. \n2.
-  match is_odd n2 with
-    T -> S n1
-    F -> n1
 
 add_one_to_acc :: Nat -> Nat -> Nat
 add_one_to_acc = \n1. \n2. S n2

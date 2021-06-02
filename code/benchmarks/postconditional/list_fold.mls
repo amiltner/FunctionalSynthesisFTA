@@ -19,25 +19,6 @@ let sum =
         | S n1p -> S (sum n1p n2)
 ;;
 
-let is_odd =
-  fix (is_odd : nat -> bool) =
-    fun (x1 : nat) ->
-      match x1 with
-      | O -> False
-      | S O -> True
-      | S S x1p -> is_odd x1p
-;;
-
-let count_odd =
-  fun (n1:nat) ->
-    fun (n2:nat) ->
-      match is_odd n2 with
-      | True -> S n1
-      | False -> n1
-;;
-
-synth (nat -> nat -> nat) -> nat -> list -> nat satisfying
-
 let zero =
   fun (n1:nat) ->
     fun (n2:nat) -> O
@@ -48,6 +29,8 @@ let count =
     fun (n2:nat) -> S n2
 ;;
 
+synth (nat -> nat -> nat) -> nat -> list -> nat satisfying
+
 let size =
   fix (size : list -> nat) =
     fun (x:list) ->
@@ -56,19 +39,13 @@ let size =
         | Cons (_, t) -> S (size t)
 ;;
 
-let fold =
-  fix (fold : (nat -> nat -> nat) -> nat -> list -> nat) =
-    fun (f:nat->nat->nat) ->
-    fun (i:nat) ->
-    fun (x:list) ->
-      match x with
-        | Nil -> i
-        | Cons (y, t) -> f y (fold f i t)
-;;
-
 fun (in1in2in3:(nat->nat->nat)*nat*list) -> (fun (out : nat) ->
    match (in1in2in3.0 == zero) with
-   | True -> (out == O)
+   | True -> (match (in1in2in3.1) with
+              | O -> (out == O)
+              | _ -> True)
    | False -> (match (in1in2in3.0 == count) with
-               | True -> (out == (size in1in2in3.2))
-               | False -> True))
+               | True -> (out == (sum (size in1in2in3.2) in1in2in3.1))
+               | False -> (match (in1in2in3.0 == sum,in1in2in3.2) with
+                           | (True,Cons (a , Cons (b , Cons (c , Nil)))) -> out == (sum a (sum b c))
+                           | _ -> True)))
