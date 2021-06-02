@@ -103,6 +103,8 @@ struct
     D.max_key_exn s
 
   let size : t -> int = D.size
+
+  let show : t -> string = (String_utilities.string_of_list C.show) % as_list
 end
 
 module IntSet = struct

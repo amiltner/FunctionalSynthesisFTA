@@ -78,12 +78,8 @@ fun (in1in2:(nat->nat)*list) -> (fun (out : list) ->
     match size in1in2.1 with | sin ->
     (and
       ((size out) == sin) (
-      match in1in2.0 with
-      | zero -> is_zero out
-      | inc -> (sum out) == (plus sin (sum in1in2.1))
-      | _ -> True)))
-(*
-
-fun (in1in2:(nat->nat)*list) -> (fun (out : list) ->
-    (for_all in1in2.0 in1in2.1 out))
-*)
+      match (in1in2.0 == zero) with
+      | True -> is_zero out
+      | False -> (match (in1in2.0 == inc) with
+                         | True -> (sum out) == (plus sin (sum in1in2.1))
+                         | False -> True))))

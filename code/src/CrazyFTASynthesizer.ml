@@ -123,7 +123,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
   end
   module ValToC = DictOf(Value)(C)
   module ValueSet = SetOf(Value)
-  module StatePairSet = SetOf(PairOf(FTAConstructor.State)(FTAConstructor.State))
+  module ValuePairSet = SetOf(PairOf(Value)(Value))
   module IndividualSettings = struct
     type t =
       {
@@ -214,7 +214,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         {
           inputs       : ValueSet.t     ;
           constraints  : Constraints.t  ;
-          nonpermitted : StatePairSet.t ;
+          nonpermitted : ValuePairSet.t ;
         }
       [@@deriving hash, show, equal, compare]
     end
@@ -444,7 +444,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                          ~f:(fun t -> (t,TermClassification.Introduction))
                          ts
                      in
-                     Some (FTAConstructor.Transition.TupleConstruct
+                     Some (FTAConstructor.Transition.TupleConstruct (List.length ts)
                           ,(fun vs -> [Value.mk_tuple vs])
                           ,ts
                           ,(t,TermClassification.Introduction))
@@ -458,7 +458,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                      | Type.Tuple ts ->
                        List.concat_mapi
                          ~f:(fun i tout ->
-                             [(FTAConstructor.Transition.TupleDestruct i
+                             [(FTAConstructor.Transition.TupleDestruct (i)
                               ,(fun vs ->
                                  [begin match Value.node (List.hd_exn vs) with
                                     | Tuple vs ->
@@ -765,25 +765,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     (*print_endline (string_of_bool @$ C.accepts_term c desired_term);*)
     (cs,inmap,gs)
 
-  let extract_recursive_requirements
-      (sin:A.TermState.t)
-      (sout:FTAConstructor.State.t)
-      (io:int option)
-    : (Value.t * Value.t * Value.t * int option * A.Term.t) list =
-    let (vvsin,_) = A.TermState.get_state sin in
-    let t = A.TermState.to_term sin in
-    let (vvsout,_) = sout in
-    let vvsin_vvsout = List.zip_exn vvsin vvsout in
-    List.filter_map
-      ~f:(fun ((exv,vino),(_,vouto)) ->
-          begin match (vino,vouto) with
-            | (Some vin,Some vout) ->
-              Some (exv,vin,vout,io,t)
-            | (None,None) -> None
-            | _ -> failwith "shouldnt happen"
-          end)
-      vvsin_vvsout
-
   let get_all_sorted_inputs_of_same_type
       (context:Context.t)
       (ds:C.TypeDS.t)
@@ -849,24 +830,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     in
     relevant_ins
 
-  let rec extract_recursive_calls
-      (c:C.t)
-      (ts:A.TermState.t)
-    : (A.TermState.t * FTAConstructor.State.t) list =
-    begin match ts with
-      | TS (t,target,[source_ts]) ->
-        if FTAConstructor.Transition.equal_id (FTAConstructor.Transition.id t) FTAConstructor.Transition.Rec then
-          (source_ts,target)::(extract_recursive_calls c source_ts)
-        else
-          List.concat_map
-            ~f:(extract_recursive_calls c)
-            [source_ts]
-      | TS (_,_,tss) ->
-        List.concat_map
-          ~f:(extract_recursive_calls c)
-          tss
-    end
-
   module PQE = struct
     module Priority =
     struct
@@ -876,7 +839,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       let compare (f1,i1,j1) (f2,i2,j2) =
         let fc = Float.compare f1 f2 in
         if fc = 0 then
-          let ic = Int.compare i1 i2 in
+          let ic = Int.compare i2 i1 in
           if ic = 0 then
             Int.compare j2 j1
           else
@@ -891,7 +854,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         c            : C.t            ;
         to_intersect : C.t list       ;
         constraints  : Constraints.t  ;
-        nonpermitted : StatePairSet.t ;
+        nonpermitted : ValuePairSet.t ;
         rep          : A.TermState.t  ;
         v_to_c       : ValToC.t       ;
       }
@@ -902,14 +865,14 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~(c:C.t)
         ~(to_intersect:C.t list)
         ~(constraints:Constraints.t)
-        ~(nonpermitted:StatePairSet.t)
+        ~(nonpermitted:ValuePairSet.t)
         ~(v_to_c:ValToC.t)
       : (t,KnowledgeBase.NPPFConj.t) either =
       let rep_o = C.min_term_state c in
       begin match rep_o with
         | None ->
           Right
-            (StatePairSet.as_list nonpermitted
+            (ValuePairSet.as_list nonpermitted
             ,List.filter_map
                 ~f:(fun v ->
                     begin match Constraints.lookup constraints v with
@@ -1050,7 +1013,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~(inputs:ValueSet.t)
         ~(cs:C.t list)
         ~(constraints:Constraints.t)
-        ~(nonpermitted:StatePairSet.t)
+        ~(nonpermitted:ValuePairSet.t)
         ~(v_to_c:ValToC.t)
       : t option =
       let (c,to_intersect) =
@@ -1080,8 +1043,10 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~(all_ins:Value.t list)
         ~(new_ins:Value.t list)
         ~(constraints:Constraints.t)
+        ~(nonpermitted:ValuePairSet.t)
+        ~(minimize:bool)
       : (t,KnowledgeBase.NPPFConj.t) either =
-      let process_c (c:C.t) v v_to_outs : C.t =
+      let process_c (c:C.t) v (v_to_outs:Value.t -> Value.t list) : C.t =
         let c = C.copy c in
         let all_transitions = A.transitions c.a in
         let bad_transitions =
@@ -1097,17 +1062,18 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                     | (Some [(sins,_)],Some (souts,_)) ->
                       not
                         (List.for_all2_exn
-                           ~f:(fun (v',sin) (_,sout) ->
+                           ~f:(fun (v',vin) (v'',vout) ->
                                if Value.equal v v' then
-                                 let finals = v_to_outs sin in
-                                 (List.mem ~equal:Value.equal finals sout)
+                                 (assert (Value.equal v' v'');
+                                  let finals = v_to_outs vin in
+                                  (List.mem ~equal:Value.equal finals vout) &&
+                                  (not (ValuePairSet.member nonpermitted (vin,vout))))
                                else
                                  true)
                            sins
                            souts)
                     | (None,None) -> false
-                    | _ ->
-                      failwith "shouldnt occur"
+                    | _ -> failwith "shouldn't happen"
                   end
                 else
                   false)
@@ -1149,7 +1115,12 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           ~f:(fun fs ->
               C.remove_final_state c fs)
           bad_finals;
-        let c = (C.minimize c) in
+        let c =
+          if minimize then
+            (C.minimize c)
+          else
+            c
+        in
         c
       in
       let (c,to_intersect,v_to_valids,v_to_c) =
@@ -1196,17 +1167,16 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           ~c
           ~to_intersect
           ~constraints
-          ~nonpermitted:pqe.nonpermitted
+          ~nonpermitted:nonpermitted
           ~v_to_c
       in
       pqe
 
 
-    let update_nonpermitted
+    (*let update_nonpermitted
         (qe:t)
-        ((s1,s2,io):A.TermState.t * FTAConstructor.State.t * (int option))
+        ((v1,v2):Value.t * Value.t)
       : (t,KnowledgeBase.NPPFConj.t) either =
-      let s1 = A.TermState.get_state s1 in
       (*print_endline (FTAConstructor.State.show (s1));
         print_endline (FTAConstructor.State.show s2);
         print_endline (string_of_option Int.to_string io);
@@ -1263,7 +1233,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         print_endline "ANDDEN";
         print_endline "tried it";*)
       let nonpermitted =
-        StatePairSet.insert
+        ValuePairSet.insert
           (s1,s2)
           qe.nonpermitted
       in
@@ -1276,19 +1246,19 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           ~nonpermitted
           ~v_to_c
       in
-      ans
+      ans*)
 
     let to_nppf_conj
         (qe:t)
       : KnowledgeBase.NPPFConj.t =
-      (StatePairSet.as_list qe.nonpermitted
+      (ValuePairSet.as_list qe.nonpermitted
       ,Constraints.as_kvp_list qe.constraints)
 
     let priority
         (qe:t)
       : Float.t * Int.t * Int.t =
       (C.term_cost ~print:false (A.TermState.to_term qe.rep)
-      ,StatePairSet.size qe.nonpermitted
+      ,ValuePairSet.size qe.nonpermitted
       ,Constraints.size qe.constraints)
 
     let to_string_legible
@@ -1296,7 +1266,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       : string =
       let es = Expr.show (C.term_to_exp_internals (A.TermState.to_term qe.rep)) in
       let cs = Constraints.show qe.constraints in
-      "term: " ^ es ^ "\nconstraints: " ^ cs ^ "\nnonpermitted: " ^ StatePairSet.show qe.nonpermitted
+      "term: " ^ es ^ "\nconstraints: " ^ cs ^ "\nnonpermitted: " ^ ValuePairSet.show qe.nonpermitted
 
     let extract_recursive_calls
         (qe:t)
@@ -1307,14 +1277,13 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~f:(fun i c ->
             List.map
               ~f:(fun (s1,s2) -> (s1,s2,Some i))
-              (extract_recursive_calls
-                 c
+              (C.extract_recursive_calls
                  (Option.value_exn
                     (A.accepting_term_state
                        c.a
                        t))))
         qe.to_intersect
-      @(List.map ~f:(fun (r1,r2) -> (r1,r2,None)) (extract_recursive_calls qe.c ts))
+      @(List.map ~f:(fun (r1,r2) -> (r1,r2,None)) (C.extract_recursive_calls ts))
 
     let to_added_key
         (qe:t)
@@ -1350,7 +1319,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (vtoc:ValToC.t)
       (inchoice:Value.t)
       (restriction:Value.t)
-      (io:int option)
     : bool option =
     if ValueSet.member inset inchoice then
       begin
@@ -1461,29 +1429,34 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                   rcs);
             let rrs =
               List.concat_map
-                ~f:(uncurry3 extract_recursive_requirements)
+                ~f:(uncurry C.extract_recursive_requirements % (fun (v1,v2,_) -> (v1,v2)))
                 rcs
             in
             let pure_rrs =
-              List.map
-                ~f:(fun (_,v1,v2,_,_) -> (v1,v2))
-                rrs
+              List.dedup_and_sort
+                ~compare:(pair_compare Value.compare Value.compare)
+                (List.map
+                   ~f:(fun (_,v1,v2,_) -> (v1,v2))
+                   rrs)
             in
-            if List.for_all
-                ~f:(fun (v1,v2) ->
-                    List.mem
-                      ~equal:(fun (v11,v12) (v21,v22) ->
+            print_endline (string_of_list (string_of_pair Value.show Value.show) pure_rrs);
+            print_endline ("POSSIBLE CALLS");
+            print_endline (string_of_list (string_of_pair Value.show (string_of_list Value.show)) (PQE.extract_possible_calls pqe inputs));
+              if List.for_all
+                  ~f:(fun (v1,v2) ->
+                      List.mem
+                        ~equal:(fun (v11,v12) (v21,v22) ->
                           Value.equal v11 v21 && Value.equal v12 v22)
                       pure_rrs
                       (v1,v2))
                 (Constraints.as_kvp_list pqe.constraints) then
               let approvals =
                 List.map
-                  ~f:(fun (_,v1,v2,io,_) ->
+                  ~f:(fun (v1,v2) ->
                       Option.map
                         ~f:(fun ro -> (ro,(v1,v2)))
-                        (safely_restricts_outputs pqe pqe.inputs pqe.v_to_c v1 v2 io))
-                  rrs
+                        (safely_restricts_outputs pqe pqe.inputs pqe.v_to_c v1 v2))
+                  pure_rrs
               in
               (*print_endline
                 (string_of_list
@@ -1509,10 +1482,18 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
               in
               begin match possible with
                 | Some bs ->
+                  print_endline
+                    (string_of_list
+                       (string_of_pair
+                          Bool.to_string
+                          (string_of_pair
+                             Value.show
+                             Value.show))
+                    bs);
                   let new_constraints =
                     List.filter_map
                       ~f:(fun (b,nc) ->
-                          if b then
+                          if b && (ValueSet.member pqe.inputs (fst nc)) then
                             None
                           else
                             Some nc)
@@ -1523,6 +1504,27 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                     (*print_endline (string_of_int @$ Expr.size e);*)
                     (FoundResultProp e,gs)
                   else
+                    let (gs,nonpermitteds) =
+                      List.fold
+                        ~f:(fun (gs,qes) r ->
+                            let new_pqe =
+                              PQE.update_with_new_spec
+                                ~checker:pred
+                                ~pqe
+                                ~all_ins:sorted_inputs
+                                ~new_ins:[]
+                                ~constraints:pqe.constraints
+                                ~nonpermitted:(ValuePairSet.insert r pqe.nonpermitted)
+                                ~minimize:false
+                            in
+                            begin match new_pqe with
+                              | Left qe -> (gs,qe::qes)
+                              | Right nppf ->
+                                (GlobalState.upgrade_kb gs nppf,qes)
+                            end)
+                        ~init:(gs,[])
+                        pure_rrs
+                    in
                     let merged_constraints_o =
                       Constraints.merge
                         pqe.constraints
@@ -1539,18 +1541,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                           (fun _ -> "Falsified: popped value was found impossible with new constraints"
                                     ^ (string_of_list (string_of_pair Value.show Value.show) new_constraints));
                         let gs = GlobalState.upgrade_kb gs (KnowledgeBase.NPPFConj.add_partial_function_constraints (PQE.to_nppf_conj pqe) new_constraints) in
-                        let (gs,qes) =
-                          List.fold
-                            ~f:(fun (gs,qes) r ->
-                                begin match PQE.update_nonpermitted pqe r with
-                                  | Left qe -> (gs,qe::qes)
-                                  | Right nppf ->
-                                    (GlobalState.upgrade_kb gs nppf,qes)
-                                end)
-                            ~init:(gs,[])
-                            rcs
-                        in
-                        (NewQEs qes
+                        (NewQEs nonpermitteds
                         ,gs)
                       | Some merged_constraints ->
                         Consts.log (fun _ -> "constraints were merged");
@@ -1575,21 +1566,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                             pqe.inputs
                             (List.map ~f:fst new_constraints)
                           in*)
-                        let (gs,nonpermitteds) =
-                          List.fold
-                            ~f:(fun (gs,qes) r ->
-                                let (s1,s2,_) = r in
-                                if FTAConstructor.State.is_top (A.TermState.get_state s1) || FTAConstructor.State.is_top s2 then
-                                  (gs,qes)
-                                else
-                                  begin match PQE.update_nonpermitted pqe r with
-                                    | Left qe -> (gs,qe::qes)
-                                    | Right nppf ->
-                                      (GlobalState.upgrade_kb gs nppf,qes)
-                                  end)
-                            ~init:(gs,[])
-                            rcs
-                        in
                         let qe =
                           PQE.update_with_new_spec
                             ~checker:(Constraints.update_checker ~checker:pred merged_constraints)
@@ -1597,6 +1573,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                             ~all_ins:sorted_inputs
                             ~new_ins
                             ~constraints:merged_constraints
+                            ~nonpermitted:pqe.nonpermitted
+                            ~minimize:true
                         in
                         (*let (cs,v_to_c,gs) =
                           construct_full
@@ -1615,7 +1593,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                             ~inputs
                             ~cs
                             ~constraints:merged_constraints
-                            ~nonpermitted:StatePairSet.empty
+                            ~nonpermitted:ValuePairSet.empty
                             ~v_to_c
                           in*)
                         begin match qe with
@@ -1629,35 +1607,55 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                     end
                 | None ->
                   Consts.log (fun _ -> "Falsified: popped value was found impossible, and should not happen");
-                  let (gs,qes) =
+                  let (gs,nonpermitteds) =
                     List.fold
                       ~f:(fun (gs,qes) r ->
-                          begin match PQE.update_nonpermitted pqe r with
+                          let new_pqe =
+                            PQE.update_with_new_spec
+                              ~checker:pred
+                              ~pqe
+                              ~all_ins:sorted_inputs
+                              ~new_ins:[]
+                              ~constraints:pqe.constraints
+                              ~nonpermitted:(ValuePairSet.insert r pqe.nonpermitted)
+                              ~minimize:false
+                          in
+                          begin match new_pqe with
                             | Left qe -> (gs,qe::qes)
                             | Right nppf ->
                               (GlobalState.upgrade_kb gs nppf,qes)
                           end)
                       ~init:(gs,[])
-                      rcs
+                      pure_rrs
                   in
-                  (NewQEs qes,gs)
+                  (NewQEs nonpermitteds,gs)
               end
             else
               begin
                 Consts.log (fun _ -> "Falsified: popped value did not use rrs");
                 let gs = GlobalState.upgrade_kb gs (PQE.to_nppf_conj pqe) in
-                let (gs,qes) =
+                let (gs,nonpermitteds) =
                   List.fold
                     ~f:(fun (gs,qes) r ->
-                        begin match PQE.update_nonpermitted pqe r with
+                        let new_pqe =
+                          PQE.update_with_new_spec
+                            ~checker:pred
+                            ~pqe
+                            ~all_ins:sorted_inputs
+                            ~new_ins:[]
+                            ~constraints:pqe.constraints
+                            ~nonpermitted:(ValuePairSet.insert r pqe.nonpermitted)
+                            ~minimize:false
+                        in
+                        begin match new_pqe with
                           | Left qe -> (gs,qe::qes)
                           | Right nppf ->
                             (GlobalState.upgrade_kb gs nppf,qes)
                         end)
                     ~init:(gs,[])
-                    rcs
+                    pure_rrs
                 in
-                (NewQEs qes,gs)
+                (NewQEs nonpermitteds,gs)
               end
         end
       in
@@ -1678,12 +1676,18 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                     new_qes
                 in
                 let keys_qes =
+                  List.dedup_and_sort
+                    ~compare:(fun (k1,_) (k2,_) -> Added.compare_elt k1 k2)
+                    keys_qes
+                in
+                let keys_qes =
                   List.filter
                     ~f:(fun (k,_) -> not (Added.member a k))
                     keys_qes
                 in
                 let (keys,qes) = List.unzip keys_qes in
                 Consts.log (fun () -> "New qes added is: " ^ string_of_int (List.length qes));
+                Consts.log (fun () -> "New qes priorities: " ^ string_of_list PQE.Priority.show (List.map ~f:PQE.priority qes));
                 let a = Added.insert_all a keys in
                 find_it_out gs a (PQ.push_all specs qes)
               | FoundResultProp e -> (FoundResult e,gs)
@@ -1720,7 +1724,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           ~inputs
           ~cs
           ~constraints:Constraints.empty
-          ~nonpermitted:StatePairSet.empty
+          ~nonpermitted:ValuePairSet.empty
           ~v_to_c
       in
       (find_it_out gs Added.empty (PQ.from_list (Option.to_list qe)))
@@ -1823,7 +1827,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         | h::qns ->
           let (ins,conversion,pred) = h in
           let (rcs,ps) = abstract_node context ins input ios tin conversion pred in
-          let tpacc = (List.map ~f:(fun (Term (tr,_),p) -> (fst @$ FTAConstructor.Transition.get_output_type tr,p)) ps)@tpacc in
+          let tpacc = (List.map ~f:(fun (Term (tr,_),p) -> (FTAConstructor.Transition.get_type tr,p)) ps)@tpacc in
           let rcacc = rcs@rcacc in
           let new_qns =
             List.map
