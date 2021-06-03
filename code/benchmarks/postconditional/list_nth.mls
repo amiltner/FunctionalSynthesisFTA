@@ -24,16 +24,15 @@ let size =
         | Cons (_, t) -> S (size t)
 ;;
 
-let gt =
-  fix (gt : nat -> nat -> bool) =
+let gte =
+  fix (gte : nat -> nat -> bool) =
     fun (x1:nat) ->
     fun (x2:nat) ->
-      match x1 with
-        | O -> False
-        | S y1 ->
-          match x2 with
-          | O -> True
-          | S y2 -> gt y1 y2
+      match (x1,x2) with
+        | (O,O) -> True
+        | (O,S _) -> False
+        | (S _,O) -> True
+        | (S y1,S y2) -> gte y1 y2
 ;;
 
 let hd =
@@ -61,63 +60,9 @@ let last =
 
 fun (in1in2:list*nat) -> (fun (out : nat) ->
     match size in1in2.0 with | len ->
-    match (gt in1in2.1 len) with
+    match (gte in1in2.1 len) with
     | True -> out == O
     | False ->
       match len == (S (in1in2.1)) with
       | True -> (Some out) == (last in1in2.0)
       | False -> True)
-(*
-      match in1in2.1 with
-      | O -> out == (hd in1in2.0)
-      | S O -> out == (hd2 in1in2.0)
-      | _ -> True)
-synth list -> nat -> opt satisfying
-
-type bool =
-  | True
-  | False
-
-let size =
-  fix (size : list -> nat) =
-    fun (x:list) ->
-      match x with
-        | Nil -> O
-        | Cons (_, t) -> S (size t)
-;;
-
-let gt =
-  fix (gt : nat -> nat -> bool) =
-    fun (x1:nat) ->
-    fun (x2:nat) ->
-      match x1 with
-        | O -> False
-        | S y1 ->
-          match x2 with
-          | O -> True
-          | S y2 -> gt y1 y2
-;;
-
-let hd =
-  fun (x:list) ->
-    match x with
-    | Nil -> None
-    | Cons (n, _) -> Some n
-;;
-
-let hd2 =
-  fun (x:list) ->
-    match x with
-    | Cons (_, Cons (x, _)) -> Some x
-    | _ -> None
-;;
-
-fun (in1in2:list*nat) -> (fun (out : opt) ->
-    match (gt in1in2.1 (size in1in2.0)) with
-    | True -> out == None
-    | False ->
-      match in1in2.1 with
-      | O -> out == (hd in1in2.0)
-      | S O -> out == (hd2 in1in2.0)
-      | _ -> True)
-*)

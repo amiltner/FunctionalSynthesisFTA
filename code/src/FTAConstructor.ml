@@ -1585,7 +1585,6 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let cost t =
     term_cost (A.TermState.to_term t)
-    +. FloatList.sum (List.map ~f:call_cost (calls t))
 
   let rec is_valid_term
       (Term (t,ts):A.Term.t)
