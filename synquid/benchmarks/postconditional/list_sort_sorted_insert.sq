@@ -55,13 +55,13 @@ measure list_is_sorted :: NatList -> Bool where
   Nil -> True
   Cons x y -> if y == Nil 
                 then True
-                else  if (dec x >= dec (hd y)) 
+                else  if (dec x > dec (hd y)) 
                         then list_is_sorted(y) 
                         else False
   
 list_sort_sorted_insert :: xs:NatList -> { NatList | 
 
-   list_is_sorted _v && len xs == len _v && elems xs <= elems _v
+   list_is_sorted _v && elems xs <= elems _v
 
 }
 list_sort_sorted_insert = ??
