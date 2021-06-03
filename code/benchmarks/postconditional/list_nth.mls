@@ -12,6 +12,10 @@ type bool =
   | True
   | False
 
+type opt =
+  | None 
+  | Some of nat
+
 let size =
   fix (size : list -> nat) =
     fun (x:list) ->
@@ -46,19 +50,28 @@ let hd2 =
     | _ -> O
 ;;
 
+let last =
+  fix (last : list -> opt) =
+    fun (l:list) ->
+      match l with
+      | Nil -> None
+      | Cons (x, Nil) -> Some x
+      | Cons (_, t) -> last t
+;;
+
 fun (in1in2:list*nat) -> (fun (out : nat) ->
-    match (gt in1in2.1 (size in1in2.0)) with
+    match size in1in2.0 with | len ->
+    match (gt in1in2.1 len) with
     | True -> out == O
     | False ->
+      match len == (S (in1in2.1)) with
+      | True -> (Some out) == (last in1in2.0)
+      | False -> True)
+(*
       match in1in2.1 with
       | O -> out == (hd in1in2.0)
       | S O -> out == (hd2 in1in2.0)
       | _ -> True)
-(*
-type opt =
-  | None 
-  | Some of nat
-
 synth list -> nat -> opt satisfying
 
 type bool =

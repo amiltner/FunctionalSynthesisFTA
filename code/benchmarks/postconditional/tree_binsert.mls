@@ -94,6 +94,13 @@ let inorder =
 ;;
 
 fun (in1in2:tree*nat) -> (fun (out:tree) ->
+    match (inorder in1in2.0) with | lin ->
+    match (inorder out) with | lout ->
+    match (is_sorted_unique lin) with
+    | True ->
+      and (is_sorted_unique lout) (for_all (contains lout) (Cons (in1in2.1, lin)))
+    | False -> True)
+(*
     match inorder in1in2.0 with
     | Nil -> out == Node (Leaf, in1in2.1, Leaf)
     | lin ->
@@ -104,7 +111,7 @@ fun (in1in2:tree*nat) -> (fun (out:tree) ->
         | Nil -> False
         | lout -> and (is_sorted_unique lout) (for_all (contains lout) (Cons (in1in2.1, lin))))
 
-(*is_sorted_unique (inorder out))
+  is_sorted_unique (inorder out))
         and (is_sorted_unique lout) (contains lout in1in2.1))
     | lin -> is_sorted_unique lin))
 match inorder out with
