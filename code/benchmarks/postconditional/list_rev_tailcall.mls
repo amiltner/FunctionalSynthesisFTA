@@ -12,25 +12,12 @@ type bool =
   | True
   | False
 
-type opt =
-  | None
-  | Some of nat
-
 let size =
   fix (size : list -> nat) =
     fun (x:list) ->
       match x with
         | Nil -> O
         | Cons (_, t) -> S (size t)
-;;
-
-let last =
-  fix (last : list -> opt) =
-    fun (x:list) ->
-      match x with
-      | Nil -> None
-      | Cons (n, Nil) -> Some n
-      | Cons (_, t) -> last t
 ;;
 
 let and =
@@ -50,22 +37,37 @@ let plus =
         | S x1p -> S (plus x1p x2)
 ;;
 
+type cmp =
+  | LT
+  | EQ
+  | GT
+
+let compare =
+  fix (compare : nat -> nat -> cmp) =
+    fun (x1 : nat) ->
+      fun (x2 : nat) ->
+        match (x1,x2) with
+        | (O,O) -> EQ
+        | (O,S _) -> LT
+        | (S _,O) -> GT
+        | (S x1,S x2) -> compare x1 x2
+;;
+
+let lastn =
+  fix (lastn : list -> nat -> list) =
+    (fun (l:list) ->
+      (fun (n:nat) ->
+        (match compare n (size l) with
+        | EQ -> l
+        | GT -> l
+        | LT -> (match l with
+                 | Nil -> Nil
+                 | Cons (_,t) -> lastn t n))))
+;;
+
 fun (in1in2:list*list) -> (fun (out : list) ->
-    match in1in2.0 with
-    | Nil -> out == in1in2.1
-    | Cons (x, _) -> and ((size out) == (plus (size in1in2.0) (size in1in2.1))) ((Some x) == (last out)))
-(*
-[Nil,Nil] -> Nil,
-[Nil,Cons(0,Nil)] -> Cons(0,Nil),
-[Nil,Cons(1,Nil)] -> Cons(1,Nil),
-[Nil,Cons(0,Cons(0,Nil))] -> Cons(0,Cons(0,Nil)),
-[Nil,Cons(0,Cons(1,Nil))] -> Cons(0,Cons(1,Nil)),
-[Nil,Cons(1,Cons(0,Nil))] -> Cons(1,Cons(0,Nil)),
-[Nil,Cons(1,Cons(1,Nil))] -> Cons(1,Cons(1,Nil)),
-[Nil,Cons(1,Cons(0,Cons(1,Nil)))] -> Cons(1,Cons(0,Cons(1,Nil))),
-[Cons(0,Nil),Nil] -> Cons(0,Nil),
-[Cons(1,Nil),Nil] -> Cons(1,Nil),
-[Cons(1,Nil),Cons(0,Nil)] -> Cons(1,Cons(0,Nil)),
-[Cons(1,Nil),Cons(1,Nil)] -> Cons(1,Cons(1,Nil)),
-[Cons(1,Nil),Cons(0,Cons(1,Nil))] -> Cons(1,Cons(0,Cons(1,Nil))),
-[Cons(0,Cons(1,Nil)),Nil] -> Cons(1,Cons(0,Nil)),*)
+    (and
+      ((size out) == (plus (size in1in2.0) (size in1in2.1)))
+      (match in1in2.0 with
+       | Nil -> True
+       | Cons (x, _) -> (lastn out (S (size in1in2.1))) == Cons (x, in1in2.1))))

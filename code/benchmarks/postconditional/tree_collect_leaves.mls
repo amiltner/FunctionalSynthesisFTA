@@ -25,7 +25,7 @@ fun (input:tree) -> (fun (out:list) ->
     match input with
     | Leaf -> out == Nil
     | Node (Leaf, x, Leaf) -> out == (Cons (x, Nil))
-    | Node (Node (Leaf, x, Leaf), y, Leaf) -> out == (Cons (x, Cons (y, Nil)))
+    | Node (Node (Leaf, x, Leaf), y, Node (Leaf, z, Leaf)) -> out == (Cons (x, Cons (y, Cons (z, Nil))))
     | _ -> True)
 (*
 [Leaf] -> Nil,
