@@ -1439,9 +1439,9 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                    ~f:(fun (_,v1,v2,_) -> (v1,v2))
                    rrs)
             in
-            print_endline (string_of_list (string_of_pair Value.show Value.show) pure_rrs);
+            (*print_endline (string_of_list (string_of_pair Value.show Value.show) pure_rrs);
             print_endline ("POSSIBLE CALLS");
-            print_endline (string_of_list (string_of_pair Value.show (string_of_list Value.show)) (PQE.extract_possible_calls pqe inputs));
+              print_endline (string_of_list (string_of_pair Value.show (string_of_list Value.show)) (PQE.extract_possible_calls pqe inputs));*)
               if List.for_all
                   ~f:(fun (v1,v2) ->
                       List.mem
@@ -1482,14 +1482,14 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
               in
               begin match possible with
                 | Some bs ->
-                  print_endline
+                  (*print_endline
                     (string_of_list
                        (string_of_pair
                           Bool.to_string
                           (string_of_pair
                              Value.show
                              Value.show))
-                    bs);
+                    bs);*)
                   let new_constraints =
                     List.filter_map
                       ~f:(fun (b,nc) ->

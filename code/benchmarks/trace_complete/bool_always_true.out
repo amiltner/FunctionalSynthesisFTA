@@ -6,4 +6,4 @@ POSSIBLE CALLS
 POSSIBLE CALLS
 [(False,[True]);(True,[True])]
 []
-fix (f : bool -> bool) = fun (x:bool) -> True
+fix (f : bool -> bool) = 

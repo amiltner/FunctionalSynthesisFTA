@@ -14,8 +14,3 @@ POSSIBLE CALLS
 POSSIBLE CALLS
 [(Node (Leaf, True, Node (Leaf, True, Leaf)),[3]);(Node (Node (Leaf, True, Leaf), True, Leaf),[3]);(Node (Leaf, True, Leaf),[2]);(Leaf,[1])]
 [(true,(Leaf,1));(true,(Node (Leaf, True, Leaf),2))]
-fix (f : tree -> nat) =
-  fun (x:tree) ->
-    match x with
-      | Leaf _ -> 1
-      | Node _ -> sum (f (Un_Node x . 0)) (f (Un_Node x . 2))

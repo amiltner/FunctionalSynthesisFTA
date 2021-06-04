@@ -19,7 +19,7 @@ let rec import_imports
   end
 
 module Crazy = CrazyFTASynthesizer.Create(Automata.TimbukBuilder)
-module VEQ = Synthesizers.VerifiedEquiv.Make(Synthesizers.IOSynth.OfPredSynth(Crazy))(QuickCheckVerifier.T)
+module VEQ = Synthesizers.VerifiedEquiv.Make(Synthesizers.IOSynth.OfPredSynth(Crazy))(EnumerativeVerifier.T)
 
 let get_ioe_synthesizer
     ~(use_myth:bool)
@@ -58,7 +58,7 @@ let synthesize_satisfying_verified_equiv
     ~(use_vata:bool)
   : Expr.t =
   let synth = get_ioe_synthesizer ~use_myth ~use_l2 ~tc_synth ~use_vata in
-  let module S = Synthesizers.VerifiedEquiv.Make(val synth)(QuickCheckVerifier.T) in
+  let module S = Synthesizers.VerifiedEquiv.Make(val synth)(EnumerativeVerifier.T) in
   S.synth ~context ~tin ~tout equiv
 
 let get_predicate_synthesizer
