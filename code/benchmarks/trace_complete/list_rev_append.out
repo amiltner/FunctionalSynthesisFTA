@@ -1,0 +1,25 @@
+[]
+POSSIBLE CALLS
+[(Cons (0, Nil),[Cons (0, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[(Cons (0, Cons (1, Nil)),[Cons (1, Cons (0, Nil))]);(Cons (0, Nil),[Cons (0, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[(Nil,[Nil]);(Cons (0, Cons (1, Nil)),[Cons (1, Cons (0, Nil))]);(Cons (0, Nil),[Cons (0, Nil)])]
+[]
+[(Nil,Nil);(Cons (1, Nil),Cons (1, Nil));(Cons (0, Cons (1, Nil)),Cons (1, Cons (0, Nil)))]
+POSSIBLE CALLS
+[(Cons (0, Cons (0, Cons (1, Nil))),[Cons (1, Cons (0, Cons (0, Nil)))]);(Nil,[Nil]);(Cons (0, Cons (1, Nil)),[Cons (1, Cons (0, Nil))]);(Cons (0, Nil),[Cons (0, Nil)])]
+[(true,(Nil,Nil));(true,(Cons (1, Nil),Cons (1, Nil)));(true,(Cons (0, Cons (1, Nil)),Cons (1, Cons (0, Nil))))]
+[(Nil,Nil);(Cons (1, Nil),Cons (1, Nil));(Cons (0, Cons (1, Nil)),Cons (1, Cons (0, Nil)))]
+POSSIBLE CALLS
+[(Cons (0, Cons (0, Cons (1, Nil))),[Cons (1, Cons (0, Cons (0, Nil)))]);(Nil,[Nil]);(Cons (0, Cons (1, Nil)),[Cons (1, Cons (0, Nil))]);(Cons (0, Nil),[Cons (0, Nil)])]
+[(true,(Nil,Nil));(true,(Cons (1, Nil),Cons (1, Nil)));(true,(Cons (0, Cons (1, Nil)),Cons (1, Cons (0, Nil))))]
+fix (f : list -> list) =
+  fun (x:list) ->
+    match x with
+      | Nil _ -> x
+      | Cons _ -> append (f (Un_Cons x . 1)) Cons (Un_Cons x . 0, Nil)

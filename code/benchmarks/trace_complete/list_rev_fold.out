@@ -1,0 +1,9 @@
+[]
+POSSIBLE CALLS
+[(Cons (1, Nil),[Cons (1, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[(Cons (0, Cons (1, Nil)),[Cons (1, Cons (0, Nil))]);(Cons (1, Nil),[Cons (1, Nil)])]
+[]
+fix (f : list -> list) = fun (x:list) -> fold snoc Nil x

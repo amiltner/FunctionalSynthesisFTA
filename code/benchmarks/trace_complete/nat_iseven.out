@@ -1,0 +1,23 @@
+[]
+POSSIBLE CALLS
+[(1,[False])]
+[]
+[]
+POSSIBLE CALLS
+[(0,[True]);(1,[False])]
+[]
+[]
+POSSIBLE CALLS
+[(2,[True]);(0,[True]);(1,[False])]
+[]
+[(0,True);(1,False)]
+POSSIBLE CALLS
+[(3,[False]);(2,[True]);(0,[True]);(1,[False])]
+[(true,(0,True));(true,(1,False))]
+fix (f : nat -> bool) =
+  fun (x:nat) ->
+    match x with
+      | O _ -> True
+      | S _ -> (match Un_S x with
+                  | O _ -> False
+                  | S _ -> f Un_S (Un_S x))

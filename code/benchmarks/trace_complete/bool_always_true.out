@@ -1,0 +1,9 @@
+[]
+POSSIBLE CALLS
+[(True,[True])]
+[]
+[]
+POSSIBLE CALLS
+[(False,[True]);(True,[True])]
+[]
+fix (f : bool -> bool) = fun (x:bool) -> True

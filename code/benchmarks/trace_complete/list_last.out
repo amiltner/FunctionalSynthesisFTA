@@ -1,0 +1,23 @@
+[]
+POSSIBLE CALLS
+[(Cons (1, Nil),[Some 1])]
+[]
+[]
+POSSIBLE CALLS
+[(Nil,[None]);(Cons (1, Nil),[Some 1])]
+[]
+[]
+POSSIBLE CALLS
+[(Cons (2, Cons (1, Nil)),[Some 1]);(Nil,[None]);(Cons (1, Nil),[Some 1])]
+[]
+[(Cons (1, Nil),Some 1)]
+POSSIBLE CALLS
+[(Cons (2, Nil),[Some 2]);(Cons (2, Cons (1, Nil)),[Some 1]);(Nil,[None]);(Cons (1, Nil),[Some 1])]
+[(true,(Cons (1, Nil),Some 1))]
+fix (f : list -> natopt) =
+  fun (x:list) ->
+    match x with
+      | Nil _ -> None
+      | Cons _ -> (match Un_Cons x . 1 with
+                     | Nil _ -> Some (Un_Cons x . 0)
+                     | Cons _ -> f (Un_Cons x . 1))

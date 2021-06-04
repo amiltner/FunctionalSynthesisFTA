@@ -1,0 +1,28 @@
+[]
+POSSIBLE CALLS
+[((Node (Leaf, True, Leaf), 0),[1])]
+[]
+[]
+POSSIBLE CALLS
+[((Leaf, 0),[0]);((Node (Leaf, True, Leaf), 0),[1])]
+[]
+[]
+POSSIBLE CALLS
+[((Leaf, 1),[0]);((Leaf, 0),[0]);((Node (Leaf, True, Leaf), 0),[1])]
+[]
+[]
+POSSIBLE CALLS
+[((Node (Leaf, True, Leaf), 1),[0]);((Leaf, 1),[0]);((Leaf, 0),[0]);((Node (Leaf, True, Leaf), 0),[1])]
+[]
+[]
+POSSIBLE CALLS
+[((Leaf, 2),[0]);((Node (Leaf, True, Leaf), 1),[0]);((Leaf, 1),[0]);((Leaf, 0),[0]);((Node (Leaf, True, Leaf), 0),[1])]
+[]
+[((Leaf, 0),0);((Node (Leaf, True, Leaf), 0),1)]
+POSSIBLE CALLS
+[((Node (Node (Leaf, True, Leaf), True, Leaf), 1),[1]);((Leaf, 2),[0]);((Node (Leaf, True, Leaf), 1),[0]);((Leaf, 1),[0]);((Leaf, 0),[0]);((Node (Leaf, True, Leaf), 0),[1])]
+[(true,((Leaf, 0),0));(true,((Node (Leaf, True, Leaf), 0),1))]
+[((Leaf, 0),0);((Node (Leaf, True, Leaf), 0),1)]
+POSSIBLE CALLS
+[((Node (Leaf, True, Node (Leaf, True, Leaf)), 1),[1]);((Node (Node (Leaf, True, Leaf), True, Leaf), 1),[1]);((Leaf, 2),[0]);((Node (Leaf, True, Leaf), 1),[0]);((Leaf, 1),[0]);((Leaf, 0),[0]);((Node (Leaf, True, Leaf), 0),[1])]
+[(true,((Leaf, 0),0));(true,((Node (Leaf, True, Leaf), 0),1))]

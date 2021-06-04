@@ -1,0 +1,37 @@
+[]
+POSSIBLE CALLS
+[(Cons (True, Nil),[False])]
+[]
+[]
+POSSIBLE CALLS
+[(Nil,[True]);(Cons (True, Nil),[False])]
+[]
+[]
+POSSIBLE CALLS
+[(Cons (False, Nil),[True]);(Nil,[True]);(Cons (True, Nil),[False])]
+[]
+[(Nil,True);(Cons (True, Nil),False)]
+POSSIBLE CALLS
+[(Cons (False, Cons (True, Nil)),[False]);(Cons (False, Nil),[True]);(Nil,[True]);(Cons (True, Nil),[False])]
+[(true,(Nil,True));(true,(Cons (True, Nil),False))]
+[]
+POSSIBLE CALLS
+[(Cons (True, Cons (True, Nil)),[True]);(Cons (False, Cons (True, Nil)),[False]);(Cons (False, Nil),[True]);(Nil,[True]);(Cons (True, Nil),[False])]
+[]
+[(Nil,True);(Cons (False, Nil),True);(Cons (True, Nil),False)]
+POSSIBLE CALLS
+[(Cons (False, Cons (False, Nil)),[True]);(Cons (True, Cons (True, Nil)),[True]);(Cons (False, Cons (True, Nil)),[False]);(Cons (False, Nil),[True]);(Nil,[True]);(Cons (True, Nil),[False])]
+[(true,(Nil,True));(true,(Cons (False, Nil),True));(true,(Cons (True, Nil),False))]
+[(Nil,True);(Cons (False, Nil),True);(Cons (True, Nil),False)]
+POSSIBLE CALLS
+[(Cons (True, Cons (False, Nil)),[False]);(Cons (False, Cons (False, Nil)),[True]);(Cons (True, Cons (True, Nil)),[True]);(Cons (False, Cons (True, Nil)),[False]);(Cons (False, Nil),[True]);(Nil,[True]);(Cons (True, Nil),[False])]
+[(true,(Nil,True));(true,(Cons (False, Nil),True));(true,(Cons (True, Nil),False))]
+fix (f : list -> bool) =
+  fun (x:list) ->
+    match x with
+      | Nil _ -> True
+      | Cons _ -> (match f (Un_Cons x . 1) with
+                     | True _ -> (match Un_Cons x . 0 with
+                                    | True _ -> False
+                                    | False _ -> True)
+                     | False _ -> Un_Cons x . 0)

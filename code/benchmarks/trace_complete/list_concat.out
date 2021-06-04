@@ -1,0 +1,17 @@
+[]
+POSSIBLE CALLS
+[(LCons (Cons (0, Nil), LNil),[Cons (0, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[(LNil,[Nil]);(LCons (Cons (0, Nil), LNil),[Cons (0, Nil)])]
+[]
+[(LNil,Nil);(LCons (Cons (0, Nil), LNil),Cons (0, Nil))]
+POSSIBLE CALLS
+[(LCons (Cons (0, Nil), LCons (Cons (0, Nil), LNil)),[Cons (0, Cons (0, Nil))]);(LNil,[Nil]);(LCons (Cons (0, Nil), LNil),[Cons (0, Nil)])]
+[(true,(LNil,Nil));(true,(LCons (Cons (0, Nil), LNil),Cons (0, Nil)))]
+fix (f : llist -> list) =
+  fun (x:llist) ->
+    match x with
+      | LNil _ -> Nil
+      | LCons _ -> append (Un_LCons x . 0) (f (Un_LCons x . 1))

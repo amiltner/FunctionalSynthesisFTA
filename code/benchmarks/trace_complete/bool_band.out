@@ -1,0 +1,16 @@
+[]
+POSSIBLE CALLS
+[((True, True),[True])]
+[]
+[]
+POSSIBLE CALLS
+[((True, False),[False]);((True, True),[True])]
+[]
+[]
+POSSIBLE CALLS
+[((False, True),[False]);((True, False),[False]);((True, True),[True])]
+[]
+fix (f : bool * bool -> bool) =
+  fun (x:bool * bool) -> match x . 0 with
+                           | False _ -> x . 0
+                           | True _ -> x . 1

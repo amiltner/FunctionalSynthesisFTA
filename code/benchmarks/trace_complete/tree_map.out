@@ -1,0 +1,486 @@
+[]
+POSSIBLE CALLS
+[((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 0, Leaf)),[Node (Leaf, 0, Leaf)])]
+[]
+[]
+POSSIBLE CALLS
+[((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),[Node (Leaf, 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 0, Leaf)),[Node (Leaf, 0, Leaf)])]
+[]
+[]
+POSSIBLE CALLS
+[((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),[Leaf]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),[Node (Leaf, 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 0, Leaf)),[Node (Leaf, 0, Leaf)])]
+[]
+[((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),Leaf);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),Node (Leaf, 1, Leaf))]
+POSSIBLE CALLS
+[((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Node (Leaf, 2, Leaf), 2, Leaf)),[Node (Node (Leaf, 1, Leaf), 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),[Leaf]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),[Node (Leaf, 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 0, Leaf)),[Node (Leaf, 0, Leaf)])]
+[(true,((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),Leaf));(true,((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),Node (Leaf, 1, Leaf)))]
+[((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),Leaf);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),Node (Leaf, 1, Leaf))]
+POSSIBLE CALLS
+[((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 1, Node (Leaf, 2, Leaf))),[Node (Leaf, 0, Node (Leaf, 1, Leaf))]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Node (Leaf, 2, Leaf), 2, Leaf)),[Node (Node (Leaf, 1, Leaf), 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),[Leaf]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),[Node (Leaf, 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 0, Leaf)),[Node (Leaf, 0, Leaf)])]
+[(true,((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),Leaf));(true,((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),Node (Leaf, 1, Leaf)))]
+[((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),Leaf);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),Node (Leaf, 1, Leaf));((fun (n:nat) -> S n, Leaf),Leaf)]
+POSSIBLE CALLS
+[((fun (n:nat) -> S n, Node (Leaf, 0, Leaf)),[Node (Leaf, 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 1, Node (Leaf, 2, Leaf))),[Node (Leaf, 0, Node (Leaf, 1, Leaf))]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Node (Leaf, 2, Leaf), 2, Leaf)),[Node (Node (Leaf, 1, Leaf), 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),[Leaf]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),[Node (Leaf, 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 0, Leaf)),[Node (Leaf, 0, Leaf)])]
+[(true,((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),Leaf));(true,((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),Node (Leaf, 1, Leaf)));(true,((fun (n:nat) -> S n, Leaf),Leaf))]
+[((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),Leaf);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),Node (Leaf, 1, Leaf));((fun (n:nat) -> S n, Leaf),Leaf)]
+POSSIBLE CALLS
+[((fun (n:nat) -> S n, Node (Leaf, 0, Leaf)),[Node (Leaf, 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 1, Node (Leaf, 2, Leaf))),[Node (Leaf, 0, Node (Leaf, 1, Leaf))]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Node (Leaf, 2, Leaf), 2, Leaf)),[Node (Node (Leaf, 1, Leaf), 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),[Leaf]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),[Node (Leaf, 1, Leaf)]);((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 0, Leaf)),[Node (Leaf, 0, Leaf)])]
+[(true,((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Leaf),Leaf));(true,((fun (n:nat) ->
+   match n with
+     | O _ -> 0
+     | S O _ -> 0
+     | S S np -> S ((fix (div2 : nat -> nat) =
+                       fun (n:nat) ->
+                         match n with
+                           | O _ -> 0
+                           | S O _ -> 0
+                           | S S np -> S (div2 np))
+                      np),
+  Node (Leaf, 2, Leaf)),Node (Leaf, 1, Leaf)));(true,((fun (n:nat) -> S n, Leaf),Leaf))]
+fix (f : (nat -> nat) * tree -> tree) =
+  fun (x:(nat -> nat) * tree) ->
+    match x . 1 with
+      | Leaf _ -> x . 1
+      | Node _ -> Node (f (x . 0, Un_Node (x . 1) . 0),
+                         x . 0 (Un_Node (x . 1) . 1),
+                         f (x . 0, Un_Node (x . 1) . 2))

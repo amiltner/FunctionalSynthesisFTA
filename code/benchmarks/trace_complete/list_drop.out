@@ -1,0 +1,31 @@
+[]
+POSSIBLE CALLS
+[((Cons (0, Nil), 0),[Cons (0, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[((Cons (0, Nil), 1),[Nil]);((Cons (0, Nil), 0),[Cons (0, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[((Nil, 1),[Nil]);((Cons (0, Nil), 1),[Nil]);((Cons (0, Nil), 0),[Cons (0, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[((Cons (1, Cons (0, Nil)), 1),[Cons (0, Nil)]);((Nil, 1),[Nil]);((Cons (0, Nil), 1),[Nil]);((Cons (0, Nil), 0),[Cons (0, Nil)])]
+[]
+[((Cons (0, Nil), 0),Cons (0, Nil));((Cons (1, Cons (0, Nil)), 0),Cons (1, Cons (0, Nil)));((Cons (1, Cons (0, Nil)), 1),Cons (0, Nil))]
+POSSIBLE CALLS
+[((Cons (1, Cons (0, Nil)), 2),[Nil]);((Cons (1, Cons (0, Nil)), 1),[Cons (0, Nil)]);((Nil, 1),[Nil]);((Cons (0, Nil), 1),[Nil]);((Cons (0, Nil), 0),[Cons (0, Nil)])]
+[(true,((Cons (0, Nil), 0),Cons (0, Nil)));(true,((Cons (1, Cons (0, Nil)), 0),Cons (1, Cons (0, Nil))));(true,((Cons (1, Cons (0, Nil)), 1),Cons (0, Nil)))]
+[((Cons (0, Nil), 0),Cons (0, Nil));((Cons (1, Cons (0, Nil)), 0),Cons (1, Cons (0, Nil)));((Cons (1, Cons (0, Nil)), 1),Cons (0, Nil))]
+POSSIBLE CALLS
+[((Cons (1, Cons (0, Nil)), 2),[Nil]);((Cons (1, Cons (0, Nil)), 1),[Cons (0, Nil)]);((Nil, 1),[Nil]);((Cons (0, Nil), 1),[Nil]);((Cons (0, Nil), 0),[Cons (0, Nil)])]
+[(true,((Cons (0, Nil), 0),Cons (0, Nil)));(true,((Cons (1, Cons (0, Nil)), 0),Cons (1, Cons (0, Nil))));(true,((Cons (1, Cons (0, Nil)), 1),Cons (0, Nil)))]
+fix (f : list * nat -> list) =
+  fun (x:list * nat) ->
+    match x . 0 with
+      | Nil _ -> x . 0
+      | Cons _ -> (match x . 1 with
+                     | O _ -> x . 0
+                     | S _ -> Un_Cons (f (x . 0, Un_S (x . 1))) . 1)

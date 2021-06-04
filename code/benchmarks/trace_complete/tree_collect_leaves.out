@@ -1,0 +1,22 @@
+[]
+POSSIBLE CALLS
+[(Node (Leaf, True, Leaf),[Cons (True, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[(Leaf,[Nil]);(Node (Leaf, True, Leaf),[Cons (True, Nil)])]
+[]
+[(Leaf,Nil);(Node (Leaf, True, Leaf),Cons (True, Nil))]
+POSSIBLE CALLS
+[(Node (Node (Leaf, True, Leaf), False, Leaf),[Cons (True, Cons (False, Nil))]);(Leaf,[Nil]);(Node (Leaf, True, Leaf),[Cons (True, Nil)])]
+[(true,(Leaf,Nil));(true,(Node (Leaf, True, Leaf),Cons (True, Nil)))]
+[(Leaf,Nil);(Node (Leaf, True, Leaf),Cons (True, Nil))]
+POSSIBLE CALLS
+[(Node (Leaf, False, Node (Leaf, True, Leaf)),[Cons (False, Cons (True, Nil))]);(Node (Node (Leaf, True, Leaf), False, Leaf),[Cons (True, Cons (False, Nil))]);(Leaf,[Nil]);(Node (Leaf, True, Leaf),[Cons (True, Nil)])]
+[(true,(Leaf,Nil));(true,(Node (Leaf, True, Leaf),Cons (True, Nil)))]
+fix (f : tree -> list) =
+  fun (x:tree) ->
+    match x with
+      | Leaf _ -> Nil
+      | Node _ -> append (f (Un_Node x . 0))
+                    Cons (Un_Node x . 1, f (Un_Node x . 2))

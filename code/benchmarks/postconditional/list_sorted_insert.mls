@@ -76,19 +76,3 @@ fun (in1in2:list*nat) -> (fun (out:list) ->
     (and
       (is_sorted_unique out)
       (for_all (contains out) (Cons (in1in2.1, in1in2.0)))))
-
-(*
-[Nil,0] -> Cons(0,Nil),
-[Nil,1] -> Cons(1,Nil),
-[Nil,2] -> Cons(2,Nil),
-[Cons(0,Nil),0] -> Cons(0,Nil),
-[Cons(0,Nil),1] -> Cons(0,Cons(1,Nil)),
-[Cons(1,Nil),0] -> Cons(0,Cons(1,Nil)),
-[Cons(1,Nil),1] -> Cons(1,Nil),
-[Cons(1,Nil),2] -> Cons(1,Cons(2,Nil)),
-[Cons(2,Nil),0] -> Cons(0,Cons(2,Nil)),
-[Cons(2,Nil),1] -> Cons(1,Cons(2,Nil)),
-[Cons(0,Cons(1,Nil)),0] -> Cons(0,Cons(1,Nil)),
-[Cons(0,Cons(1,Nil)),2] -> Cons(0,Cons(1,Cons(2,Nil))),
-*)
-(* Takes up to size 6, it shouldn't, why does it? *)

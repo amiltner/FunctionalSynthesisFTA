@@ -1,0 +1,467 @@
+[]
+POSSIBLE CALLS
+[((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),[Cons (0, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (1, Nil)),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),[Cons (0, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Nil),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (1, Nil)),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),[Cons (0, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (2, Nil)),[Cons (2, Nil)]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Nil),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (1, Nil)),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),[Cons (0, Nil)])]
+[]
+[]
+POSSIBLE CALLS
+[((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Cons (1, Nil))),[Cons (0, Nil)]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (2, Nil)),[Cons (2, Nil)]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Nil),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (1, Nil)),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),[Cons (0, Nil)])]
+[]
+[((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Nil),Nil);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),Cons (0, Nil));((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (1, Nil)),Nil)]
+POSSIBLE CALLS
+[((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Cons (0, Nil))),[Cons (0, Cons (0, Nil))]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Cons (1, Nil))),[Cons (0, Nil)]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (2, Nil)),[Cons (2, Nil)]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Nil),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (1, Nil)),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),[Cons (0, Nil)])]
+[(true,((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Nil),Nil));(true,((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),Cons (0, Nil)));(true,((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (1, Nil)),Nil))]
+[((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Nil),Nil);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),Cons (0, Nil));((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (1, Nil)),Nil)]
+POSSIBLE CALLS
+[((fun (x1:nat) -> match x1 with
+                   | O _ -> False
+                   | S _ -> True, Cons (0, Nil)),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Cons (0, Nil))),[Cons (0, Cons (0, Nil))]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Cons (1, Nil))),[Cons (0, Nil)]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (2, Nil)),[Cons (2, Nil)]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Nil),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (1, Nil)),[Nil]);((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),[Cons (0, Nil)])]
+[(true,((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Nil),Nil));(true,((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (0, Nil)),Cons (0, Nil)));(true,((fun (x1:nat) ->
+   match x1 with
+     | O _ -> True
+     | S O _ -> False
+     | S S x1p -> (fix (is_even : nat -> bool) =
+                     fun (x1:nat) ->
+                       match x1 with
+                         | O _ -> True
+                         | S O _ -> False
+                         | S S x1p -> is_even x1p)
+                    x1p,
+  Cons (1, Nil)),Nil))]
+fix (f : (nat -> bool) * list -> list) =
+  fun (x:(nat -> bool) * list) ->
+    match x . 1 with
+      | Nil _ -> x . 1
+      | Cons _ -> (match x . 0 (Un_Cons (x . 1) . 0) with
+                     | True _ -> Cons (Un_Cons (x . 1) . 0,
+                                        f (x . 0, Un_Cons (x . 1) . 1))
+                     | False _ -> Un_Cons (x . 1) . 1)

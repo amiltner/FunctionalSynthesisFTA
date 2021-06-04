@@ -1,0 +1,9 @@
+[]
+POSSIBLE CALLS
+[(Cons (1, Nil),[1])]
+[]
+[]
+POSSIBLE CALLS
+[(Nil,[0]);(Cons (1, Nil),[1])]
+[]
+fix (f : list -> nat) = fun (x:list) -> fold add 0 x
