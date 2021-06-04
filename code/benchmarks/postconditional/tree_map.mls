@@ -111,22 +111,9 @@ fun (in1in2:(nat->nat)*tree) -> (fun (out : tree) ->
     match size lin with | sin ->
     (and
       ((size lout) == sin) (
-      match in1in2.0 with
-      | zero -> is_zero lout
-      | inc -> (sum lout) == (plus sin (sum lin))
-      | _ -> True)))
-(*
-    (and
-      ((size lout) == sin) (
-      match in1in2.0 with
-      | zero -> is_zero out
-      | inc -> (sum out) == (plus sin (sum in1in2.1))
-      | _ -> True)))
-[div2,Leaf] -> Leaf,
-[div2,Node (Leaf, 0, Leaf)] -> Node (Leaf, 0, Leaf),
-[div2,Node (Leaf, 2, Leaf)] -> Node (Leaf, 1, Leaf),
-[div2,Node (Node (Leaf, 2, Leaf), 2, Leaf)] -> Node (Node (Leaf, 1, Leaf), 1, Leaf),
-[div2,Node (Leaf, 1, Node (Leaf, 2, Leaf))] -> Node (Leaf, 0, Node (Leaf, 1, Leaf)),
-[inc,Leaf] -> Leaf,
-[inc,Node (Leaf, 0, Leaf)] -> Node (Leaf, 1, Leaf),
-*)
+      match (in1in2.0 == zero) with
+      | True -> is_zero lout
+      | False ->
+        (match (in1in2.0 == inc) with
+         | True -> (sum lout) == (plus sin (sum lin))
+         | False -> True))))

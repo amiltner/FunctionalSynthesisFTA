@@ -64,16 +64,16 @@ let for_all =
         | True -> for_all f t
 ;;
 
-let is_sorted_unique =
+let is_sorted =
   fix (is_sorted : list -> bool) =
   fun (l : list) ->
     match l with
     | Nil -> True
     | Cons (_, Nil) -> True
     | Cons (x, Cons(y, t)) ->
-      match (compare x y) == LT with
-      | True -> is_sorted (Cons (y, t))
-      | False -> False
+      match (compare x y) with
+      | GT -> False
+      | _ -> is_sorted (Cons (y, t))
 ;;
 
 let append =
@@ -94,96 +94,10 @@ let inorder =
 ;;
 
 fun (in1in2:tree*nat) -> (fun (out:tree) ->
-    match inorder in1in2.0 with
-    | Nil -> out == Node (Leaf, in1in2.1, Leaf)
-    | lin ->
-      match (is_sorted_unique lin) with
-      | False -> True
-      | True ->
-        match inorder out with
-        | Nil -> False
-        | lout -> and (is_sorted_unique lout) (for_all (contains lout) (Cons (in1in2.1, lin))))
+    match (inorder in1in2.0) with | lin ->
+    match (inorder out) with | lout ->
+    match (is_sorted lin) with
+    | True ->
+      and (is_sorted lout) (for_all (contains lout) (Cons (in1in2.1, lin)))
+    | False -> True)
 
-(*is_sorted_unique (inorder out))
-        and (is_sorted_unique lout) (contains lout in1in2.1))
-    | lin -> is_sorted_unique lin))
-match inorder out with
-| Nil -> False
-| lout -> and (is_sorted_unique lout) (contains lout in1in2.1))
-[Leaf,0] -> Node (Leaf, 0, Leaf),
-[Leaf,1] -> Node (Leaf, 1, Leaf),
-[Leaf,2] -> Node (Leaf, 2, Leaf),
-[Node (Leaf, 1, Leaf),0] -> Node (Node (Leaf, 0, Leaf), 1, Leaf),
-[Node (Leaf, 1, Leaf),1] -> Node (Leaf, 1, Leaf),
-[Node (Leaf, 1, Leaf),2] -> Node (Leaf, 1, Node (Leaf, 2, Leaf)),
-[Node (Leaf, 0, Leaf),0] -> Node (Leaf, 0, Leaf),
-[Node (Leaf, 0, Leaf),1] -> Node (Leaf, 0, Node (Leaf, 1, Leaf)),
-[Node (Leaf, 0, Leaf),2] -> Node (Leaf, 0, Node (Leaf, 2, Leaf)),
-[Node (Leaf, 2, Leaf),0] -> Node (Node (Leaf, 0, Leaf), 2, Leaf),
-[Node (Leaf, 2, Leaf),1] -> Node (Node (Leaf, 1, Leaf), 2, Leaf),
-[Node (Leaf, 2, Leaf),2] -> Node (Leaf, 2, Leaf),
-[Node (Node (Leaf, 0, Leaf), 1, Leaf),0] -> Node (Node (Leaf, 0, Leaf), 1, Leaf),
-[Node (Node (Leaf, 0, Leaf), 1, Leaf),1] -> Node (Node (Leaf, 0, Leaf), 1, Leaf),
-[Node (Node (Leaf, 0, Leaf), 1, Leaf),2] -> Node (Node (Leaf, 0, Leaf), 1, Node (Leaf, 2, Leaf)),
-[Node (Leaf, 0, Node (Leaf, 1, Leaf)),2] -> Node (Leaf, 0, Node (Leaf, 1, Node (Leaf, 2, Leaf))),
-[Node (Node (Leaf, 1, Leaf), 2, Leaf),0] -> Node (Node (Node(Leaf, 0, Leaf), 1, Leaf), 2, Leaf),
-[Node (Leaf, 1, Node (Leaf, 2, Leaf)),0] -> Node (Node (Leaf, 0, Leaf), 1, Node (Leaf, 2, Leaf)),
-[Node (Leaf, 1, Node (Leaf, 2, Leaf)),1] -> Node (Leaf, 1, Node (Leaf, 2, Leaf)),
-[Node (Node (Leaf, 1, Leaf), 2, Leaf),0] -> Node (Node (Node(Leaf, 0, Leaf), 1, Leaf), 2, Leaf)
-
-type opt =
-  | None
-  | Some of nat
-
-let max =
-  fun (x1:nat) ->
-    fun (x2:nat) ->
-      match compare x1 x2 with
-      | GT -> x2
-      | _ -> x1
-;;
-
-let min =
-  fun (x1:nat) ->
-    fun (x2:nat) ->
-      match compare x1 x2 with
-      | LT -> x1
-      | _ -> x2
-;;
-
-let max_value =
-  fix (max_value : tree -> nat) =
-  fun (t : tree) ->
-    match t with
-    | Leaf -> O
-    | Node (Leaf, n, Leaf) -> n
-    | Node (l, n, Leaf) -> max n (max_value l)
-    | Node (Leaf, n, r) -> max n (max_value r)
-    | Node (l, n, r) -> max n (max (max_value l) (max_value r))
-;;
-
-let min_value =
-  fix (min_value : tree -> nat) =
-  fun (t : tree) ->
-    match t with
-    | Leaf -> O
-    | Node (Leaf, n, Leaf) -> n
-    | Node (l, n, Leaf) -> min n (min_value l)
-    | Node (Leaf, n, r) -> min n (min_value r)
-    | Node (l, n, r) -> min n (max (min_value l) (min_value r))
-;;
-
-let is_sorted_tree =
-  fix (is_sorted_tree : tree -> bool) =
-  fun (t : tree) ->
-    match t with
-    | Leaf -> True
-    | Node (Leaf, _, Leaf) -> True
-    | Node (l, n, Leaf) -> and ((compare n (max_value l)) != LT) (is_sorted_tree l)
-    | Node (Leaf, n, r) -> and ((compare n (min_value r)) != GT) (is_sorted_tree r)
-    | Node (l, n, r) ->
-      and
-      (and ((compare n (max_value l)) != LT) (is_sorted_tree l))
-      (and ((compare n (min_value r)) != GT) (is_sorted_tree r))
-;;
-*)

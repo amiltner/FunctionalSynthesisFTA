@@ -839,7 +839,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       let compare (f1,i1,j1) (f2,i2,j2) =
         let fc = Float.compare f1 f2 in
         if fc = 0 then
-          let ic = Int.compare i2 i1 in
+          let ic = Int.compare i1 i2 in
           if ic = 0 then
             Int.compare j2 j1
           else
