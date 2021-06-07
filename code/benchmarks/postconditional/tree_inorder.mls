@@ -86,15 +86,6 @@ let is_sorted =
       | _ -> is_sorted t
 ;;
 
-let append =
-  fix (append : list -> list -> list) =
-    fun (l1 : list) ->
-      fun (l2 : list) ->
-        match l1 with
-        | Nil -> l2
-        | Cons (h,t) -> Cons(h,append t l2)
-;;
-
 let inorder =
   fix (inorder : tree -> list) =
   fun (t : tree) ->
@@ -109,7 +100,7 @@ let is_bst =
 ;;
 
 fun (input:tree) -> (fun (out : list) -> 
-    match (is_bst input) with
+    match is_bst input with
     | True -> and (is_sorted out) (for_all (contains out) input)
     | False -> True)
 
