@@ -24,17 +24,15 @@ let compare =
 
 synth list -> nat -> list satisfying
 
-[Nil,0] -> Cons(0,Nil),
-[Nil,1] -> Cons(1,Nil),
-[Nil,2] -> Cons(2,Nil),
-[Cons(0,Nil),0] -> Cons(0,Nil),
-[Cons(0,Nil),1] -> Cons(0,Cons(1,Nil)),
-[Cons(1,Nil),0] -> Cons(0,Cons(1,Nil)),
-[Cons(1,Nil),1] -> Cons(1,Nil),
-[Cons(1,Nil),2] -> Cons(1,Cons(2,Nil)),
-[Cons(2,Nil),0] -> Cons(0,Cons(2,Nil)),
-[Cons(2,Nil),1] -> Cons(1,Cons(2,Nil)),
-[Cons(0,Cons(1,Nil)),0] -> Cons(0,Cons(1,Nil)),
-[Cons(0,Cons(1,Nil)),2] -> Cons(0,Cons(1,Cons(2,Nil))),
+equiv
 
-(* Takes up to size 6, it shouldn't, why does it? *)
+fix (f : list -> nat -> list) =
+  fun (l:list) ->
+    fun (x:nat) ->
+      match l with
+        | Nil -> Cons (x, Nil)
+        | Cons (h,t) ->
+          (match compare x h with
+             | LT -> Cons (x, l)
+             | EQ -> l
+             | GT -> Cons (h, f t x))

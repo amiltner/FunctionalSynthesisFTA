@@ -38,12 +38,12 @@ let count_odd =
 
 synth (nat -> nat -> nat) -> nat -> list -> nat satisfying
 
-[sum,0,Nil] -> 0,
-[sum,0,Cons(1,Nil)] -> 1,
-[sum,0,Cons(2,Cons(1,Nil))] -> 3,
-[sum,0,Cons(3,Cons(2,Cons(1,Nil)))] -> 6,
-[sum,1,Nil] -> 1,
-[count_odd,0,Nil] -> 0,
-[count_odd,0,Cons(1,Nil)] -> 1,
-[count_odd,0,Cons(2,Cons(1,Nil))] -> 1,
-[count_odd,0,Cons(3,Cons(2,Cons(1,Nil)))] -> 2,
+equiv
+
+fix (fold : (nat -> nat -> nat) -> nat -> list -> nat) =
+  fun (f:(nat -> nat -> nat)) ->
+    fun (init:nat) ->
+      fun (l:list) ->
+        match l with
+          | Nil -> init
+          | Cons (h,t) -> f (fold f init t) h

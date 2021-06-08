@@ -1,4 +1,5 @@
 include "nat.decls"
+include "compare.decls"
 
 synth nat -> nat -> nat satisfying
 

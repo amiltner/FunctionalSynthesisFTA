@@ -8,8 +8,10 @@ type list =
 
 synth list -> list satisfying
 
-[Nil] -> Nil,
-[Cons(0,Nil)] -> Cons(0,Cons(0,Nil)),
-[Cons(1,Cons(0,Nil))] -> Cons(1,Cons(1,Cons(0,Cons(0,Nil)))),
+equiv
 
-(* should be 5, whyyyyy *)
+fix (f : list -> list) =
+  fun (x:list) ->
+    match x with
+      | Nil -> x
+      | Cons (h,t) -> Cons (h, Cons (h, f t))

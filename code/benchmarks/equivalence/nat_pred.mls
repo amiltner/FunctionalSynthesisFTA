@@ -2,6 +2,9 @@ include "nat.decls"
 
 synth nat -> nat satisfying
 
-[0] -> 0,
-[1] -> 0,
-[2] -> 1
+equiv
+
+fun (x:nat) ->
+  match x with
+    | O -> O
+    | S np -> np

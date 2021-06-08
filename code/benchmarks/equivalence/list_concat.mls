@@ -21,9 +21,10 @@ let append =
 
 synth llist -> list satisfying
 
-[LNil] -> Nil,
-[LCons(Nil,LNil)] -> Nil,
-[LCons(Cons(0,Nil),LNil)] -> Cons(0,Nil),
-[LCons(Cons(0,Nil),LCons(Cons(0,Nil),LNil))] -> Cons(0,Cons(0,Nil)),
-[LCons(Cons(1,Nil),LNil)] -> Cons(1,Nil),
-[LCons(Cons(1,Nil),LCons(Cons(1,Nil),LNil))] -> Cons(1,Cons(1,Nil)),
+equiv
+
+fix (f : llist -> list) =
+  fun (x:llist) ->
+    match x with
+      | LNil -> Nil
+      | LCons (hl,tll) -> append hl (f tll)

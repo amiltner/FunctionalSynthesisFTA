@@ -27,6 +27,6 @@ let fold =
 
 synth list -> list satisfying
 
-[Nil] -> Nil,
-[Cons(1,Nil)] -> Cons(1,Nil),
-[Cons(0,Cons(1,Nil))] -> Cons(1,Cons(0,Nil)),
+equiv
+
+fold snoc Nil

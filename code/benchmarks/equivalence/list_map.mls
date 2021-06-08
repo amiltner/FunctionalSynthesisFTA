@@ -17,11 +17,11 @@ let inc =
 
 synth (nat -> nat) -> list -> list satisfying
 
-[inc,Nil] -> Nil,
-[inc,Cons(0,Nil)] -> Cons(1,Nil),
-[inc,Cons(0,Cons(0,Nil))] -> Cons(1,Cons(1,Nil)),
-[inc,Cons(1,Nil)] -> Cons(2,Nil),
-[inc,Cons(1,Cons(1,Nil))] -> Cons(2,Cons(2,Nil)),
-[zero,Nil] -> Nil,
-[zero,Cons(0,Nil)] -> Cons(0,Nil),
-[zero,Cons(0,Cons(0,Nil))] -> Cons(0,Cons(0,Nil)),
+equiv
+
+fix (map : (nat -> nat) -> list -> list) =
+  fun (f:(nat -> nat)) ->
+    fun (l:list) ->
+      match l with
+        | Nil -> Nil
+        | Cons (h,t) -> Cons (f h, map f t)
