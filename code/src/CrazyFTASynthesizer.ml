@@ -2091,6 +2091,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
        ~inputs
        ~pred
        ~ds
-       ~size:3
+       ~size:2
        ~gs:GlobalState.empty)
 end
