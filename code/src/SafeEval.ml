@@ -16,10 +16,10 @@ type expr =
   | Check of expr
 
 and value =
-  | Func of Param.t * expr
-  | Ctor of Id.t * value
-  | Tuple of value list
-  | Wildcard
+  | VFunc of Param.t * expr
+  | VCtor of Id.t * value
+  | VTuple of value list
+  | VWildcard
 [@@deriving show]
 
 let rec matches_pattern_and_extractions
@@ -27,7 +27,7 @@ let rec matches_pattern_and_extractions
     (v:value)
   : (Id.t * value) list option =
   begin match (p,v) with
-    | (Tuple ps, Tuple vs) ->
+    | (Tuple ps, VTuple vs) ->
       let merge_os =
         List.map2_exn
           ~f:matches_pattern_and_extractions
@@ -37,7 +37,7 @@ let rec matches_pattern_and_extractions
       Option.map
         ~f:(fun ivs -> List.concat ivs)
         (distribute_option merge_os)
-    | (Ctor (i,p),Ctor (i',v)) ->
+    | (Ctor (i,p),VCtor (i',v)) ->
       if Id.equal i i' then
         matches_pattern_and_extractions p v
       else
@@ -58,16 +58,34 @@ let from_exp =
     ~fix_f:(fun i t e -> Fix(i,t,e))
     ~tuple_f:(fun es -> Tuple es)
     ~proj_f:(fun i e -> Proj(i,e))
+    ~eq_f:(fun _ _ -> failwith "invalid")
     ~wildcard_f:(Wildcard)
+
+let from_value : Value.t -> value =
+  Value.fold
+    ~func_f:(fun p e -> VFunc(p,from_exp e))
+    ~ctor_f:(fun i e -> VCtor(i,e))
+    ~tuple_f:(fun es -> VTuple es)
+    ~wildcard_f:(VWildcard)
+
+let rec to_value
+    (v:value)
+  : Value.t =
+  begin match v with
+    | VFunc _ -> failwith "shouldnt operate on functional values"
+    | VCtor (i,v) -> Value.mk_ctor i (to_value v)
+    | VTuple vs -> Value.mk_tuple (List.map ~f:to_value vs)
+    | VWildcard -> Value.mk_wildcard
+  end
 
 let rec value_to_exp
     (v:value)
   : expr =
   begin match v with
-    | Func (p,e) -> Func (p,e)
-    | Ctor (i,v) -> Ctor (i,value_to_exp v)
-    | Tuple vs -> Tuple (List.map ~f:value_to_exp vs)
-    | Wildcard -> Wildcard
+    | VFunc (p,e) -> Func (p,e)
+    | VCtor (i,v) -> Ctor (i,value_to_exp v)
+    | VTuple vs -> Tuple (List.map ~f:value_to_exp vs)
+    | VWildcard -> Wildcard
   end
 
 
@@ -143,7 +161,7 @@ let rec evaluate
         v
       else
         failwith "broken"
-    | Wildcard -> Wildcard
+    | Wildcard -> VWildcard
     | Var i -> failwith ("unbound variable " ^ (Id.show i))
     | App (e1,e2) ->
       let (v1) = evaluate current_check e1 in
@@ -156,10 +174,10 @@ let rec evaluate
         | _ -> failwith "nonfunc applied"
       end
     | Func (a,e) ->
-      Func (a,e)
+      VFunc (a,e)
     | Ctor (i,e) ->
       let v = evaluate current_check e in
-      Ctor (i,v)
+      VCtor (i,v)
     | Match (e,branches) as match_expr ->
       let v = evaluate current_check e in
       let branch_o =
@@ -191,18 +209,18 @@ let rec evaluate
       let vs =
         List.map ~f:(evaluate current_check) es
       in
-      Tuple vs
+      VTuple vs
     | Proj (i,e) ->
       let v = evaluate current_check e in
       begin match v with
-        | Wildcard -> Wildcard
-        | Tuple vs -> List.nth_exn vs i
+        | VWildcard -> VWildcard
+        | VTuple vs -> List.nth_exn vs i
         | _ -> failwith "bad"
       end
     | Unctor (i,e) ->
       let v = evaluate current_check e in
       begin match v with
-        | Ctor (i',e) ->
+        | VCtor (i',e) ->
           assert (Id.equal i  i');
           e
         | _ -> failwith "ah"

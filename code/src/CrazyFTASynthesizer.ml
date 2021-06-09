@@ -1172,6 +1172,24 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       in
       pqe
 
+    let full_satisfies
+        ~(context:Context.t)
+        (pqe:t)
+        (pred:Value.t -> Value.t -> bool)
+        (orig_inputs:Value.t list)
+      : bool =
+      let term = A.TermState.to_term pqe.rep in
+      let fune = C.term_to_safe_eval pqe.c.input_type pqe.c.output_type term (strict_functional_subvalue ~context ~ds:pqe.c.ds) in
+      List.for_all
+        ~f:(fun vin ->
+            let v = SafeEval.from_value vin in
+            let e = SafeEval.value_to_exp v in
+            let fulle = SafeEval.App (fune,e) in
+            let v = SafeEval.evaluate (fun _ -> true) fulle in
+            let vout = SafeEval.to_value v in
+            pred vin vout)
+        orig_inputs
+
 
     (*let update_nonpermitted
         (qe:t)
@@ -1311,7 +1329,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     if List.mem ~equal:Value.equal vouts restriction then
       Some (List.length vouts = 1)
     else
-      (failwith "inv" ^ (Value.show inchoice) ^ "outv" ^ (Value.show restriction); None)
+      (failwith ("inv" ^ (Value.show inchoice) ^ "outv" ^ (Value.show restriction)))
 
   let safely_restricts_outputs
       (pqe:PQE.t)
@@ -1354,6 +1372,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       ~(pred:Value.t -> Value.t -> bool)
       ~(size:int)
     : (synth_res * GlobalState.t) =
+    let orig_inputs = inputs in
+    let orig_pred = pred in
     if (List.length inputs = 0) then
       (*Expr.of_type
          (Type.mk_arrow
@@ -1412,6 +1432,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
             (Intersected pqeo,gs)
           | None ->
             Consts.log (fun _ -> "\n\nDone Intersecting! All Values" ^ ValueSet.show pqe.inputs);
+            if PQE.full_satisfies ~context pqe orig_pred orig_inputs then failwith "ah";
             let ts = pqe.rep in
             let rcs =
               List.dedup_and_sort

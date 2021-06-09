@@ -354,6 +354,79 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (Type.mk_arrow tin tout)
       (Expr.mk_func (xid,tin) internal)
 
+  let rec term_to_safe_eval_internals
+      (Term (t,ts):A.term)
+    : SafeEval.expr =
+    begin match Transition.id t with
+      | Apply ->
+        begin match ts with
+          | [t1;t2] ->
+            let e1 = term_to_safe_eval_internals t1 in
+            let e2 = term_to_safe_eval_internals t2 in
+            SafeEval.App (e1,e2)
+          | _ -> failwith "not permitted"
+        end
+      | FunctionApp e ->
+        List.fold
+          ~f:(fun acc bt ->
+              SafeEval.App
+                (acc,term_to_safe_eval_internals bt))
+          ~init:(SafeEval.from_exp e)
+          ts
+      | VariantConstruct c ->
+        begin match ts with
+          | [t] ->
+            SafeEval.Ctor (c,(term_to_safe_eval_internals t))
+          | _ -> failwith "incorrect setup"
+        end
+      | UnsafeVariantDestruct c ->
+        begin match ts with
+          | [t] ->
+            SafeEval.Unctor
+              (c,term_to_safe_eval_internals t)
+          | _ -> failwith "incorrect setup"
+        end
+      | TupleConstruct _ ->
+        SafeEval.Tuple
+          (List.map
+             ~f:term_to_safe_eval_internals
+             ts)
+      | Var ->
+        SafeEval.Check (SafeEval.Var xid)
+      | Rec ->
+        begin match ts with
+          | [t] ->
+            SafeEval.App (SafeEval.Var fid,term_to_safe_eval_internals t)
+          | _ -> failwith "incorrect"
+        end
+      | VariantSwitch is ->
+        begin match ts with
+          | t::ts ->
+            (* TODO, make destructors *)
+            let e = term_to_safe_eval_internals t in
+            let its = List.zip_exn is ts in
+            let branches = List.map ~f:(fun (i,t) -> (Pattern.Ctor (i,Pattern.Wildcard),term_to_safe_eval_internals t)) its in
+            SafeEval.Match (e,branches)
+          | [] -> failwith "cannot happen"
+        end
+      | TupleDestruct i ->
+        SafeEval.Proj (i,(term_to_safe_eval_internals (List.hd_exn ts)))
+      | _ -> failwith "not permitted"
+    end
+
+  let term_to_safe_eval
+      (tin:Type.t)
+      (tout:Type.t)
+      (t:A.term)
+      (checker:Value.t -> Value.t -> bool)
+    : SafeEval.expr =
+    let internal = term_to_safe_eval_internals t in
+    let internal = SafeEval.UpdateChecks ((fun v1 v2 -> checker (SafeEval.to_value v1) (SafeEval.to_value v2)), SafeEval.Var xid, internal) in
+    SafeEval.Fix
+      (fid
+      ,Type.mk_arrow tin tout
+      ,SafeEval.Func ((xid,tin),internal))
+
   let term_to_angelic_exp
       (tin:Type.t)
       (t:A.term)
