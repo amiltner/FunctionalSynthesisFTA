@@ -1,6 +1,8 @@
 open MyStdLib
 open Lang
 
+exception ExpectedException
+
 type expr =
   | Var of Id.t
   | Wildcard
@@ -68,11 +70,32 @@ let from_value : Value.t -> value =
     ~tuple_f:(fun es -> VTuple es)
     ~wildcard_f:(VWildcard)
 
+let rec to_exp
+    (e:expr)
+  : Expr.t =
+  begin match e with
+    | Var i -> Expr.mk_var i
+    | Wildcard -> Expr.mk_wildcard
+    | App (e1,e2) -> Expr.mk_app (to_exp e1) (to_exp e2)
+    | Func (p,e) -> Expr.mk_func p (to_exp e)
+    | Ctor (i,e) -> Expr.mk_ctor i (to_exp e)
+    | Unctor (i,e) -> Expr.mk_unctor i (to_exp e)
+    | Match (e,branches) ->
+      Expr.mk_match
+        (to_exp e)
+        (List.map ~f:(fun (p,e) -> (p,to_exp e)) branches)
+    | Fix (i,t,e) -> Expr.mk_fix i t (to_exp e)
+    | Tuple es -> Expr.mk_tuple (List.map ~f:to_exp es)
+    | Proj (i,e) -> Expr.mk_proj i (to_exp e)
+    | UpdateChecks _ -> failwith "cannot do"
+    | Check _ -> failwith "cannot do"
+  end
+
 let rec to_value
     (v:value)
   : Value.t =
   begin match v with
-    | VFunc _ -> failwith "shouldnt operate on functional values"
+    | VFunc (p,e) -> Value.mk_func p (to_exp e)
     | VCtor (i,v) -> Value.mk_ctor i (to_value v)
     | VTuple vs -> Value.mk_tuple (List.map ~f:to_value vs)
     | VWildcard -> Value.mk_wildcard
@@ -160,7 +183,7 @@ let rec evaluate
       if current_check v then
         v
       else
-        failwith "broken"
+        raise ExpectedException
     | Wildcard -> VWildcard
     | Var i -> failwith ("unbound variable " ^ (Id.show i))
     | App (e1,e2) ->
@@ -221,8 +244,23 @@ let rec evaluate
       let v = evaluate current_check e in
       begin match v with
         | VCtor (i',e) ->
-          assert (Id.equal i  i');
-          e
+          if Id.equal i i' then
+            e
+          else
+            raise ExpectedException
         | _ -> failwith "ah"
       end
   end
+
+let evaluate
+    (e : expr)
+  : value option =
+  try Some (evaluate (fun _ -> true)  e) with ExpectedException -> None
+
+let evaluate_with_holes
+    ~(eval_context:(Id.t * Expr.t) list)
+    (e:expr)
+  : value option =
+  let i_e = List.map ~f:(fun (i,e) -> (i,from_exp e)) eval_context in
+  let e = replace_holes ~i_e e in
+  evaluate e

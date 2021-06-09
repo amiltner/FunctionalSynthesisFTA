@@ -392,11 +392,11 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
              ~f:term_to_safe_eval_internals
              ts)
       | Var ->
-        SafeEval.Check (SafeEval.Var xid)
+        SafeEval.Var xid
       | Rec ->
         begin match ts with
           | [t] ->
-            SafeEval.App (SafeEval.Var fid,term_to_safe_eval_internals t)
+            SafeEval.App (SafeEval.Var fid,SafeEval.Check (term_to_safe_eval_internals t))
           | _ -> failwith "incorrect"
         end
       | VariantSwitch is ->
@@ -421,7 +421,10 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       (checker:Value.t -> Value.t -> bool)
     : SafeEval.expr =
     let internal = term_to_safe_eval_internals t in
-    let internal = SafeEval.UpdateChecks ((fun v1 v2 -> checker (SafeEval.to_value v1) (SafeEval.to_value v2)), SafeEval.Var xid, internal) in
+    let internal = SafeEval.UpdateChecks ((fun v1 v2 ->
+        let v1 = (SafeEval.to_value v1) in
+        let v2 = (SafeEval.to_value v2) in
+        checker v1 v2), SafeEval.Var xid, internal) in
     SafeEval.Fix
       (fid
       ,Type.mk_arrow tin tout

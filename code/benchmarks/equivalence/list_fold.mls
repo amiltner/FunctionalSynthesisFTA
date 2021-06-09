@@ -10,6 +10,8 @@ type bool =
   | True
   | False
 
+synth (nat -> nat -> nat) -> nat -> list -> nat satisfying
+
 let sum =
   fix (sum : nat -> nat -> nat) =
     fun (n1 : nat) ->
@@ -35,8 +37,6 @@ let count_odd =
       | True -> S n1
       | False -> n1
 ;;
-
-synth (nat -> nat -> nat) -> nat -> list -> nat satisfying
 
 equiv
 

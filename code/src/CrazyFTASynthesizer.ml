@@ -1179,15 +1179,19 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         (orig_inputs:Value.t list)
       : bool =
       let term = A.TermState.to_term pqe.rep in
-      let fune = C.term_to_safe_eval pqe.c.input_type pqe.c.output_type term (strict_functional_subvalue ~context ~ds:pqe.c.ds) in
+      let fune = C.term_to_safe_eval pqe.c.input_type pqe.c.output_type term (fun v1 v2 -> strict_functional_subvalue ~context ~ds:pqe.c.ds v2 v1) in
       List.for_all
         ~f:(fun vin ->
             let v = SafeEval.from_value vin in
             let e = SafeEval.value_to_exp v in
             let fulle = SafeEval.App (fune,e) in
-            let v = SafeEval.evaluate (fun _ -> true) fulle in
-            let vout = SafeEval.to_value v in
-            pred vin vout)
+            let vo = SafeEval.evaluate_with_holes ~eval_context:context.evals fulle in
+            begin match vo with
+              | None -> false
+              | Some v ->
+                let vout = SafeEval.to_value v in
+                pred vin vout
+            end)
         orig_inputs
 
 
@@ -1432,8 +1436,10 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
             (Intersected pqeo,gs)
           | None ->
             Consts.log (fun _ -> "\n\nDone Intersecting! All Values" ^ ValueSet.show pqe.inputs);
-            if PQE.full_satisfies ~context pqe orig_pred orig_inputs then failwith "ah";
             let ts = pqe.rep in
+            if PQE.full_satisfies ~context pqe orig_pred orig_inputs then
+              (FoundResultProp (A.TermState.to_term ts), gs)
+            else
             let rcs =
               List.dedup_and_sort
                 ~compare:(triple_compare A.TermState.compare FTAConstructor.State.compare (compare_option Int.compare))
