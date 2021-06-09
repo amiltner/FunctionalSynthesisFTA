@@ -1,0 +1,7 @@
+bool_bor :: p:Bool -> q:Bool -> {Bool|if p == True || q == True then _v == True else _v == False}
+benchmarks/postconditional/bool_bor.sq:6: Error:
+  Cannot match shape 'Bool'
+  with shape '_'
+  when checking q :: _ in
+  \p . \q . 
+      match q with

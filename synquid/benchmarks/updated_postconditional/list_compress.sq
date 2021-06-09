@@ -1,0 +1,36 @@
+data Nat where
+  Z :: Nat
+  S :: Nat -> Nat
+
+termination measure dec :: Nat -> {Int | _v >= 0} where
+  Z -> 0
+  S m -> 1 + dec m
+
+data NatEq where
+  EQ :: NatEq
+  NEQ :: NatEq
+
+nat_cmp :: n1:Nat -> n2:Nat -> { NatEq | if n1 == n2 then _v == EQ else _v == NEQ }
+
+data List where
+	Nil :: List
+	Cons :: x: Nat -> xs: List -> List
+  
+termination measure len :: List -> {Int | _v >= 0} where
+  Nil -> 0
+  Cons x xs -> 1 + len xs  
+  
+measure elems :: List -> Set Nat where
+  Nil -> []
+  Cons x xs -> [x] + elems xs
+
+measure heads :: List -> Set Nat where
+  Nil -> []
+  Cons x xs -> [x]
+
+measure compressed :: List -> Bool where
+  Nil -> True
+  Cons x xs -> !(x in heads xs) && compressed xs
+
+compress :: xs: List -> {List | compressed _v && elems xs == elems _v}
+compress = ??
