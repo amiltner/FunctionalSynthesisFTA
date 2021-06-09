@@ -1172,6 +1172,28 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       in
       pqe
 
+    let full_satisfies
+        ~(context:Context.t)
+        (pqe:t)
+        (pred:Value.t -> Value.t -> bool)
+        (orig_inputs:Value.t list)
+      : bool =
+      let term = A.TermState.to_term pqe.rep in
+      let fune = C.term_to_safe_eval pqe.c.input_type pqe.c.output_type term (fun v1 v2 -> strict_functional_subvalue ~context ~ds:pqe.c.ds v2 v1) in
+      List.for_all
+        ~f:(fun vin ->
+            let v = SafeEval.from_value vin in
+            let e = SafeEval.value_to_exp v in
+            let fulle = SafeEval.App (fune,e) in
+            let vo = SafeEval.evaluate_with_holes ~eval_context:context.evals fulle in
+            begin match vo with
+              | None -> false
+              | Some v ->
+                let vout = SafeEval.to_value v in
+                pred vin vout
+            end)
+        orig_inputs
+
 
     (*let update_nonpermitted
         (qe:t)
@@ -1311,7 +1333,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     if List.mem ~equal:Value.equal vouts restriction then
       Some (List.length vouts = 1)
     else
-      (failwith "inv" ^ (Value.show inchoice) ^ "outv" ^ (Value.show restriction); None)
+      (failwith ("inv" ^ (Value.show inchoice) ^ "outv" ^ (Value.show restriction)))
 
   let safely_restricts_outputs
       (pqe:PQE.t)
@@ -1354,6 +1376,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       ~(pred:Value.t -> Value.t -> bool)
       ~(size:int)
     : (synth_res * GlobalState.t) =
+    let orig_inputs = inputs in
+    let orig_pred = pred in
     if (List.length inputs = 0) then
       (*Expr.of_type
          (Type.mk_arrow
@@ -1413,6 +1437,9 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           | None ->
             Consts.log (fun _ -> "\n\nDone Intersecting! All Values" ^ ValueSet.show pqe.inputs);
             let ts = pqe.rep in
+            if PQE.full_satisfies ~context pqe orig_pred orig_inputs then
+              (FoundResultProp (A.TermState.to_term ts), gs)
+            else
             let rcs =
               List.dedup_and_sort
                 ~compare:(triple_compare A.TermState.compare FTAConstructor.State.compare (compare_option Int.compare))

@@ -10,6 +10,8 @@ type bool =
   | True
   | False
 
+synth (nat -> nat -> nat) -> nat -> list -> nat satisfying
+
 let sum =
   fix (sum : nat -> nat -> nat) =
     fun (n1 : nat) ->
@@ -26,10 +28,8 @@ let zero =
 
 let count =
   fun (n1:nat) ->
-    fun (n2:nat) -> S n2
+    fun (n2:nat) -> S n1
 ;;
-
-synth (nat -> nat -> nat) -> nat -> list -> nat satisfying
 
 let size =
   fix (size : list -> nat) =
@@ -47,5 +47,5 @@ fun (in1in2in3:(nat->nat->nat)*nat*list) -> (fun (out : nat) ->
    | False -> (match (in1in2in3.0 == count) with
                | True -> (out == (sum (size in1in2in3.2) in1in2in3.1))
                | False -> (match (in1in2in3.0 == sum,in1in2in3.2) with
-                           | (True,Cons (a , Cons (b , Cons (c , Nil)))) -> out == (sum a (sum b c))
+                           | (True,Cons (a , Cons (b , Cons (c , Nil)))) -> out == (sum in1in2in3.1 (sum a (sum b c)))
                            | _ -> True)))
