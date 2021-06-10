@@ -560,38 +560,42 @@ module Extend (B: BASE) = struct
              full_ss)
         initials
     in
-    let rec add_configs
+    let add_configs
         (configs)
-      =
-      begin match configs with
-        | [] -> ()
-        | (config,s1,s2)::t ->
-          begin match State.product s1 s2 with
-            | None -> add_configs t
-            | Some s ->
-              add_transition config s aut;
-              if StateSet.contains s added_states then
-                add_configs t
-              else
-                begin
-                  StateSet.add s added_states;
-                  let configs =
-                    ConfigurationSet.fold2
-                      (fun c1 c2 cs ->
-                         begin match Configuration.product c1 c2 with
-                           | None -> cs
-                           | Some p -> (c1,c2,p)::cs
-                         end)
-                      (state_parents s1 a)
-                      (state_parents s2 b)
-                      []
-                  in
-                  let configs_output =
-                    List.concat_map
-                      (fun (c1,c2,c) ->
-                         (*if ConfigurationSet.contains c processed_configs then
-                           []
-                           else*)
+      : unit =
+      let continuing = ref true in
+      let configs_ref = ref configs in
+      while !continuing do
+        begin match !configs_ref with
+          | [] -> continuing := false
+          | (config,s1,s2)::t ->
+            begin match State.product s1 s2 with
+              | None ->
+                configs_ref := t
+              | Some s ->
+                add_transition config s aut;
+                if StateSet.contains s added_states then
+                  configs_ref := t
+                else
+                  begin
+                    StateSet.add s added_states;
+                    let configs =
+                      ConfigurationSet.fold2
+                        (fun c1 c2 cs ->
+                           begin match Configuration.product c1 c2 with
+                             | None -> cs
+                             | Some p -> (c1,c2,p)::cs
+                           end)
+                        (state_parents s1 a)
+                        (state_parents s2 b)
+                        []
+                    in
+                    let configs_output =
+                      List.concat_map
+                        (fun (c1,c2,c) ->
+                           (*if ConfigurationSet.contains c processed_configs then
+                             []
+                             else*)
                            let (t,ss) = Configuration.node c in
                            if List.for_all
                                (fun s -> StateSet.contains s added_states)
@@ -609,14 +613,15 @@ module Extend (B: BASE) = struct
                              end
                            else
                              [])
-                      configs
-                  in
-                  add_configs (configs_output@t)
-                end
-          end
-      end
+                        configs
+                    in
+                    configs_ref := configs_output@t;
+                  end
+            end
+        end
+      done;
     in
-    add_configs initial_configs;
+    let _ = add_configs initial_configs in
     StateSet.fold2
       (fun s1 s2 () ->
          begin match State.product s1 s2 with
