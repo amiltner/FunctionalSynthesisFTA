@@ -6,11 +6,22 @@ termination measure dec :: Nat -> {Int | _v >= 0} where
   Z -> 0
   S m -> 1 + dec m
 
-data NatEq where
-  EQ :: NatEq
-  NEQ :: NatEq
+data NatCmp where
+  EQ :: NatCmp
+  LT :: NatCmp
+  GT :: NatCmp
 
-nat_cmp :: n1:Nat -> n2:Nat -> { NatEq | if n1 == n2 then _v == EQ else _v == NEQ }
+nat_cmp :: n1:Nat -> n2:Nat -> { NatCmp | if dec n1 == dec n2 then _v == EQ else _v != EQ }
+nat_cmp = \n1 . \n2 .
+  match n1 with
+    Z ->
+      match n2 with
+        Z   -> EQ
+        S _ -> LT
+    S m1 ->
+      match n2 with
+        Z    -> GT
+        S m2 -> nat_cmp m1 m2
 
 data List where
 	Nil :: List
