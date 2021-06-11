@@ -36,6 +36,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     }
 
   let init
+      ~(problem:Problem.t)
       ~(context:Context.t)
       ~(tin:Type.t)
       ~(tout:Type.t)

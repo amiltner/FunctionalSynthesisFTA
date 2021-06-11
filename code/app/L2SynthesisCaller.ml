@@ -29,6 +29,7 @@ let synth
 type t = Context.t * Type.t * Type.t
 
 let init
+    ~(problem:Problem.t)
     ~(context:Context.t)
     ~(tin:Type.t)
     ~(tout:Type.t)

@@ -11,6 +11,7 @@ struct
     val tout : t -> Type.t
 
     val init :
+      problem:Problem.t ->
       context:Context.t ->
       tin:Type.t ->
       tout:Type.t ->
@@ -34,6 +35,7 @@ struct
     val tout : t -> Type.t
 
     val init :
+      problem:Problem.t ->
       context:Context.t ->
       tin:Type.t ->
       tout:Type.t ->
@@ -109,6 +111,7 @@ module VerifiedPredicate = struct
   module type S =
   sig
     val synth :
+      problem:Problem.t ->
       context:Context.t ->
       tin:Type.t ->
       tout:Type.t ->
@@ -119,6 +122,7 @@ module VerifiedPredicate = struct
 
   module Make(S : PredicateSynth.S)(V : Verifier.S) : S = struct
     let synth
+        ~(problem:Problem.t)
         ~(context:Context.t)
         ~(tin:Type.t)
         ~(tout:Type.t)
@@ -138,7 +142,7 @@ module VerifiedPredicate = struct
             synth_internal sacc (cex::inputs)
         end
       in
-      synth_internal (S.init ~context ~tin ~tout) []
+      synth_internal (S.init ~problem ~context ~tin ~tout) []
   end
 end
 
@@ -146,6 +150,7 @@ module VerifiedEquiv = struct
   module type S =
   sig
     val synth :
+      problem:Problem.t ->
       context:Context.t ->
       tin:Type.t ->
       tout:Type.t ->
@@ -163,6 +168,7 @@ module VerifiedEquiv = struct
       Value.equal vout vout_correct
 
     let synth
+        ~(problem:Problem.t)
         ~(context:Context.t)
         ~(tin:Type.t)
         ~(tout:Type.t)
@@ -184,6 +190,6 @@ module VerifiedEquiv = struct
             synth_internal sacc ((cex,cex_out)::ios)
         end
       in
-      synth_internal (S.init ~context ~tin ~tout) []
+      synth_internal (S.init ~problem ~context ~tin ~tout) []
   end
 end

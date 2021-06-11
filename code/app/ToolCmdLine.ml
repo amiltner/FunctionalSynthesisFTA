@@ -2,6 +2,9 @@ open MyStdLib
 open Tool
 open Lang
 
+module A = SmythSynthesizer
+
+
 let rec import_imports
     (acc:Problem.t_unprocessed)
   : Problem.t_unprocessed =
@@ -33,13 +36,14 @@ let get_ioe_synthesizer
     else if use_l2 then
       (module L2SynthesisCaller : Synthesizers.IOSynth.S)
     else
-      let builder =
+      (module SmythSynthesizer.T : Synthesizers.IOSynth.S)
+      (*let builder =
         if use_vata then
           (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
         else
           (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
       in
-      (module Synthesizers.IOSynth.OfPredSynth(CrazyFTASynthesizer.Create(val builder)) : Synthesizers.IOSynth.S)
+        (module Synthesizers.IOSynth.OfPredSynth(CrazyFTASynthesizer.Create(val builder)) : Synthesizers.IOSynth.S)*)
   in
   if tc_synth then
     (module Synthesizers.IOSynth.TCToNonTC(val synth) : Synthesizers.IOSynth.S)
@@ -48,6 +52,7 @@ let get_ioe_synthesizer
 
 
 let synthesize_satisfying_verified_equiv
+    ~(problem:Problem.t)
     ~(context:Context.t)
     ~(tin:Type.t)
     ~(tout:Type.t)
@@ -59,7 +64,7 @@ let synthesize_satisfying_verified_equiv
   : Expr.t =
   let synth = get_ioe_synthesizer ~use_myth ~use_l2 ~tc_synth ~use_vata in
   let module S = Synthesizers.VerifiedEquiv.Make(val synth)(EnumerativeVerifier.T) in
-  S.synth ~context ~tin ~tout equiv
+  S.synth ~problem ~context ~tin ~tout equiv
 
 let get_predicate_synthesizer
     ~(use_vata:bool)
@@ -73,6 +78,7 @@ let get_predicate_synthesizer
   (module CrazyFTASynthesizer.Create(val builder) : Synthesizers.PredicateSynth.S)
 
 let synthesize_satisfying_postcondition
+    ~(problem:Problem.t)
     ~(context:Context.t)
     ~(tin:Type.t)
     ~(tout:Type.t)
@@ -87,9 +93,10 @@ let synthesize_satisfying_postcondition
   if tc_synth then failwith "invalid synthesizer for postconditions";
   let synth = get_predicate_synthesizer ~use_vata in
   let module S = Synthesizers.VerifiedPredicate.Make(val synth)(EnumerativeVerifier.T) in
-  S.synth ~context ~tin ~tout post
+  S.synth ~problem ~context ~tin ~tout post
 
 let synthesize_satisfying_ioes
+    ~(problem:Problem.t)
     ~(context:Context.t)
     ~(tin:Type.t)
     ~(tout:Type.t)
@@ -112,7 +119,7 @@ let synthesize_satisfying_ioes
         | None -> true
       end
   in
-  S.synth ~context ~tin ~tout check
+  S.synth ~problem ~context ~tin ~tout check
 
 let check_equivalence
     ~(fname:string)
@@ -204,6 +211,7 @@ let synthesize_solution
         let context = Problem.extract_context problem in
         let (tin,tout) = problem.synth_type in
         synthesize_satisfying_ioes
+          ~problem
           ~context
           ~tin
           ~tout
@@ -216,6 +224,7 @@ let synthesize_solution
         let context = Problem.extract_context problem in
         let (tin,tout) = problem.synth_type in
         synthesize_satisfying_postcondition
+          ~problem
           ~context
           ~tin
           ~tout
@@ -228,6 +237,7 @@ let synthesize_solution
         let context = Problem.extract_context problem in
         let (tin,tout) = problem.synth_type in
         synthesize_satisfying_verified_equiv
+          ~problem
           ~context
           ~tin
           ~tout
