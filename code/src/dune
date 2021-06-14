@@ -7,8 +7,8 @@
 (ocamllex lexer)
 
 (library
-    (name Tool)
-    (public_name Tool)
+    (name Burst)
+    (public_name Burst)
     (libraries myStdLib timbuk timbukSpec)
     (preprocess (pps ppx_bin_prot ppx_hash ppx_deriving.std ppx_let ppx_optcomp ppx_compare ppx_sexp_conv
     landmarks.ppx --auto

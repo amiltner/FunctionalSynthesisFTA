@@ -1,5 +1,5 @@
 open MyStdLib
-open Tool
+open Burst
 open Lang
 open MythSynthesisCaller
 

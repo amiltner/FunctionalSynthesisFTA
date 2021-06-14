@@ -1,8 +1,8 @@
 open MyStdLib
-open Tool
+open Burst
 open Lang
 
-module T : Tool.Synthesizers.IOSynth.S = struct
+module T : Burst.Synthesizers.IOSynth.S = struct
   type t = (Context.t * Type.t * Type.t) * Problem.t
 
   let init
