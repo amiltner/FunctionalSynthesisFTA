@@ -29,10 +29,7 @@ module DSToMyth = struct
       | None ->
         begin match Type.node t with
           | Named v ->
-            if IdSet.mem real_vars v then
-              ([],MythLang.TBase (Id.to_string v),tt)
-            else
-              failwith ("non-real var: " ^ Id.show v)
+            ([],MythLang.TBase (Id.to_string v),tt)
           | Arrow (t1,t2) ->
             let (ds1,mt1,tt1) = to_myth_type_simple t1 in
             let (ds2,mt2,tt2) = to_myth_type_simple t2 in
@@ -75,6 +72,16 @@ module DSToMyth = struct
     : MythLang.typ =
     snd3 (to_myth_type IdSet.empty None tt t)
 
+  let rec pattern_to_myth
+      (p:Pattern.t)
+    : MythLang.pattern =
+    begin match p with
+      | Tuple ps -> PTuple (List.map ~f:pattern_to_myth ps)
+      | Ctor _ -> failwith "invalid"
+      | Var i -> PVar (Id.to_string i)
+      | Wildcard -> PWildcard
+    end
+
   let rec to_myth_exp
       (tt:type_to_type)
       (e:Expr.t)
@@ -97,7 +104,7 @@ module DSToMyth = struct
            List.map
              ~f:(fun (b,e) ->
                  begin match b with
-                   | Pattern.Ctor (b,Pattern.Var i) -> ((Id.to_string b,Some (MythLang.PVar (Id.to_string i))), to_myth_exp e)
+                   | Pattern.Ctor (b,p) -> ((Id.to_string b,Some (pattern_to_myth p)), to_myth_exp e)
                    | _ -> failwith "ah"
                  end)
              branches
@@ -199,24 +206,19 @@ module DSToMyth = struct
 
   let convert_problem_examples_type_to_myth
       (p:Problem.t)
+      (examples:((Expr.t list) * Expr.t) list)
     : MythLang.decl list
-      * MythLang.exp list
+      * MythLang.exp
       * MythLang.typ =
-    let (_,decls,desired_t,_,examples) = p.unprocessed in
-    let examples =
-      begin match examples with
-        | UIOEs vs -> vs
-        | _ -> failwith "not ready yet"
-      end
-    in
+    let (_,decls,desired_t,_,_) = p.unprocessed in
     let (ds,tt) = convert_decl_list_to_myth p.ec decls in
-    (*let ioes =
+    let ioes =
       List.map
         ~f:(fun (es,e) -> (List.map ~f:(to_myth_exp tt) es,to_myth_exp tt e))
         examples
-      in*)
-    (*let pfun = convert_ioes_to_pfuns ioes in*)
-    let pfuns =
+      in
+    let pfun = convert_ioes_to_pfuns ioes in
+    (*let pfuns =
       List.map
         ~f:(fun (es,e) ->
             List.fold_right
@@ -226,9 +228,9 @@ module DSToMyth = struct
               ~init:(to_myth_exp tt e)
               es)
         examples
-    in
+      in*)
     let t = to_myth_type_basic tt desired_t in
-    (ds,pfuns,t)
+    (ds,pfun,t)
 end
 
 module MythToDS = struct
@@ -350,53 +352,7 @@ module MythToDS = struct
     fst (convert_expr 0 e)
 end
 
-let synth
-    ~(problem:Problem.t)
-  : Expr.t =
-  let (decls,examples,t) = DSToMyth.convert_problem_examples_type_to_myth problem in
-  let (sigma,gamma) =
-    Myth.Typecheck.Typecheck.check_decls
-      Myth.Sigma.Sigma.empty
-      Myth.Gamma.Gamma.empty
-      decls
-  in
-  let env = Myth.Eval.gen_init_env decls in
-  let w = Myth.Eval.gen_init_world env examples in
-  MythToDS.convert_expr
-    (List.hd_exn
-       (Myth.Synth.synthesize
-          sigma
-          env
-          (Myth.Rtree.create_rtree
-             sigma
-             gamma
-             env
-             t w 0)))
-
-let myth_synthesize_print
-    ~(problem:Problem.t)
-  : Expr.t =
-  let (_,examples,_) = DSToMyth.convert_problem_examples_type_to_myth problem in
-  let rec print_examples e =
-    match e with
-    | []      -> ()
-    | x :: [] -> let y = Myth.Pp.pp_exp x in print_endline ("        \"" ^ y ^ "\"")
-    | x :: l  -> let y = Myth.Pp.pp_exp x in print_endline ("        \"" ^ y ^ "\","); print_examples l
-  in
-  let _ = print_endline "{";
-          print_endline "  \"name\": \"f\",";
-          print_endline "  \"description\": \"\",";
-          print_endline "  \"kind\": \"examples\",";
-          print_endline "  \"contents\": {";
-          print_endline "    \"examples\": [";
-          print_examples examples;
-          print_endline "    ],";
-          print_endline "    \"background\": []";
-          print_endline "  }";
-          print_endline "}" in
-  Expr.mk_tuple []
-
-type t = Context.t * Type.t * Type.t
+type t = Problem.t * Context.t * Type.t * Type.t
 
 let init
     ~(problem:Problem.t)
@@ -404,14 +360,95 @@ let init
     ~(tin:Type.t)
     ~(tout:Type.t)
   : t =
-  (context,tin,tout)
+  (problem,context,tin,tout)
 
-let context = fst3
-let tin = snd3
-let tout = trd3
+let problem (p,_,_,_) = p
+let context (_,c,_,_) = c
+let tin (_,_,t,_) = t
+let tout (_,_,_,t) = t
+
+let rec term_of_type
+    (c:Context.t)
+    (t:Type.t)
+  : Expr.t =
+  begin match Type.node t with
+    | Named i -> term_of_type c (Context.find_exn c.tc i)
+    | Arrow (t1,t2) ->
+      Expr.mk_func
+        (Id.create "x",t1)
+        (term_of_type c t2)
+    | Tuple ts ->
+      Expr.mk_tuple (List.map ~f:(term_of_type c) ts)
+    | Mu _ -> failwith "TODO"
+    | Variant bs ->
+      let (i,t) = List.hd_exn bs in
+      Expr.mk_ctor i (term_of_type c t)
+  end
+
+let synth
+    (a:t)
+    (ios:(Value.t * Value.t) list)
+  : Expr.t =
+  if (List.length ios = 0) then
+    term_of_type (context a) (Type.mk_arrow (tin a) (tout a))
+  else
+    let ios = List.map ~f:(fun (v1,v2) -> (Value.to_exp v1,Value.to_exp v2)) ios in
+    let ios =
+      List.map
+        ~f:(fun (vin,vout) ->
+            begin match Expr.destruct_tuple vin with
+              | Some vins -> (vins,vout)
+              | None -> ([vin],vout)
+            end)
+        ios
+    in
+    print_endline
+      (string_of_list
+         (string_of_pair (string_of_list Expr.show) Expr.show)
+         ios);
+    let (decls,examples,t) = DSToMyth.convert_problem_examples_type_to_myth (problem a) ios in
+    let (sigma,gamma) =
+      Myth.Typecheck.Typecheck.check_decls
+        Myth.Sigma.Sigma.empty
+        Myth.Gamma.Gamma.empty
+        decls
+    in
+    print_endline (Myth.Pp.pp_exp examples);
+    let env = Myth.Eval.gen_init_env decls in
+    let w = Myth.Eval.gen_init_world env [examples] in
+    let myth_exp =
+      (Myth.Synth.synthesize
+         sigma
+         env
+         (Myth.Rtree.create_rtree
+            sigma
+            gamma
+            env
+            t w 0))
+    in
+    let e =
+      MythToDS.convert_expr
+        (List.hd_exn myth_exp)
+    in
+    begin match Type.destruct_tuple (tin a) with
+      | None -> e
+      | Some tins ->
+        let argv = Id.create "x" in
+        let arge = Expr.mk_var argv in
+        Expr.mk_func
+          (argv,(tin a))
+          (fst (List.fold_left
+                  ~f:(fun (acce,i) tin ->
+                      (Expr.mk_app
+                         acce
+                         (Expr.mk_proj i arge),
+                       i+1))
+                  ~init:(e,0)
+                  tins))
+    end
 
 let synth
     (a:t)
     (ios:(Value.t * Value.t) list)
   : t * Expr.t =
-  (a,failwith "TODO")
+  (a,synth a ios)

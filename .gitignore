@@ -21,7 +21,7 @@ starexec*
 
 # ocamlbuild working directory
 _build/
-App.exe
+BurstCmdLine.exe
 auts/
 
 # ocamlbuild targets

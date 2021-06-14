@@ -3,7 +3,7 @@ open Burst
 open Lang
 open MythSynthesisCaller
 
-let synth
+(*let synth
   ~(problem:Problem.t)
   : Expr.t =
   let (_,examples,_) = DSToMyth.convert_problem_examples_type_to_myth problem in
@@ -24,7 +24,7 @@ let synth
     print_endline "    \"background\": []";
     print_endline "  }";
   print_endline "}" in
-  Expr.mk_tuple []
+  Expr.mk_tuple []*)
 
 type t = Context.t * Type.t * Type.t
 
