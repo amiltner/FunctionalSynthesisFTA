@@ -75,31 +75,57 @@ module T : Tool.Synthesizers.IOSynth.S = struct
           ,e2)
         examples
     in
-    let (firstint,otherints) = split_by_first_exn tins in
-    let surround e =
+    let (firsttin,othertins) = split_by_first_exn tins in
+    let surround b e =
       let mk_x i =
         "x" ^ (string_of_int i)
       in
-      let (e,i) =
-        List.fold_right
-          ~f:(fun _ (e,i) ->
-              (Smyth.Lang.EFix
-                (None
-                ,Smyth.Lang.PatParam (Smyth.Lang.PVar (mk_x i))
-                ,e)
-              ,i+1))
-          ~init:(e,0)
-          otherints
-      in
-      Smyth.Lang.EFix
-        (Some "f"
-        ,Smyth.Lang.PatParam (Smyth.Lang.PVar (mk_x i))
-        ,e)
+      begin match firsttin with
+        | Smyth.Lang.TArr _ ->
+
+          let (othertins,finaltin) = split_by_last_exn othertins in
+
+          let e =
+            Smyth.Desugar.lett
+              (Smyth.Lang.TArr (finaltin,tout))
+              "fixf"
+              (Smyth.Lang.EFix (Some "fixf", Smyth.Lang.PatParam (Smyth.Lang.PVar "x0"),e))
+              (Smyth.Lang.EVar "fixf")
+          in
+          let (e,i) =
+            List.fold_right
+              ~f:(fun _ (e,i) ->
+                  (Smyth.Lang.EFix
+                     (None
+                     ,Smyth.Lang.PatParam (Smyth.Lang.PVar (mk_x i))
+                     ,e)
+                  ,i+1))
+              ~init:(e,1)
+              (firsttin::othertins)
+          in
+          e
+        | _ ->
+          let (e,i) =
+            List.fold_right
+              ~f:(fun _ (e,i) ->
+                  (Smyth.Lang.EFix
+                     (None
+                     ,Smyth.Lang.PatParam (Smyth.Lang.PVar (mk_x i))
+                     ,e)
+                  ,i+1))
+              ~init:(e,0)
+              othertins
+          in
+          Smyth.Lang.EFix
+            ((if b then Some "f" else None)
+            ,Smyth.Lang.PatParam (Smyth.Lang.PVar (mk_x i))
+            ,e)
+      end
     in
     let final_var =
       ("f"
       ,(t
-       ,surround (Smyth.Lang.EHole 0)))
+       ,surround false (Smyth.Lang.EHole 0)))
     in
     let desugar_program : Smyth.Desugar.program =
       { datatypes = datatype_ctx
@@ -111,11 +137,9 @@ module T : Tool.Synthesizers.IOSynth.S = struct
     let result = Smyth.Endpoint.solve_program desugar_program in
     begin match result with
       | Ok r ->
-        begin match r.hole_fillings with
+        begin match Smyth.Rank.sort (r.hole_fillings) with
           | [(0,e)]::_ ->
-            print_endline (Smyth.Lang.show_exp e);
-            print_endline (string_of_int (List.length r.hole_fillings));
-            let e = surround e in
+            let e = surround true e in
             let e = FromSmythConverter.convert_expr e in
             begin match Type.destruct_tuple (tin a) with
               | Some ts ->

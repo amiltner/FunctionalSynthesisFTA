@@ -26,6 +26,7 @@ module VEQ = Synthesizers.VerifiedEquiv.Make(Synthesizers.IOSynth.OfPredSynth(Cr
 
 let get_ioe_synthesizer
     ~(use_myth:bool)
+    ~(use_smyth:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
     ~(use_vata:bool)
@@ -35,15 +36,16 @@ let get_ioe_synthesizer
       (module MythSynthesisCaller : Synthesizers.IOSynth.S)
     else if use_l2 then
       (module L2SynthesisCaller : Synthesizers.IOSynth.S)
-    else
+    else if use_smyth then
       (module SmythSynthesizer.T : Synthesizers.IOSynth.S)
-      (*let builder =
+    else
+      let builder =
         if use_vata then
           (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
         else
           (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
       in
-        (module Synthesizers.IOSynth.OfPredSynth(CrazyFTASynthesizer.Create(val builder)) : Synthesizers.IOSynth.S)*)
+      (module Synthesizers.IOSynth.OfPredSynth(CrazyFTASynthesizer.Create(val builder)) : Synthesizers.IOSynth.S)
   in
   if tc_synth then
     (module Synthesizers.IOSynth.TCToNonTC(val synth) : Synthesizers.IOSynth.S)
@@ -58,11 +60,12 @@ let synthesize_satisfying_verified_equiv
     ~(tout:Type.t)
     ~(equiv:Value.t -> Value.t)
     ~(use_myth:bool)
+    ~(use_smyth:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
     ~(use_vata:bool)
   : Expr.t =
-  let synth = get_ioe_synthesizer ~use_myth ~use_l2 ~tc_synth ~use_vata in
+  let synth = get_ioe_synthesizer ~use_myth ~use_smyth ~use_l2 ~tc_synth ~use_vata in
   let module S = Synthesizers.VerifiedEquiv.Make(val synth)(EnumerativeVerifier.T) in
   S.synth ~problem ~context ~tin ~tout equiv
 
@@ -84,6 +87,7 @@ let synthesize_satisfying_postcondition
     ~(tout:Type.t)
     ~(post:Value.t -> Value.t -> bool)
     ~(use_myth:bool)
+    ~(use_smyth:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
     ~(use_vata:bool)
@@ -102,24 +106,24 @@ let synthesize_satisfying_ioes
     ~(tout:Type.t)
     ~(ioes:(Value.t * Value.t) list)
     ~(use_myth:bool)
+    ~(use_smyth:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
     ~(use_vata:bool)
   : Expr.t =
-  let synth = get_predicate_synthesizer ~use_vata in
-  let inputs = List.map ~f:fst ioes in
-  let input_singleton =
-    (module struct type t = Value.t list let value = inputs end : InputVerifier.IS)
-  in
-  let module S = Synthesizers.VerifiedPredicate.Make(val synth)(InputVerifier.T(val input_singleton)) in
-  let check =
-    fun inv outv ->
-      begin match List.Assoc.find ~equal:Value.equal ioes inv with
-        | Some outv' -> Value.equal outv outv'
-        | None -> true
+  let synth =
+    if use_myth then
+      (module MythSynthesisCaller : Synthesizers.IOSynth.S)
+    else if use_smyth then
+      (module SmythSynthesizer.T : Synthesizers.IOSynth.S)
+    else
+      begin
+        let synth = get_predicate_synthesizer ~use_vata in
+        (module Synthesizers.VerifiedPredicate.ToIOSynth(Synthesizers.VerifiedPredicate.Make(val synth)))
       end
   in
-  S.synth ~problem ~context ~tin ~tout check
+  let module S = (val synth) in
+  snd (S.synth (S.init ~problem ~context ~tin ~tout) ioes)
 
 let check_equivalence
     ~(fname:string)
@@ -166,6 +170,7 @@ let check_equivalence
 let synthesize_solution
     ~(fname:string)
     ~(use_myth:bool)
+    ~(use_smyth:bool)
     ~(use_l2:bool)
     ~(log:bool)
     ~(run_experiments:bool)
@@ -217,6 +222,7 @@ let synthesize_solution
           ~tout
           ~ioes
           ~use_myth
+          ~use_smyth
           ~use_l2
           ~tc_synth
           ~use_vata
@@ -230,6 +236,7 @@ let synthesize_solution
           ~tout
           ~post
           ~use_myth
+          ~use_smyth
           ~use_l2
           ~tc_synth
           ~use_vata
@@ -243,6 +250,7 @@ let synthesize_solution
           ~tout
           ~equiv
           ~use_myth
+          ~use_smyth
           ~use_l2
           ~tc_synth
           ~use_vata
@@ -295,6 +303,7 @@ let synthesize_solution
 let handle_inputs
     ~(fname:string)
     ~(use_myth:bool)
+    ~(use_smyth:bool)
     ~(check_equiv1:string option)
     ~(check_equiv2:string option)
     ~(use_l2:bool)
@@ -316,6 +325,7 @@ let handle_inputs
       synthesize_solution
         ~fname
         ~use_myth
+        ~use_smyth
         ~use_l2
         ~log
         ~run_experiments
@@ -331,6 +341,7 @@ let param =
     [%map_open
       let input_spec  = anon ("input_spec" %: string)
       and use_myth   = flag "use-myth" no_arg ~doc:"Solve using the myth synthesis engine"
+      and use_smyth   = flag "use-smyth" no_arg ~doc:"Solve using the smyth synthesis engine"
       and log   = flag "log" no_arg ~doc:"log process"
       and use_l2   = flag "use-l2" no_arg ~doc:"Solve using the l2 synthesis engine"
       and print_times   = flag "print-times" no_arg ~doc:"print the times to run various components"
@@ -353,6 +364,7 @@ let param =
         handle_inputs
           ~fname:input_spec
           ~use_myth
+          ~use_smyth
           ~use_l2
           ~log
           ~print_times

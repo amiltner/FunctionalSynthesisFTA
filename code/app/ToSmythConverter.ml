@@ -84,8 +84,9 @@ let rec to_pat
 let rec to_smyth_exp_with_replacement
     (e:Expr.t)
     (ireps:(Id.t * SmythLang.exp) list)
+    (tt:type_to_type)
   : SmythLang.exp =
-  let to_smyth_exp e = to_smyth_exp_with_replacement e ireps in
+  let to_smyth_exp e = to_smyth_exp_with_replacement e ireps tt in
   (begin match Expr.node e with
      | Var i ->
        begin match List.Assoc.find ~equal:Id.equal ireps i with
@@ -110,26 +111,27 @@ let rec to_smyth_exp_with_replacement
           branches
       in
       SmythLang.ECase (me,mbranches)
-    | Fix (i,_,e) ->
-      (*let (t1,_) = Type.destruct_arr_exn t in*)
+    | Fix (i,t,e) ->
       let ((i',_),e) = Expr.destruct_func_exn e in
-      (*assert (Type.equal t1 t');*)
       let me = to_smyth_exp e in
-      SmythLang.EFix (Some (Id.to_string i), PatParam (PVar (Id.to_string i')), me)
+
+      let e = SmythLang.EFix (Some (Id.to_string i), PatParam (PVar (Id.to_string i')), me) in
+      SmythLang.ETypeAnnotation (e,to_smyth_type_basic tt t)
     | Tuple es ->
       if List.length es = 0 then
         SmythLang.ETuple []
       else
         SmythLang.ETuple (List.map ~f:to_smyth_exp es)
     | Proj (i,e) ->
-      SmythLang.EProj (10000000 (*todo*), i+1, to_smyth_exp e)
+      SmythLang.EProj (100000, i+1, to_smyth_exp e)
     | _ -> failwith "invalid"
    end)
 
 let to_smyth_exp
     (e:Expr.t)
+    (tt:type_to_type)
   : SmythLang.exp =
-  to_smyth_exp_with_replacement e []
+  to_smyth_exp_with_replacement e [] tt
 
 let convert_decl_list_to_smyth
     (ds:Declaration.t list)
@@ -144,7 +146,7 @@ let convert_decl_list_to_smyth
                 let tt = TypeMap.set tt ~key:(Type.mk_named i) ~data:st in
                 (tt,sigma,iesrev))
             ~expr_f:(fun i e ->
-                let e = to_smyth_exp e in
+                let e = to_smyth_exp e tt in
                 (tt,sigma,(Id.to_string i,e)::iesrev))
             d)
       ~init:(TypeMap.empty,[],[])
@@ -172,7 +174,7 @@ let convert_problem_examples_type_to_smyth
   in
   let examples =
     List.map
-      ~f:(fun (e1,e2) -> (List.map ~f:to_smyth_exp e1, to_smyth_exp e2))
+      ~f:(fun (e1,e2) -> (List.map ~f:(fun e -> to_smyth_exp e tt) e1, to_smyth_exp e2 tt))
       examples
   in
   let t = to_smyth_type_basic tt t in

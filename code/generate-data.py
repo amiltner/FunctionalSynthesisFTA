@@ -166,7 +166,7 @@ def gather_data(rootlength, prog, path, base,name):
         averages = [average(col) for col in cols]
         return averages
 
-    gather_col([],ctime_combiner,["IsectTotal","IsectMax","MinifyTotal","MinifyMax","MinEltTotal","MinEltMax","InitialCreationTotal","InitialCreationMax","AcceptsTermTotal","AcceptsTermMax","ComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,True)
+    gather_col(["-use-smyth"],ctime_combiner,["IsectTotal","IsectMax","MinifyTotal","MinifyMax","MinEltTotal","MinEltMax","InitialCreationTotal","InitialCreationMax","AcceptsTermTotal","AcceptsTermMax","ComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
 
     return current_data
 

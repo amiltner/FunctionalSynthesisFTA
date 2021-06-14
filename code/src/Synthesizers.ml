@@ -144,6 +144,52 @@ module VerifiedPredicate = struct
       in
       synth_internal (S.init ~problem ~context ~tin ~tout) []
   end
+
+  module ToIOSynth(VP : Verifier.S -> S) : IOSynth.S = struct
+    type t = Problem.t * Context.t * Type.t * Type.t
+
+    let init
+        ~(problem:Problem.t)
+        ~(context:Context.t)
+        ~(tin:Type.t)
+        ~(tout:Type.t)
+      : t =
+      (problem,context,tin,tout)
+
+    let context
+        ((_,c,_,_):t)
+      : Context.t =
+      c
+
+    let tin
+        ((_,_,tin,_):t)
+      : Type.t =
+      tin
+
+    let tout
+        ((_,_,_,tout):t)
+      : Type.t =
+      tout
+
+    let synth
+        ((problem,context,tin,tout):t)
+        (ioes:(Value.t * Value.t) list)
+      : t * Expr.t =
+      let inputs = List.map ~f:fst ioes in
+      let input_singleton =
+        (module struct type t = Value.t list let value = inputs end : InputVerifier.IS)
+      in
+      let module S = VP(InputVerifier.T(val input_singleton)) in
+      let check =
+        fun inv outv ->
+          begin match List.Assoc.find ~equal:Value.equal ioes inv with
+            | Some outv' -> Value.equal outv outv'
+            | None -> true
+          end
+      in
+      let e = S.synth ~problem ~context ~tin ~tout check in
+      ((problem,context,tin,tout),e)
+  end
 end
 
 module VerifiedEquiv = struct

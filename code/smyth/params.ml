@@ -36,7 +36,7 @@ let uneval_limiter : int ref =
     eliminating pathological search paths that are unlikely to succeed). *)
 
 let max_total_time : float ref =
-  ref 20.0
+  ref 100000.0
 (** The total time a single synthesis task is allowed to use. *)
 
 let max_eval_time : float ref =

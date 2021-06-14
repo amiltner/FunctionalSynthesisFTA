@@ -15,8 +15,10 @@ let is_even =
     fun (x1 : nat) ->
       match x1 with
       | O -> True
-      | S O -> False
-      | S S x1p -> is_even x1p
+      | S x1p ->
+        (match x1p with
+         | O -> False
+         | S x1pp -> is_even x1pp)
 ;;
 
 let is_nonzero =

@@ -24,8 +24,10 @@ let is_odd =
     fun (x1 : nat) ->
       match x1 with
       | O -> False
-      | S O -> True
-      | S S x1p -> is_odd x1p
+      | S x1p ->
+        (match x1p with
+         | O -> True
+         | S x1pp -> is_odd x1pp)
 ;;
 
 let count_odd =

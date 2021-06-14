@@ -584,7 +584,7 @@ and infer' :
           in
           begin match arg_type with
             | TTuple components ->
-                if Int.equal n (List.length components) then
+              if Int.equal n (List.length components) then
                   if i <= n then
                     Ok (List.nth components (i - 1), arg_delta)
                   else
