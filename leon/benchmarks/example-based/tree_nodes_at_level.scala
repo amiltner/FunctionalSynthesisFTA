@@ -24,7 +24,30 @@ def nat_add(n1: Nat, n2: Nat): Nat =
 
 def tree_nodes_at_level(t: BooleanTree,n:Nat): Nat = { choose { (out:Nat) => 
 
-true
+(((t == Leaf) && (n == Z)) ==> (out == Z)) &&
+(((t == Leaf) && (n == S(Z))) ==> (out == Z)) &&
+(((t == Leaf) && (n == S(S(Z)))) ==> (out == Z)) &&
+(((t == Leaf) && (n == S(S(S(Z))))) ==> (out == Z)) &&
+(((t == Node (Leaf, T, Leaf)) && (n == Z)) ==> (out == S(Z))) &&
+(((t == Node (Leaf, T, Leaf)) && (n == S(Z))) ==> (out == Z)) &&
+(((t == Node (Leaf, T, Leaf)) && (n == S(S(Z)))) ==> (out == Z)) &&
+(((t == Node (Leaf, T, Leaf)) && (n == S(S(S(Z))))) ==> (out == Z)) &&
+(((t == Node (Node (Leaf, T, Leaf), T, Leaf)) && (n == Z)) ==> (out == S(Z))) &&
+(((t == Node (Node (Leaf, T, Leaf), T, Leaf)) && (n == S(Z))) ==> (out == S(Z))) &&
+(((t == Node (Node (Leaf, T, Leaf), T, Leaf)) && (n == S(S(Z)))) ==> (out == Z)) &&
+(((t == Node (Node (Leaf, T, Leaf), T, Leaf)) && (n == S(S(S(Z))))) ==> (out == Z)) &&
+(((t == Node (Leaf, T, Node (Leaf, T, Leaf))) && (n == Z)) ==> (out == S(Z))) &&
+(((t == Node (Leaf, T, Node (Leaf, T, Leaf))) && (n == S(Z))) ==> (out == S(Z))) &&
+(((t == Node (Leaf, T, Node (Leaf, T, Leaf))) && (n == S(S(Z)))) ==> (out == Z)) &&
+(((t == Node (Leaf, T, Node (Leaf, T, Leaf))) && (n == S(S(S(Z))))) ==> (out == Z)) &&
+(((t == Node (Node (Leaf, T, Leaf), T, Node (Leaf, T, Leaf))) && (n == Z)) ==> (out == S(Z))) &&
+(((t == Node (Node (Leaf, T, Leaf), T, Node (Leaf, T, Leaf))) && (n == S(Z))) ==> (out == S(S(Z)))) &&
+(((t == Node (Node (Leaf, T, Leaf), T, Node (Leaf, T, Leaf))) && (n == S(S(Z)))) ==> (out == Z)) &&
+(((t == Node (Node (Leaf, T, Leaf), T, Node (Leaf, T, Leaf))) && (n == S(S(S(Z))))) ==> (out == Z)) &&
+(((t == Node (Node (Node (Leaf, T, Leaf), T, Node (Leaf, T, Leaf)), T, Leaf)) && (n == Z)) ==> (out == S(Z))) &&
+(((t == Node (Node (Node (Leaf, T, Leaf), T, Node (Leaf, T, Leaf)), T, Leaf)) && (n == S(Z))) ==> (out == S(Z))) &&
+(((t == Node (Node (Node (Leaf, T, Leaf), T, Node (Leaf, T, Leaf)), T, Leaf)) && (n == S(S(Z)))) ==> (out == S(S(Z)))) &&
+(((t == Node (Node (Node (Leaf, T, Leaf), T, Node (Leaf, T, Leaf)), T, Leaf)) && (n == S(S(S(Z))))) ==> (out == Z))
 
 } }
 
