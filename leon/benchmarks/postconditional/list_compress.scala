@@ -31,9 +31,49 @@ def nat_compare(n1: Nat, n2: Nat): Cmp =
       }
   }
   
-def list_compress(xs: NatList): NatList = { choose { (out:NatList) => 
-    true
+def list_compress(xs: NatList): NatList = { choose { (out:NatList) =>
 
+  def no_dupes(xs: NatList) : Boolean =
+    xs match {
+      case Nil =>
+        true
+      case Cons(h1,t) =>
+        t match {
+          case Nil => true
+          case Cons(h2,t2) =>
+            (h1 != h2) && no_dupes(t)
+        }
+    }
+
+  def content(l: NatList): Set[Nat] = l match {
+    case Nil => Set.empty[Nat]
+    case Cons(i, t) => Set(i) ++ content(t)
+  }
+
+
+    /*def contained_in(x:Nat,xs:NatList) : Boolean =
+      xs match {
+        case Nil => false
+        case Cons(h,t) =>
+          if (h == x) {
+            true
+          } else {
+            contained_in(x,t)
+          }
+      }
+
+    def full_contained_in(xs:NatList,ys:NatList) : Boolean =
+      xs match {
+        case Nil => true
+        case Cons(h,t) =>
+          if (contained_in(h,ys)) {
+            full_contained_in(t,ys)
+          } else {
+            false
+          }
+      }*/
+
+    no_dupes(out) && (content(xs) subsetOf content(out))
 } }
 
 }
