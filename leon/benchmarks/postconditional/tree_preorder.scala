@@ -24,7 +24,12 @@ def list_append(l1: NatList, l2: NatList): NatList =
 
 def tree_preorder(t: NatTree): NatList = { choose { (out:NatList) => 
 
-true
+t match {
+  case Leaf => out == Nil
+  case Node(Node (Leaf, a, Leaf), b, Leaf) => out == Cons (b, Cons (a, Nil))
+  case Node(Leaf, a, Node (Leaf, b, Leaf)) => out == Cons (a, Cons (b, Nil))
+  case _ => true
+}
 
 } }
 
