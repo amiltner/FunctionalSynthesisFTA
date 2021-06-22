@@ -11,10 +11,22 @@ case object Z extends Nat
 sealed abstract class NatList
 case class Cons(head: Nat, tail: NatList) extends NatList
 case object Nil extends NatList
+
+def len(xs: NatList): Int =
+  xs match {
+    case Nil => 0
+    case Cons(h,t) => nat_compare(t) + 1
+  }
+
+def nat_to_int(x: Nat): Int =
+  x match {
+    case Z => 0
+    case S(m) => nat_to_int(m) + 1
+  }
   
 def list_drop(xs: NatList, n: Nat): NatList = { choose { (out:NatList) => 
 
-   true
+   len(out) = len(xs) - nat_to_int(n)
 
 } }
 
