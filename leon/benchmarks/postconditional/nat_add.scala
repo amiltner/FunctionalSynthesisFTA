@@ -10,7 +10,13 @@ case object Z extends Nat
   
 def nat_add(in1: Nat, in2: Nat): Nat = { choose { (out:Nat) => 
 
-   true
+   def nat_to_int(x: Nat): Int =
+  x match {
+    case Z => 0
+    case S(m) => nat_to_int(m) + 1
+  }
+
+    nat_to_int(out) = nat_to_int(in1) + nat_to_int(in2)
 
 } }
 

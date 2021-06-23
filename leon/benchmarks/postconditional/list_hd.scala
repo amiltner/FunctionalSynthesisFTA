@@ -13,8 +13,10 @@ case class Cons(head: Nat, tail: NatList) extends NatList
 case object Nil extends NatList
   
 def list_hd(xs: NatList): Nat = { choose { (out:Nat) => 
-
-   true
+    xs match {
+        case Nil => out = Z
+        case Cons(h,t) => out = h
+    }
 
 } }
 

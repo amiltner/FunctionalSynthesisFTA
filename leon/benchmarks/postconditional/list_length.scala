@@ -14,7 +14,16 @@ case object Nil extends NatList
   
 def list_length(xs: NatList): Nat = { choose { (out:Nat) => 
 
-   true
+   xs match {
+    case Nil => out = Z
+    case Cons(h1,t1) => t1 match {
+                    case Nil => out = S(Z)
+                    case Cons(h2,t2) => t2 match {
+                                    case Nil => out = S(S(Z))
+                                    case Cons(h3,t3) => true
+                                    }
+                    }
+     }
 
 } }
 

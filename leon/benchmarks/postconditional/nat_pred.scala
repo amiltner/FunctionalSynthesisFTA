@@ -10,7 +10,7 @@ case object Z extends Nat
   
 def nat_pred(n: Nat): Nat = { choose { (out:Nat) => 
 
-   true
+   ( n = Z && out = Z) || ( n = S(out) )
 
 } }
 
