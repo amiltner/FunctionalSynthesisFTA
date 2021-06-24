@@ -14,7 +14,25 @@ case object Nil extends NatList
   
 def list_nth(xs: NatList, n: Nat): Nat = { choose { (out:Nat) => 
 
-   true
+   def len(xs: NatList): Int =
+      xs match {
+        case Nil => 0
+        case Cons(h,t) => nat_compare(t) + 1
+      }
+
+    def nat_to_int(x: Nat): Int =
+      x match {
+        case Z => 0
+        case S(m) => nat_to_int(m) + 1
+      }
+
+    def hd(xs: NatList): Nat =
+      xs match {
+        case Nil => Z
+        case Cons(h,t) => h
+      }
+
+    ( (len(xs) < nat_to_int(n)) && (out = Z) ) || ( (n = Z) && (out = hd(xs) )
 
 } }
 
