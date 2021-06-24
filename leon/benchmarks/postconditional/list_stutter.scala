@@ -25,7 +25,7 @@ def list_stutter(n: Nat,m: Nat): NatList = { choose { (out:NatList) =>
       }
 
     def hd(xs: NatList): Nat =
-      x match {
+      xs match {
         case Nil => Z
         case Cons(h,t) => h
       }

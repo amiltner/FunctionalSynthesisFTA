@@ -14,7 +14,27 @@ case object Nil extends NatList
   
 def list_snoc(xs: NatList, n: Nat): NatList = { choose { (out:NatList) => 
 
-   true
+   def len(xs: NatList): Nat =
+      xs match {
+        case Nil => Z
+        case Cons(h,t) => S(len(t))
+      }
+
+    def hd(xs: NatList): Nat =
+      xs match {
+        case Nil => Z
+        case Cons(h,t) => h
+      }
+
+    def tl(xs: NatList): Nat =
+      xs match {
+        case Nil => Z
+        case Cons(h,t) =>
+             if (t == Nil) { h }
+             else { tl(t) }
+      }
+
+    (len(out) = S(len(xs)) && (tl(out) = n) && ((xs = Nil) || (hd(xs) = hd(out))
 
 } }
 
