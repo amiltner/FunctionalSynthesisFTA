@@ -26,7 +26,7 @@ def nat_add(n1: Nat, n2: Nat): Nat =
   
 def list_sum(xs: NatList): Nat = { choose { (out:Nat) => 
 
-   true
+   out = list_fold(nat_add,Z,xs)
 
 } }
 
