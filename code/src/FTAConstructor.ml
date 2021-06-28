@@ -250,7 +250,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     {
       a                  : A.t                        ;
       mutable d          : TypeToStates.t    ;
-      ds                 : TypeDS.t                   ;
+      mutable ds         : TypeDS.t                   ;
       inputs             : Value.t list               ;
       mutable tset       : TransitionSet.t            ;
       final_candidates   : Value.t -> Value.t -> bool ;
@@ -263,6 +263,12 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       mutable min_term_state : A.TermState.t option option ;
     }
   [@@deriving show]
+
+  let update_ds
+      (ds:TypeDS.t)
+      (c:t)
+    : unit =
+    c.ds <- ds
 
   let copy (c:t)
     : t =
