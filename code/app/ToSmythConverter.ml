@@ -1,5 +1,5 @@
 open MyStdLib
-open Tool
+open Burst
 open Lang
 
 module IdSet = Set.Make(Id)

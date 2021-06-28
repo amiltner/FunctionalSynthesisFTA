@@ -3,6 +3,6 @@
     (_ (ocamlopt_flags (:standard -O3 -rounds 6))))
 
 (executable
-    (name ToolCmdLine)
+    (name BurstCmdLine)
   (preprocess (pps ppx_bin_prot ppx_hash ppx_deriving.std ppx_let ppx_optcomp ppx_compare ppx_sexp_conv))
-    (libraries Tool core Myth smyth))
+    (libraries Burst core Myth smyth))

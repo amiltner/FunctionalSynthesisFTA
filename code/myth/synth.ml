@@ -115,7 +115,9 @@ let rec execute_synth_plan
             sized_es
         in
         List.map ~f:snd sorted_es
-    | None -> execute_synth_plan s env t plan
+      | None ->
+        print_endline "step 1";
+        execute_synth_plan s env t plan
     end
 
 let synthesize (s:Sigma.t) (env:env) (t:rtree) : exp list =

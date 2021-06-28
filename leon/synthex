@@ -1,0 +1,31 @@
+import leon.lang._
+import leon.lang.synthesis._
+import leon.annotation._
+
+object Insert {
+  sealed abstract class List
+  case class Cons(head: BigInt, tail: List) extends List
+  case object Nil extends List
+
+  def size(l: List) : BigInt = (l match {
+    case Nil => BigInt(0)
+    case Cons(_, t) => 1 + size(t)
+  }) ensuring(res => res >= 0)
+
+  def content(l: List): Set[BigInt] = l match {
+    case Nil => Set.empty[BigInt]
+    case Cons(i, t) => Set(i) ++ content(t)
+  }
+  
+
+  def compress(in1: List) = {
+    choose { (out : List) =>
+    def no_dupes(l:List) : Boolean = l match {
+      case Nil => true
+      case Cons(i,Nil) => true
+      case Cons(i1, Cons(i2,t)) => if (i1 == i2) false else no_dupes (Cons (i2,t))
+    }
+      no_dupes(out) && (content(in1) == content(out))
+    }
+  }
+}
