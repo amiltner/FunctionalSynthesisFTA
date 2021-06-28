@@ -173,6 +173,7 @@ let synthesize_solution
     ~(use_smyth:bool)
     ~(use_l2:bool)
     ~(log:bool)
+    ~(nonincremental:bool)
     ~(run_experiments:bool)
     ~(print_times:bool)
     ~(tc_synth:bool)
@@ -180,6 +181,7 @@ let synthesize_solution
     ~(print_mapping:bool)
   : unit =
   Consts.logging := log;
+  Consts.nonincremental := nonincremental;
   Consts.print_mapping := print_mapping;
   let p_unprocessed =
     ParserContainer.unprocessed_problem
@@ -308,6 +310,7 @@ let handle_inputs
     ~(check_equiv2:string option)
     ~(use_l2:bool)
     ~(log:bool)
+    ~(nonincremental:bool)
     ~(run_experiments:bool)
     ~(print_times:bool)
     ~(tc_synth:bool)
@@ -328,6 +331,7 @@ let handle_inputs
         ~use_smyth
         ~use_l2
         ~log
+        ~nonincremental
         ~run_experiments
         ~print_times
         ~tc_synth
@@ -343,6 +347,7 @@ let param =
       and use_myth   = flag "use-myth" no_arg ~doc:"Solve using the myth synthesis engine"
       and use_smyth   = flag "use-smyth" no_arg ~doc:"Solve using the smyth synthesis engine"
       and log   = flag "log" no_arg ~doc:"log process"
+      and nonincremental   = flag "nonincremental" no_arg ~doc:"use nonincremental synthesis"
       and use_l2   = flag "use-l2" no_arg ~doc:"Solve using the l2 synthesis engine"
       and print_times   = flag "print-times" no_arg ~doc:"print the times to run various components"
       and run_experiments   = flag "run-experiments" no_arg ~doc:"print the times to run various components"
@@ -367,6 +372,7 @@ let param =
           ~use_smyth
           ~use_l2
           ~log
+          ~nonincremental
           ~print_times
           ~run_experiments
           ~tc_synth

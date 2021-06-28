@@ -5,7 +5,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
   module A = B(FTAConstructor.Transition)(FTAConstructor.State)
   module C = FTAConstructor.Make(A)
 
-  let __INITIAL_SIZE__ = 3
+  let __INITIAL_SIZE__ = 4
 
   module AbstractionDict =
   struct
@@ -674,19 +674,23 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       ~(tout:Type.t)
       ~(checker:Value.t -> Value.t -> bool)
       ~(gs:GlobalState.t)
+      ~(constraints:Constraints.t)
+      ~(nonpermitted:Nonpermitteds.t)
       (all_ins:Value.t list)
       (required_vs:ValueSet.t)
-      (constraints:Constraints.t)
     : (C.t list * ValToC.t * GlobalState.t) =
+    let checker =
+      Constraints.update_checker
+        ~checker
+        constraints
+    in
+    let checker =
+      Nonpermitteds.update_checker
+        ~checker
+        nonpermitted
+    in
     (*print_endline "all ins";
       List.iter ~f:(print_endline % Value.show) all_ins;*)
-    let checker v1 v2 =
-      begin match Constraints.lookup constraints v1 with
-        | None -> checker v1 v2
-        | Some v ->
-          Value.equal v2 v
-      end
-    in
     (*print_endline (string_of_list Value.show all_ins);*)
     (*print_endline @$ Expr.show (C.term_to_exp_internals desired_term);
       print_endline @$ string_of_int @$ Expr.size (C.term_to_exp_internals desired_term);*)
@@ -997,7 +1001,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~(constraints:Constraints.t)
         ~(nonpermitted:Nonpermitteds.t)
         ~(v_to_c:ValToC.t)
-      : t option =
+      : (t,KnowledgeBase.NPPFConj.t) either =
       let (c,to_intersect) =
         extract_min_exn
           ~compare:C.size_compare
@@ -1006,8 +1010,18 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (*print_endline (Value.show (List.hd_exn (List.hd_exn c.inputs)));*)
       let rep_o = C.min_term_state c in
       (*print_endline (string_of_list Value.show c.inputs);*)
-      Option.map
-        ~f:(fun rep ->
+      begin match rep_o with
+        | None ->
+          Right (Nonpermitteds.as_list nonpermitted
+          ,List.filter_map
+              ~f:(fun v ->
+                  begin match Constraints.lookup constraints v with
+                    | None -> None
+                    | Some v' -> Some (v,v')
+                  end)
+              c.inputs)
+        | Some rep ->
+          Left
             {
               inputs       ;
               c            ;
@@ -1017,8 +1031,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
               v_to_c       ;
               to_intersect ;
               new_spec = None ;
-            })
-        rep_o
+            }
+      end
 
     let update_with_new_spec
         ~(context:Context.t)
@@ -1034,6 +1048,30 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~(minimize:bool)
         ~(dupe:bool)
       : ((t,KnowledgeBase.NPPFConj.t) either * GlobalState.t)=
+      if !Consts.nonincremental then
+        let required_vs = ValueSet.insert_all pqe.inputs new_ins in
+        let (cs,v_to_c,gs) =
+          construct_full
+            ~context
+            ~tin
+            ~tout
+            ~checker
+            ~gs
+            ~constraints
+            ~nonpermitted
+            all_ins
+            required_vs
+        in
+        let qe =
+          make
+            ~inputs:required_vs
+            ~cs
+            ~constraints
+            ~nonpermitted
+            ~v_to_c
+        in
+        (qe,gs)
+      else
       let checker =
         Constraints.update_checker
           ~checker
@@ -1831,6 +1869,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           | None ->
             Consts.log (fun () -> "new synth begun");
             let inputs = ValueSet.from_list orig_inputs in
+            let constraints = Constraints.empty in
+            let nonpermitted = Nonpermitteds.empty in
             let (cs,v_to_c,gs) =
               construct_full
                 ~context
@@ -1838,21 +1878,28 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                 ~tout:a.tout
                 ~checker:pred
                 ~gs:a.gs
+                ~constraints
+                ~nonpermitted
                 sorted_inputs
                 inputs
-                Constraints.empty
             in
             let qe =
               PQE.make
                 ~inputs
                 ~cs
-                ~constraints:Constraints.empty
-                ~nonpermitted:Nonpermitteds.empty
+                ~constraints
+                ~nonpermitted
                 ~v_to_c
             in
-            let pq = Some (PQ.from_list (Option.to_list qe)) in
-            let a = { a with gs ; pq ; } in
-            (find_it_out a)
+            begin match qe with
+              | Left qe ->
+                let pq = Some (PQ.singleton qe) in
+                let a = { a with gs ; pq ; } in
+                (find_it_out a)
+              | Right _ ->
+                let a = { a with gs ; pq = Some (PQ.empty) } in
+                find_it_out a
+            end
           | Some specs ->
             Consts.log (fun () -> "PQ Size: " ^ string_of_int (PQ.length specs));
             begin match PQ.pop specs with
@@ -2260,6 +2307,17 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (inputs:Value.t list)
       (pred:Value.t -> Value.t -> bool)
     : t * Expr.t =
+    let a =
+      if !Consts.nonincremental then
+        { a with
+          gs = GlobalState.empty ;
+          pq = None ;
+          last_processed = [] ;
+          added = Added.empty ;
+        }
+      else
+        a
+    in
     let context = (context a) in
     let tin = tin a in
     let tout = tout a in
