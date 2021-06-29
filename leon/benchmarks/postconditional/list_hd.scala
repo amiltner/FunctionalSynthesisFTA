@@ -14,8 +14,8 @@ case object Nil extends NatList
   
 def list_hd(xs: NatList): Nat = { choose { (out:Nat) => 
     xs match {
-        case Nil => out = Z
-        case Cons(h,t) => out = h
+        case Nil => out == Z
+        case Cons(h,t) => out == h
     }
 
 } }

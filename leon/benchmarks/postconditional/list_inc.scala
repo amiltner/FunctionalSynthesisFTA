@@ -11,6 +11,10 @@ case object Z extends Nat
 sealed abstract class NatList
 case class Cons(head: Nat, tail: NatList) extends NatList
 case object Nil extends NatList
+
+sealed abstract class Boolean
+case object T extends Boolean
+case object F extends Boolean
   
 def list_map(xs: NatList, f: (Nat) => Nat): NatList =
   xs match {
@@ -22,10 +26,10 @@ def list_inc(xs: NatList): NatList = { choose { (out:NatList) =>
 
    def contained_in(x:Nat,xs:NatList) : Boolean =
       xs match {
-        case Nil => false
+        case Nil => F
         case Cons(h,t) =>
           if (h == x) {
-            true
+            T
           } else {
             contained_in(x,t)
           }
@@ -33,16 +37,16 @@ def list_inc(xs: NatList): NatList = { choose { (out:NatList) =>
 
     def full_contained_in_inc(xs:NatList,ys:NatList) : Boolean =
       xs match {
-        case Nil => true
+        case Nil => T
         case Cons(h,t) =>
-          if (contained_in(S(h),ys)) {
-            full_contained_in(t,ys)
+          if (contained_in(S(h),ys) == T) {
+            full_contained_in_inc(t,ys)
           } else {
-            false
+            F
           }
       }
 
-    full_contained_in(xs,out)
+    full_contained_in_inc(xs,out) == T
 
 } }
 

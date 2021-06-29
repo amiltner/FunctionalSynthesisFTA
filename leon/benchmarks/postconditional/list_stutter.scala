@@ -32,14 +32,14 @@ def list_stutter(n: Nat,m: Nat): NatList = { choose { (out:NatList) =>
 
     def all_n(n: Nat,xs: NatList): Boolean =
         xs match {
-            case Nil => True
+            case Nil => T
             case Cons(h,t) =>
                     if (h == n) {
-                        all_n(t)
+                        all_n(n,t)
                     } else { F }
         }
 
-    (len(out) = m) && all_n(n,out)
+    (len(out) == m) && (all_n(n,out) == T)
 
 } }
 

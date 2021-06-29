@@ -11,6 +11,10 @@ case object F extends Boolean
 sealed abstract class BoolList
 case class Cons(head: Boolean, tail: BoolList) extends BoolList
 case object Nil extends BoolList
+
+sealed abstract class Nat
+case class S(nat: Nat) extends Nat
+case object Z extends Nat
   
 def list_even_parity(xs: BoolList): Boolean = { choose { (out:BoolList) => 
     def len(xs: BoolList): Nat =

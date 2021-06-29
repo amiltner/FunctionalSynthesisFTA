@@ -15,7 +15,7 @@ case object Nil extends NatList
 def len(xs: NatList): Int =
   xs match {
     case Nil => 0
-    case Cons(h,t) => nat_compare(t) + 1
+    case Cons(h,t) => len(t) + 1
   }
 
 def nat_to_int(x: Nat): Int =
@@ -26,7 +26,7 @@ def nat_to_int(x: Nat): Int =
   
 def list_drop(xs: NatList, n: Nat): NatList = { choose { (out:NatList) => 
 
-   len(out) = len(xs) - nat_to_int(n)
+   (len(out) == len(xs) - nat_to_int(n))
 
 } }
 

@@ -17,7 +17,7 @@ def list_take(n: Nat, xs: NatList): NatList = { choose { (out:NatList) =>
    def len(xs: NatList): Int =
       xs match {
         case Nil => 0
-        case Cons(h,t) => nat_compare(t) + 1
+        case Cons(h,t) => len(t) + 1
       }
 
     def nat_to_int(x: Nat): Int =
@@ -27,12 +27,12 @@ def list_take(n: Nat, xs: NatList): NatList = { choose { (out:NatList) =>
       }
 
     def hd(xs: NatList): Nat =
-      x match {
+      xs match {
         case Nil => Z
         case Cons(h,t) => h
       }
 
-    ( (len(out) = nat_to_int(n)) || (len(xs) < nat_to_int(n)) ) && ( (hd(out) = hd(xs)) || (xs = Nil) )
+    ( (len(out) == nat_to_int(n)) || (len(xs) < nat_to_int(n)) ) && ( (hd(out) == hd(xs)) || (xs == Nil) )
 
 } }
 

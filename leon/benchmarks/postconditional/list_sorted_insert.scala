@@ -39,10 +39,10 @@ def list_sorted_insert(xs: NatList, n: Nat): NatList = { choose { (out:NatList) 
 
    def list_sorted(xs: NatList) : Boolean =
         xs match {
-            Nil => T
-            Cons(h,t) => t match {
-                            Nil => list_sorted(t)
-                            Cons(t1,t2) =>
+          case Nil => T
+          case Cons(h,t) => t match {
+                            case Nil => list_sorted(t)
+                            case Cons(t1,t2) =>
                                     if (nat_compare(h,t1) != GT) {
                                         list_sorted(t)
                                     } else {
@@ -53,10 +53,10 @@ def list_sorted_insert(xs: NatList, n: Nat): NatList = { choose { (out:NatList) 
 
     def contained_in(x:Nat,xs:NatList) : Boolean =
       xs match {
-        case Nil => false
+        case Nil => F
         case Cons(h,t) =>
           if (h == x) {
-            true
+            T
           } else {
             contained_in(x,t)
           }
@@ -64,16 +64,16 @@ def list_sorted_insert(xs: NatList, n: Nat): NatList = { choose { (out:NatList) 
 
     def full_contained_in(xs:NatList,ys:NatList) : Boolean =
       xs match {
-        case Nil => true
+        case Nil => T
         case Cons(h,t) =>
-          if (contained_in(h,ys)) {
+          if (contained_in(h,ys) == T) {
             full_contained_in(t,ys)
           } else {
-            false
+            F
           }
       }
 
-    list_sorted(out) && full_contained_in(Cons(n,xs),out)
+    (list_sorted(out) == T) && (full_contained_in(Cons(n,xs),out) == T)
 
 } }
 

@@ -7,6 +7,10 @@ object Blah {
 sealed abstract class Nat
 case class S(nat: Nat) extends Nat
 case object Z extends Nat
+
+sealed abstract class Boolean
+case object T extends Boolean
+case object F extends Boolean
   
 sealed abstract class NatList
 case class Cons(head: Nat, tail: NatList) extends NatList
@@ -17,7 +21,7 @@ def list_rev_tailcall(xs: NatList, acc: NatList): NatList = { choose { (out:NatL
    def len(xs: NatList): Int =
       xs match {
         case Nil => 0
-        case Cons(h,t) => nat_compare(t) + 1
+        case Cons(h,t) => len(t) + 1
       }
 
     def hd(xs: NatList): Nat =
@@ -38,7 +42,7 @@ def list_rev_tailcall(xs: NatList, acc: NatList): NatList = { choose { (out:NatL
 
     def remove_hd(xs: NatList): NatList =
       xs match {
-        case Nil => Z
+        case Nil => Nil
         case Cons(h,t) => t
       }
 
@@ -60,7 +64,7 @@ def list_rev_tailcall(xs: NatList, acc: NatList): NatList = { choose { (out:NatL
         if (len(n) == len(m)) {
             if (len(n) == 0) { T }
             if (hd(n) == tl(m)) {
-                flipped(remove_hd(n),remove_tl(m)
+                flipped(remove_hd(n),remove_tl(m,Nil))
             } else { F }
         } else { F }
 

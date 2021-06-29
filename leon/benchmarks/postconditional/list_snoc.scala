@@ -34,7 +34,7 @@ def list_snoc(xs: NatList, n: Nat): NatList = { choose { (out:NatList) =>
              else { tl(t) }
       }
 
-    (len(out) = S(len(xs)) && (tl(out) = n) && ((xs = Nil) || (hd(xs) = hd(out))
+    (len(out) == S(len(xs))) && (tl(out) == n) && ((xs == Nil) || (hd(xs) == hd(out)))
 
 } }
 

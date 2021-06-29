@@ -48,8 +48,8 @@ def list_concat(xss: NatListList): NatList = { choose { (out:NatList) =>
 
     def all_full_contained(xss:NatListList,xs:NatList) : Boolean =
         xss match {
-            case Nil => true
-            case Cons(h,t) =>
+            case LNil => true
+            case LCons(h,t) =>
                 if (full_contained_in(h,xs)) {
                     all_full_contained(t,xs)
                 } else {

@@ -19,11 +19,11 @@ case object None extends NatOpt
 def list_last(xs: NatList): NatOpt = { choose { (out:NatOpt) => 
 
    xs match {
-    case Nil => out = None
+    case Nil => out == None
     case Cons(h1,t1) => t1 match {
-                    case Nil => out = Some(h1)
+                    case Nil => out == Some(h1)
                     case Cons(h2,t2) => t2 match {
-                                    case Nil => out = h2
+                                    case Nil => out == h2
                                     case Cons(h3,t3) => true
                                     }
                     }

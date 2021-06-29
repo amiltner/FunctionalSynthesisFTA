@@ -15,12 +15,12 @@ case object F extends Boolean
 def nat_iseven(n: Nat): Boolean = { choose { (out:Boolean) => 
 
    n match {
-    case Nil => out = T
-    case Cons(h1,t1) => t1 match {
-                    case Nil => out = F
-                    case Cons(h2,t2) => t2 match {
-                                    case Nil => out = T
-                                    case Cons(h3,t3) => true
+    case Z => out == T
+    case S(t1) => t1 match {
+                    case Z => out == F
+                    case S(t2) => t2 match {
+                                    case Z => out == T
+                                    case S(t3) => true
                                     }
                     }
      }

@@ -16,7 +16,7 @@ def nat_add(in1: Nat, in2: Nat): Nat = { choose { (out:Nat) =>
     case S(m) => nat_to_int(m) + 1
   }
 
-    nat_to_int(out) = nat_to_int(in1) + nat_to_int(in2)
+    nat_to_int(out) == nat_to_int(in1) + nat_to_int(in2)
 
 } }
 

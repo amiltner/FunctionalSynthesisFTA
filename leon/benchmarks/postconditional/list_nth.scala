@@ -17,7 +17,7 @@ def list_nth(xs: NatList, n: Nat): Nat = { choose { (out:Nat) =>
    def len(xs: NatList): Int =
       xs match {
         case Nil => 0
-        case Cons(h,t) => nat_compare(t) + 1
+        case Cons(h,t) => len(t) + 1
       }
 
     def nat_to_int(x: Nat): Int =
@@ -32,7 +32,7 @@ def list_nth(xs: NatList, n: Nat): Nat = { choose { (out:Nat) =>
         case Cons(h,t) => h
       }
 
-    ( (len(xs) < nat_to_int(n)) && (out = Z) ) || ( (n = Z) && (out = hd(xs) )
+    ( (len(xs) < nat_to_int(n)) && (out == Z) ) || ( (n == Z) && (out == hd(xs) ))
 
 } }
 

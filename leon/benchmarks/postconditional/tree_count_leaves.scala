@@ -24,7 +24,12 @@ def nat_add(n1: Nat, n2: Nat): Nat =
   
 def tree_count_leaves(t: BooleanTree): Nat = { choose { (out:Nat) => 
 
-   true
+   t match {
+    case Leaf => Z
+    case Node(Leaf,x,Leaf) => S(S(Z))
+    case Node(Node(Leaf,a,Leaf),x,Node(Leaf,b,Leaf)) => S(S(S(S(Z))))
+    case _ => true
+   }
 
 } }
 
