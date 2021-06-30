@@ -1,0 +1,14 @@
+Test,PostTime
+list-length,8.45
+list-concat,11.57
+nat-iseven,9.11
+tree-inorder,5.86
+list-take,t/o
+tree-count-leaves,5.69
+bool-neg,2.92
+nat-add,10.61
+list-sum,0.09
+tree-preorder,8.12
+list-rev-fold,25.43
+tree-postorder,10.42
+tree-count-nodes,19.89

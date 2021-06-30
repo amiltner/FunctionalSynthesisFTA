@@ -7,10 +7,6 @@ object Blah {
 sealed abstract class Nat
 case class S(nat: Nat) extends Nat
 case object Z extends Nat
-
-sealed abstract class Boolean
-case object T extends Boolean
-case object F extends Boolean
   
 sealed abstract class NatList
 case class Cons(head: Nat, tail: NatList) extends NatList
@@ -68,11 +64,11 @@ def list_rev_fold(xs: NatList): NatList = { choose { (out:NatList) =>
 
     def flipped(n: NatList, m: NatList): Boolean =
         if (len(n) == len(m)) {
-            if (len(n) == 0) { T }
-            if (hd(n) == tl(m)) {
+            if (len(n) == 0) { true }
+            else if (hd(n) == tl(m)) {
                 flipped(remove_hd(n),remove_tl(m,Nil))
-            } else { F }
-        } else { F }
+            } else { false }
+        } else { false }
 
     flipped(xs,out)
 } }

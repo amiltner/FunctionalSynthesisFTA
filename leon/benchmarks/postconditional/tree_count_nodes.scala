@@ -21,9 +21,9 @@ def nat_add(n1: Nat, n2: Nat): Nat =
 def tree_count_nodes(t: NatTree): Nat = { choose { (out:Nat) => 
 
    t match {
-    case Leaf => Z
-    case Node(Leaf,x,Leaf) => S(Z)
-    case Node(Node(Leaf,a,Leaf),x,Node(Leaf,b,Leaf)) => S(S(S(Z)))
+    case Leaf => out == Z
+    case Node(Leaf,x,Leaf) => out == S(Z)
+    case Node(Node(Leaf,a,Leaf),x,Node(Leaf,b,Leaf)) => out == S(S(S(Z)))
     case _ => true
    }
 
