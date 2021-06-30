@@ -26,7 +26,7 @@ documentation:
 	jbuilder build @docs
 
 generate-data: all
-	$(GENERATE_DATA) ./BurstCmdLine.exe benchmarks/trace_complete benchmarks/incremental benchmarks/postconditional benchmarks/example_based
+	$(GENERATE_DATA) ./BurstCmdLine.exe benchmarks/trace_complete benchmarks/equivalence benchmarks/postconditional benchmarks/example_based
 
 generate-outs: all
 	$(CREATE_DEFAULT_ANSWERS) ./BurstCmdLine.exe benchmarks/trace_complete benchmarks/incremental benchmarks/postconditional benchmarks/example_based

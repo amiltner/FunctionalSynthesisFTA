@@ -1,4 +1,5 @@
 let logging = ref false
+let nonincremental = ref false
 let print_mapping = ref false
 let pretty_ctors = ref true
 let use_abstraction = ref false

@@ -1,0 +1,65 @@
+type nat =
+  | O
+  | S of nat
+
+type list =
+  | Nil
+  | Cons of nat * list
+
+type tree =
+  | Leaf
+  | Node of tree * nat * tree
+
+synth tree -> list satisfying
+
+type bool =
+  | True
+  | False
+
+type cmp =
+  | LT
+  | EQ
+  | GT
+
+let sum =
+  fix (sum : nat -> nat -> nat) =
+    fun (n1 : nat) ->
+      fun (n2 : nat) ->
+        match n1 with
+        | O -> n2
+        | S n1p -> S (sum n1p n2)
+;;
+
+let no_left_children =
+  fix (no_left_children : tree -> bool) =
+    fun (t:tree) ->
+      match t with
+      | Leaf -> True
+      | Node (l,_,r) ->
+        (match (l == Leaf) with
+         | True -> no_left_children r
+         | False -> False)
+;;
+
+let tsize =
+   fix (tsize : tree -> nat) =
+     fun (t:tree) ->
+       match t with
+       | Leaf -> 0
+       | Node (l,_,r) ->
+         S (sum (tsize l) (tsize r))
+;;
+
+let lsize =
+   fix (lsize : list -> nat) =
+     fun (l:list) ->
+       match l with
+       | Nil -> 0
+       | Cons (_,t) ->
+         S (lsize t)
+;;
+
+fun (input:tree) -> (fun (out : list) -> 
+    match no_left_children input with
+    | True -> (tsize input) == (lsize out)
+    | False -> True)

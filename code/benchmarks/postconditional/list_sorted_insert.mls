@@ -74,5 +74,7 @@ let is_sorted_unique =
 
 fun (in1in2:list*nat) -> (fun (out:list) ->
     (and
-      (is_sorted_unique out)
+      (match is_sorted_unique in1in2.0 with
+       | True -> is_sorted_unique out
+       | False -> True)
       (for_all (contains out) (Cons (in1in2.1, in1in2.0)))))
