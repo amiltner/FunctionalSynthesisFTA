@@ -110,7 +110,7 @@ def gather_datum(prog, path, base, additional_flags, timeout):
     end = time.time()
     return ((end - start), process_output.stdout,process_output.stderr)
 
-def gather_data(rootlength, prog, path, base,name):
+def gather_data(rootlength, prog, path, base,name,run_smyth):
     current_data = {"Test":name}
 
     def gather_col(flags, run_combiner, col_names, timeout_time, repetition_count, compare):
@@ -166,7 +166,10 @@ def gather_data(rootlength, prog, path, base,name):
         averages = [average(col) for col in cols]
         return averages
 
-    gather_col(["-use-smyth"],ctime_combiner,["IsectTotal","IsectMax","MinifyTotal","MinifyMax","MinEltTotal","MinEltMax","InitialCreationTotal","InitialCreationMax","AcceptsTermTotal","AcceptsTermMax","ComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
+    gather_col([],ctime_combiner,["IsectTotal","IsectMax","MinifyTotal","MinifyMax","MinEltTotal","MinEltMax","InitialCreationTotal","InitialCreationMax","AcceptsTermTotal","AcceptsTermMax","ComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
+    if run_smyth:
+        gather_col(["-use-smyth"],ctime_combiner,["SmythIsectTotal","SmythIsectMax","SmythMinifyTotal","SmythMinifyMax","SmythMinEltTotal","SmythMinEltMax","SmythInitialCreationTotal","SmythInitialCreationMax","SmythAcceptsTermTotal","SmythAcceptsTermMax","SmythComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
+    gather_col(["-nonincremental"],ctime_combiner,["NonincrementalIsectTotal","NonincrementalIsectMax","NonincrementalMinifyTotal","NonincrementalMinifyMax","NonincrementalMinEltTotal","NonincrementalMinEltMax","NonincrementalInitialCreationTotal","NonincrementalInitialCreationMax","NonincrementalAcceptsTermTotal","NonincrementalAcceptsTermMax","NonincrementalComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
 
     return current_data
 
@@ -187,20 +190,20 @@ def clean_full_data(data):
         for key in row.keys():
             row[key] = clean(row[key])
 
-def print_data(data):
+def print_data(data,name):
     clean_full_data(data)
     ensure_dir("generated_data/")
-    with open("generated_data/generated_data.csv", "wb") as csvfile:
+    with open("generated_data/" + name, "wb") as csvfile:
         datawriter = csv.DictWriter(csvfile,fieldnames=data[0].keys())
         datawriter.writeheader()
         datawriter.writerows(data)
 
 def print_usage(args):
-    print("Usage: {0} <prog> <trace_complete_dir> <incremental_dir> <postconditional_dir>".format(args[0]))
+    print("Usage: {0} <prog> <trace_complete_dir> <equivalence_dir> <postconditional_dir>".format(args[0]))
 
-def load_data():
+def load_data(name):
     try:
-        with open("generated_data/generated_data.csv", "r") as csvfile:
+        with open("generated_data/" + name, "r") as csvfile:
             datareader = csv.DictReader(csvfile)
             return [row for row in datareader]
     except:
@@ -210,25 +213,64 @@ def main(args):
     if len(args) == 6:
         prog = args[1]
         trace_complete_path = args[5]
-        incremental_path = args[3]
+        equivalence_path = args[3]
         postconditional_path = args[4]
         example_based_path = args[5]
         rootlength = len(trace_complete_path)
-        data = []#load_data()
+        data = load_data("examples.csv")
+        print("example data")
         print(data)
-        if os.path.exists(prog) and os.path.exists(trace_complete_path) and os.path.isdir(trace_complete_path):
-            for path, base in find_tests(trace_complete_path):
+        rootlength = len(example_based_path)
+        if os.path.exists(prog) and os.path.exists(example_based_path) and os.path.isdir(example_based_path):
+            for path, base in find_tests(example_based_path):
                 test_name = join(path, base).replace("_","-")[rootlength+1:]
                 print(test_name)
                 if (not (any(row["Test"] == test_name for row in data))):
-                    current_data = gather_data(rootlength,prog, path, base,test_name)
+                    current_data = gather_data(rootlength,prog, path, base,test_name,True)
                     data.append(current_data)
-                    print(data)
-                    print_data(data)
+                    print_data(data,"examples.csv")
                 else:
                     print("data already retrieved")
             sort_data(data)
-            print_data(data)
+            print_data(data,"examples.csv")
+        else:
+            print(os.path.exists(prog))
+            print_usage(args)
+        data = load_data("equiv.csv")
+        print("equiv data")
+        rootlength = len(equivalence_path)
+        print(data)
+        if os.path.exists(prog) and os.path.exists(equivalence_path) and os.path.isdir(equivalence_path):
+            for path, base in find_tests(equivalence_path):
+                test_name = join(path, base).replace("_","-")[rootlength+1:]
+                print(test_name)
+                if (not (any(row["Test"] == test_name for row in data))):
+                    current_data = gather_data(rootlength,prog, path, base,test_name,True)
+                    data.append(current_data)
+                    print_data(data,"equiv.csv")
+                else:
+                    print("data already retrieved")
+            sort_data(data)
+            print_data(data,"equiv.csv")
+        else:
+            print(os.path.exists(prog))
+            print_usage(args)
+        data = load_data("post.csv")
+        rootlength = len(postconditional_path)
+        print("postconditional data")
+        print(data)
+        if os.path.exists(prog) and os.path.exists(postconditional_path) and os.path.isdir(postconditional_path):
+            for path, base in find_tests(postconditional_path):
+                test_name = join(path, base).replace("_","-")[rootlength+1:]
+                print(test_name)
+                if (not (any(row["Test"] == test_name for row in data))):
+                    current_data = gather_data(rootlength,prog, path, base,test_name,False)
+                    data.append(current_data)
+                    print_data(data,"postconditional.csv")
+                else:
+                    print("data already retrieved")
+            sort_data(data)
+            print_data(data,"postconditional.csv")
         else:
             print(os.path.exists(prog))
             print_usage(args)

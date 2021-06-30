@@ -1,0 +1,5 @@
+SmythIsectMax,IsectMax,SmythInitialCreationTotal,MinifyMax,Test,InitialCreationMax,SmythComputationTime,SmythIsectTotal,SmythMinEltTotal,SmythMinEltMax,SmythMinifyTotal,AcceptsTermTotal,MinEltTotal,SmythAcceptsTermMax,SmythAcceptsTermTotal,AcceptsTermMax,IsectTotal,SmythMinifyMax,MinEltMax,MinifyTotal,ComputationTime,InitialCreationTotal,SmythInitialCreationMax
+0,0,0,0,bool-bor,0,0.04,0,0,0,0,0,0,0,0,0,0,0,0,0,0.04,0,0
+0,0,0,0,list-rev-fold,0.20,0.08,0,0,0,0,0,0,0,0,0,0,0,0,0,0.28,0.21,0
+0,4.14,0,5.46,tree-preorder,3.24,0.13,0,0,0,0,0,5.23,0,0,0,4.33,0,5.08,5.57,23.45,7.99,0
+0,0.00,0,0.00,list-inc,0.01,0.04,0,0,0,0,0,0.00,0,0,0,0.00,0,0.00,0.00,0.07,0.01,0

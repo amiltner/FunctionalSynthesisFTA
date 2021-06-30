@@ -1577,15 +1577,20 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     || (List.exists ~f:contains_rec ts)
 
   let term_cost ?(print=false) t =
+    let terms = ref [] in
     let rec term_cost_internal
-        (Term (t,ts):A.Term.t)
+        (Term (t,ts) as fullt:A.Term.t)
       : Float.t =
+      if List.mem ~equal:A.Term.equal !terms fullt then
+        2.0
+      else
       let simple_subcost ts =
         List.fold
           ~f:(+.)
           ~init:0.
           (List.map ~f:(term_cost_internal) ts)
       in
+      terms := fullt::!terms;
       begin match Transition.id t with
         | FunctionApp _ -> (Float.of_int (List.length ts)) +. simple_subcost ts
         | Apply ->
@@ -1609,7 +1614,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         | Rec -> (*1. +. simple_subcost ts*)
           1. +. simple_subcost ts
         | VariantSwitch is -> (*2. +. simple_subcost ts*)
-          1. +. (Float.of_int (List.length is)) +. simple_subcost ts
+          5. +. (Float.of_int (List.length is)) +. simple_subcost ts
         | LetIn -> failwith "ah"
       end
     in

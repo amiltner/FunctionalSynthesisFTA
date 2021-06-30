@@ -5,7 +5,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
   module A = B(FTAConstructor.Transition)(FTAConstructor.State)
   module C = FTAConstructor.Make(A)
 
-  let __INITIAL_SIZE__ = 4
+  let __INITIAL_SIZE__ = 2
+  let __INITIAL_MVM__ = 3.0
 
   module AbstractionDict =
   struct
@@ -113,7 +114,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
 
     let initial =
       {
-        max_value_multiplier = 3.0 ;
+        max_value_multiplier = __INITIAL_MVM__ ;
       }
 
     let increase_mvm is =
@@ -500,13 +501,16 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
               ,(tout,TermClassification.Introduction))]
            in
            let conversions =
-             context_conversions
-             @ variant_construct_conversions
+             variant_construct_conversions
              @ tuple_constructors
              @ eval_conversion
              @ tuple_destructors
-             @ rec_call_conversions
              @ variant_unsafe_destruct_conversions
+           in
+           let all_conversions =
+             context_conversions
+             @ rec_call_conversions
+             @ conversions
            in
            (*let destruct_conversions =
              tuple_destructors
@@ -550,9 +554,14 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                      | Some (old_added,old_pruned) ->
                        let (d1,e1) = C.update_from_conversions c variant_unsafe_destruct_conversions in
                        let (d2,e2) = C.update_from_conversions c tuple_destructors in
-                       let (d3,e3) = C.update_from_conversions c conversions in
-                       let new_added = (List.length d1) + (List.length d2) + (List.length d3) in
-                       let new_pruned = (List.length e1) + (List.length e2) + (List.length e3) in
+                       let (d3,e3) =
+                         C.update_from_conversions c conversions
+                       in
+                       let (d4,e4) =
+                         C.update_from_conversions c all_conversions
+                       in
+                       let new_added = (List.length d1) + (List.length d2) + (List.length d3) + (List.length d4) in
+                       let new_pruned = (List.length e1) + (List.length e2) + (List.length e3) + (List.length d4) in
                        (*print_endline (string_of_int (new_added));
                          print_endline (string_of_int (new_pruned));*)
                        if new_pruned > 0 &&
@@ -1831,7 +1840,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                       begin
                         Consts.log (fun _ -> "Falsified: popped value did not use rrs");
                         let gs = GlobalState.upgrade_kb gs (PQE.to_nppf_conj pqe) in
-                        let (gs,nonpermitteds) =
+                        (*let (gs,nonpermitteds) =
                           List.fold
                             ~f:(fun (gs,qes) r ->
                                 let (new_pqe,gs) =
@@ -1856,8 +1865,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                                 end)
                             ~init:(gs,[])
                             pure_rrs
-                        in
-                        (NewQEs nonpermitteds,gs)
+                          in*)
+                        (NewQEs [],gs)
                       end
               end
           end
