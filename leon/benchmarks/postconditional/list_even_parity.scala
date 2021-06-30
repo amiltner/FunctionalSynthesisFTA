@@ -32,7 +32,7 @@ def list_even_parity(xs: BoolList): Boolean = { choose { (out:BoolList) =>
                     }
       }
 
-    iseven(len(xs))
+    T == iseven(len(xs))
 
 } }
 

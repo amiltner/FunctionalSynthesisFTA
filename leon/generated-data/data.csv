@@ -12,3 +12,9 @@ tree-preorder,8.12
 list-rev-fold,25.43
 tree-postorder,10.42
 tree-count-nodes,19.89
+list-hd,3.82
+tree-binsert,t/o
+bool-bor,6.62
+list-rev-tailcall,33.66
+nat-max,41.56
+tree-collect-leaves,13.30
