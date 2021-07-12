@@ -14,11 +14,11 @@ termination measure len :: NatList -> {Int | _v >= 0} where
   Nil -> 0
   Cons x xs -> 1 + len xs
   
-list_fold :: (Nat -> Nat -> Nat) -> Nat -> NatList -> Nat
-list_fold = \f . \acc . \xs .
+list_fold :: (Nat -> Nat -> Nat) -> NatList -> Nat -> Nat
+list_fold = \f . \xs . \acc .
   match xs with
     Nil            -> acc
-    Cons head tail -> f (list_fold f acc tail) head
+    Cons head tail -> f (list_fold f tail acc) head
   
 list_snoc :: NatList -> Nat -> NatList
 list_snoc = \xs . \n .

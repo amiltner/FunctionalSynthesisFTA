@@ -86,7 +86,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         begin match lookup c v1 with
           | None -> checker v1 v2
           | Some v ->
-            Value.equal v2 v
+            Value.equal v2 v && checker v1 v2
         end
       in
       checker
@@ -821,19 +821,22 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
   module PQE = struct
     module Priority =
     struct
-      type t = Float.t * Int.t * Int.t
+      type t = Float.t * Int.t * Int.t * Int.t
       [@@deriving hash, show, equal]
 
-      let compare (f1,i1,j1) (f2,i2,j2) =
-        let fc = Float.compare f1 f2 in
-        if fc = 0 then
-          let ic = Int.compare i1 i2 in
-          if ic = 0 then
-            Int.compare j2 j1
-          else
-            ic
+      let compare (f1,i1,j1,num_its1) (f2,i2,j2,num_its2) =
+        if !Consts.use_random then
+          Int.compare num_its1 num_its2
         else
-          fc
+          let fc = Float.compare f1 f2 in
+          if fc = 0 then
+            let ic = Int.compare i1 i2 in
+            if ic = 0 then
+              Int.compare j2 j1
+            else
+              ic
+          else
+            fc
     end
 
     type t =
@@ -846,6 +849,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         rep          : A.TermState.t  ;
         v_to_c       : ValToC.t       ;
         new_spec     : ((Value.t list) * (Value.t list) * (Value.t -> Value.t -> bool) * C.TypeDS.t) option ;
+        num_its      : Int.t       ;
       }
     [@@deriving show, make]
 
@@ -854,6 +858,32 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
     let compare _ _ = failwith "unimplemented"
     let equal _ _ = failwith "unimplemented"
 
+    let copy
+        (pqe:t)
+      : t =
+      let new_v_t_c =
+        ValToC.map_values
+          ~f:C.copy
+          pqe.v_to_c
+      in
+      let res =
+        {
+          inputs = pqe.inputs ;
+          c = C.copy pqe.c ;
+          to_intersect = List.map ~f:C.copy pqe.to_intersect ;
+          constraints = pqe.constraints ;
+          nonpermitted = pqe.nonpermitted ;
+          rep = pqe.rep ;
+          v_to_c = new_v_t_c ;
+          new_spec = pqe.new_spec ;
+          num_its = pqe.num_its ;
+        }
+      in
+      C.clear_copy pqe.c ;
+      List.iter ~f:C.clear_copy pqe.to_intersect ;
+      List.iter ~f:C.clear_copy (ValToC.value_list pqe.v_to_c) ;
+      res
+
     let make_internal
         ~(inputs:ValueSet.t)
         ~(c:C.t)
@@ -861,6 +891,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~(constraints:Constraints.t)
         ~(nonpermitted:Nonpermitteds.t)
         ~(v_to_c:ValToC.t)
+        ~(num_its:int)
       : (t,KnowledgeBase.NPPFConj.t) either =
       let rep_o = C.min_term_state c in
       begin match rep_o with
@@ -885,6 +916,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
               v_to_c       ;
               to_intersect ;
               new_spec = None ;
+              num_its ;
             }
       end
 
@@ -973,7 +1005,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       begin match min_unsat with
         | None -> None
         | Some (min,to_intersect) ->
-          Consts.log (fun _ -> "Now intersecting: " ^ (Value.show (List.hd_exn (min.inputs))));
+          let new_v_intersected = List.hd_exn min.inputs in
+          Consts.log (fun _ -> "Now intersecting: " ^ (Value.show new_v_intersected));
           let c = C.intersect min pqe.c in
           Consts.log (fun _ -> "Now minimizing: " ^ (Value.show (List.hd_exn (c.inputs))));
           let c = C.minimize c in
@@ -994,6 +1027,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           let constraints = pqe.constraints in
           let nonpermitted = pqe.nonpermitted in
           let v_to_c = pqe.v_to_c in
+          (*let v_to_c = ValToC.insert v_to_c new_v_intersected c inTODO*)
           Some
             (make_internal
                ~inputs
@@ -1001,7 +1035,8 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                ~to_intersect
                ~constraints
                ~nonpermitted
-               ~v_to_c)
+               ~v_to_c
+               ~num_its:pqe.num_its)
       end
 
     let make
@@ -1010,6 +1045,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~(constraints:Constraints.t)
         ~(nonpermitted:Nonpermitteds.t)
         ~(v_to_c:ValToC.t)
+        ~(num_its:Int.t)
       : (t,KnowledgeBase.NPPFConj.t) either =
       let (c,to_intersect) =
         extract_min_exn
@@ -1040,6 +1076,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
               v_to_c       ;
               to_intersect ;
               new_spec = None ;
+              num_its ;
             }
       end
 
@@ -1056,8 +1093,27 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~(nonpermitted:Nonpermitteds.t)
         ~(minimize:bool)
         ~(dupe:bool)
+        ~(incr_num_its:bool)
       : ((t,KnowledgeBase.NPPFConj.t) either * GlobalState.t)=
-      if !Consts.nonincremental then
+      let pqe = if dupe then copy pqe else pqe in
+      let all_contained =
+        List.for_all
+          ~f:(fun vnew ->
+              List.exists
+                ~f:(fun vold ->
+                    not (List.mem ~equal:Value.equal new_ins vold)
+                    && (strict_functional_subvalue ~context ~ds:pqe.c.ds vnew vold)
+                  )
+                all_ins)
+          new_ins
+      in
+      let num_its =
+        if incr_num_its then
+          pqe.num_its+1
+        else
+          pqe.num_its
+      in
+      if !Consts.nonincremental || all_contained then
         let required_vs = ValueSet.insert_all pqe.inputs new_ins in
         let (cs,v_to_c,gs) =
           construct_full
@@ -1078,6 +1134,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
             ~constraints
             ~nonpermitted
             ~v_to_c
+            ~num_its
         in
         (qe,gs)
       else
@@ -1092,7 +1149,6 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           nonpermitted
       in
       let process_c (c:C.t) v (v_to_outs:Value.t -> Value.t list) : C.t =
-        let c = C.copy c in
         let all_transitions = A.transitions c.a in
         let bad_transitions =
           List.filter
@@ -1232,6 +1288,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
           ~constraints
           ~nonpermitted:nonpermitted
           ~v_to_c
+          ~num_its
       in
       (pqe,gs)
 
@@ -1274,9 +1331,9 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
         ~new_ins
         ~constraints:pqe.constraints
         ~nonpermitted:pqe.nonpermitted
-        ~minimize:false
+        ~minimize:true
         ~dupe:false
-
+        ~incr_num_its:false
 
     let full_satisfies
         ~(context:Context.t)
@@ -1384,10 +1441,11 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
 
     let priority
         (qe:t)
-      : Float.t * Int.t * Int.t =
+      : Float.t * Int.t * Int.t * Int.t =
       (C.term_cost ~print:false (A.TermState.to_term qe.rep)
       ,Nonpermitteds.size qe.nonpermitted
-      ,Constraints.size qe.constraints)
+      ,Constraints.size qe.constraints
+      ,qe.num_its)
 
     let to_string_legible
         (qe:t)
@@ -1712,6 +1770,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                                         ~nonpermitted:(Nonpermitteds.insert r pqe.nonpermitted)
                                         ~minimize:false
                                         ~dupe:true
+                                        ~incr_num_its:false
                                     in
                                     begin match new_pqe with
                                       | Left qe -> (gs,qe::qes)
@@ -1776,6 +1835,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                                     ~nonpermitted:pqe.nonpermitted
                                     ~minimize:true
                                     ~dupe:true
+                                    ~incr_num_its:true
                                 in
                                 (*let (cs,v_to_c,gs) =
                                   construct_full
@@ -1825,6 +1885,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                                       ~nonpermitted:(Nonpermitteds.insert r pqe.nonpermitted)
                                       ~minimize:false
                                       ~dupe:true
+                                      ~incr_num_its:false
                                   in
                                   begin match new_pqe with
                                     | Left qe -> (gs,qe::qes)
@@ -1899,6 +1960,7 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
                 ~constraints
                 ~nonpermitted
                 ~v_to_c
+                ~num_its:0
             in
             begin match qe with
               | Left qe ->
@@ -2317,15 +2379,15 @@ module Create(B : Automata.AutomatonBuilder) (*: Synthesizers.PredicateSynth.S *
       (pred:Value.t -> Value.t -> bool)
     : t * Expr.t =
     let a =
-      if !Consts.nonincremental then
+      (*if !Consts.nonincremental then*)
         { a with
           gs = GlobalState.empty ;
           pq = None ;
           last_processed = [] ;
           added = Added.empty ;
         }
-      else
-        a
+      (*else
+        a*)
     in
     let context = (context a) in
     let tin = tin a in

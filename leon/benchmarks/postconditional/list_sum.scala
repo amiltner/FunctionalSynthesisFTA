@@ -26,7 +26,18 @@ def nat_add(n1: Nat, n2: Nat): Nat =
   
 def list_sum(xs: NatList): Nat = { choose { (out:Nat) => 
 
-   out == list_fold(nat_add,Z,xs)
+   xs match {
+     case Nil => out == Z
+     case Cons(h,t) =>
+       t match {
+         case Nil => out == h
+         case Cons(h2,t2) =>
+           t2 match {
+             case Nil => out == nat_add(h,h2)
+             case Cons(h3,t3) => true
+           }
+       }
+   }
 
 } }
 

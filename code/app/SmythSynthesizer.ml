@@ -80,31 +80,6 @@ module T : Burst.Synthesizers.IOSynth.S = struct
       let mk_x i =
         "x" ^ (string_of_int i)
       in
-      begin match firsttin with
-        | Smyth.Lang.TArr _ ->
-
-          let (othertins,finaltin) = split_by_last_exn othertins in
-
-          let e =
-            Smyth.Desugar.lett
-              (Smyth.Lang.TArr (finaltin,tout))
-              "fixf"
-              (Smyth.Lang.EFix (Some "fixf", Smyth.Lang.PatParam (Smyth.Lang.PVar "x0"),e))
-              (Smyth.Lang.EVar "fixf")
-          in
-          let (e,i) =
-            List.fold_right
-              ~f:(fun _ (e,i) ->
-                  (Smyth.Lang.EFix
-                     (None
-                     ,Smyth.Lang.PatParam (Smyth.Lang.PVar (mk_x i))
-                     ,e)
-                  ,i+1))
-              ~init:(e,1)
-              (firsttin::othertins)
-          in
-          e
-        | _ ->
           let (e,i) =
             List.fold_right
               ~f:(fun _ (e,i) ->
@@ -120,7 +95,6 @@ module T : Burst.Synthesizers.IOSynth.S = struct
             ((if b then Some "f" else None)
             ,Smyth.Lang.PatParam (Smyth.Lang.PVar (mk_x i))
             ,e)
-      end
     in
     let final_var =
       ("f"
@@ -159,7 +133,7 @@ module T : Burst.Synthesizers.IOSynth.S = struct
                 e
             end
           | x ->
-            failwith (string_of_int (List.length x))
+            failwith "No solutions found"
         end
       | Error e ->
         print_endline (Smyth.Endpoint.show_error e);

@@ -225,13 +225,18 @@ module VerifiedEquiv = struct
           (sacc:S.t)
           (ios:(Value.t * Value.t) list)
         : Expr.t =
-        let (sacc,cand) = S.synth sacc ios in
+        let (sacc,cand) =
+          Consts.time
+            Consts.full_synth_times
+            (fun () -> S.synth sacc ios)
+        in
         Consts.log (fun _ -> "Candidate Found: " ^ (Expr.show cand));
         let cex_o = V.satisfies_post ~context ~cand ~checker ~tin ~tout in
         begin match cex_o with
           | None -> cand
           | Some cex ->
             Consts.log (fun _ -> "CEx Found: " ^ (Value.show cex));
+            Consts.loop_count := !Consts.loop_count+1;
             let cex_out = runner cex in
             synth_internal sacc ((cex,cex_out)::ios)
         end

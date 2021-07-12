@@ -27,7 +27,7 @@ measure elems :: NatList -> Set Nat where
   Nil -> []
   Cons x xs -> [x] + elems xs
   
-nat_compare :: Nat -> Nat -> Cmp
+nat_compare :: n1:Nat -> n2:Nat -> { Cmp | if n1 == n2 then _v == EQ else _v != EQ }
 nat_compare = \n1 . \n2 .
   match n1 with
     Z ->

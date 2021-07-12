@@ -43,5 +43,5 @@ let print_time_if_timing (f:unit -> 'a) : 'a =
 let incomplete_constraints_flag : bool ref = ref false
 
 (* Enables verbose mode *)
-let verbose_mode : bool ref = ref false
+let verbose_mode : bool ref = ref true
 let do_if_verbose (f:unit -> unit) = if !verbose_mode then f () ;;

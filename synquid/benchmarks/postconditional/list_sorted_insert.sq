@@ -31,7 +31,7 @@ data Cmp where
   EQ :: Cmp
   GT :: Cmp
   
-nat_compare :: Nat -> Nat -> Cmp
+nat_compare :: n1:Nat -> n2:Nat -> { Cmp | (dec n1 == dec n2 ==> _v == EQ) && (dec n1 < dec n2 ==> _v == LT) && (dec n1 > dec n2 ==> _v == GT) && (n1 == n2 <==> _v == EQ)}
 nat_compare = \n1 . \n2 .
   match n1 with
     Z ->

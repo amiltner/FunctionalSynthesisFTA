@@ -23,7 +23,8 @@ def tree_count_nodes(t: NatTree): Nat = { choose { (out:Nat) =>
    t match {
     case Leaf => out == Z
     case Node(Leaf,x,Leaf) => out == S(Z)
-    case Node(Node(Leaf,a,Leaf),x,Node(Leaf,b,Leaf)) => out == S(S(S(Z)))
+    case Node(Node(Leaf,a,Leaf),x,Leaf) => out == S(S(Z))
+    case Node(Leaf,x,Node(Leaf,b,Leaf)) => out == S(S(Z))
     case _ => true
    }
 

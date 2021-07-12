@@ -18,22 +18,26 @@ case object Nil extends NatList
   
 def list_pairwise_swap(xs: NatList): NatList = { choose { (out:NatList) => 
 
-   def len(xs: NatList): Nat =
-      xs match {
-        case Nil => Z
-        case Cons(h,t) => S(len(t))
+  xs match {
+    case Nil => out == Nil
+    case Cons(h1,t1) =>
+      t1 match {
+        case Nil => out == Nil
+        case Cons(h2,t2) =>
+          t2 match {
+            case Nil => out == Cons(h2,Cons(h1,Nil))
+            case Cons(h3,t3) =>
+              t3 match {
+                case Nil => out == Nil
+                case Cons(h4,t4) =>
+                  t4 match {
+                    case Nil => out == Cons(h2,Cons(h1,Cons(h4,Cons(h3,Nil))))
+                    case Cons(h5,t5) => true
+                  }
+              }
+          }
       }
-
-    def isodd(x: Nat): Boolean =
-      x match {
-        case Z => F
-        case S(n) => n match {
-                        case Z => T
-                        case S(m) => isodd(m)
-                    }
-      }
-
-    ((isodd(len(xs)) == T) && (out == Nil)) || (isodd(len(xs)) == F)
+  }
 
 } }
 

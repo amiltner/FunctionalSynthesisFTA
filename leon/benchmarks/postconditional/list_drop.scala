@@ -26,7 +26,9 @@ def nat_to_int(x: Nat): Int =
   
 def list_drop(xs: NatList, n: Nat): NatList = { choose { (out:NatList) => 
 
-   (len(out) == len(xs) - nat_to_int(n))
+    def size = if (len(xs) < nat_to_int(n)) { 0 } else { len(xs) - nat_to_int(n) }
+
+   (len(out) == size)
 
 } }
 

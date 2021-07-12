@@ -13,14 +13,14 @@ case class Cons(head: Nat, tail: NatList) extends NatList
 case object Nil extends NatList
   
 def list_append(xs: NatList, ys: NatList): NatList = { choose { (out:NatList) => 
+  
+def len(l1: NatList): Int =
+  l1 match {
+    case Nil              => 0
+    case Cons(head, tail) => 1+len(tail)
+  }
 
-   (((xs == Nil) && (ys == Nil)) ==> (out == Nil)) &&
-// (((xs == Nil) && (ys == Cons(Z, Nil))) ==> (out == Cons(Z, Nil))) &&
-// (((xs == Cons(Z, Nil)) && (ys == Nil)) ==> (out == Cons(Z, Nil))) &&
-   (((xs == Cons(Z, Nil)) && (ys == Cons(Z, Nil))) ==> (out == Cons(Z, Cons(Z, Nil)))) &&
-   (((xs == Cons(S(Z), Cons(Z, Nil))) && (ys == Nil)) ==> (out == Cons(S(Z), Cons(Z, Nil)))) &&
-   (((xs == Cons(S(Z), Cons(Z, Nil))) && (ys == Cons(Z, Nil))) ==> (out == Cons(S(Z), Cons(Z, Cons(Z, Nil))))) &&
-   true
+  len(xs)+len(ys)==len(out)
 
 } }
 

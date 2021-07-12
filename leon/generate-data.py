@@ -42,7 +42,7 @@ def clean(s):
         else:
             return "{:.2f}".format(float(s))
     elif s == "timeout":
-        return "t/o"
+        return "\\incorrect"
     elif s == "error":
         return "err"
     else:
@@ -129,7 +129,7 @@ def gather_data(rootlength, path, base,name):
             if time >= TIMEOUT_TIME:
                 timeout = True
                 break
-            if err != "" or ("[ Error  ]" in datum):
+            if err != "" or ("[ Error  ]" in datum) or ("counter-example" in datum):
                 print(err)
                 error = True
                 break
@@ -141,6 +141,8 @@ def gather_data(rootlength, path, base,name):
             endind = initial.find("ms")
             time = initial[:endind]
             time = float(time) / 1000
+            if time > 120:
+                timeout = True
             this_run_data = list(map(lambda d: d.strip(),datum.split(";"))) + [time]
             if iteration == 0 and compare and not check_equal(path,base,this_run_data[0]):
                 incorrect = True
@@ -151,9 +153,9 @@ def gather_data(rootlength, path, base,name):
             for col_name in col_names:
                 current_data[col_name]="err"
         elif timeout:
-            print("t/o")
+            print("\\incorrect")
             for col_name in col_names:
-                current_data[col_name]="t/o"
+                current_data[col_name]="\\incorrect"
         elif memout:
             print("m/o")
             for col_name in col_names:
@@ -174,7 +176,7 @@ def gather_data(rootlength, path, base,name):
         averages = [average(col) for col in cols]
         return averages
 
-    gather_col([],ctime_combiner,["PostTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
+    gather_col([],ctime_combiner,["LeonTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
 
     return current_data
 

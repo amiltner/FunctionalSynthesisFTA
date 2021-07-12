@@ -261,6 +261,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
       value_filter       : Value.t -> bool            ;
       mutable all_states : StateSet.t                 ;
       mutable min_term_state : A.TermState.t option option ;
+      mutable dupe_ref   : t option                   ;
     }
   [@@deriving show]
 
@@ -272,12 +273,24 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
 
   let copy (c:t)
     : t =
-    Consts.time
-      Consts.copy_times
-      (fun () ->
-         { c with
-           a = A.copy c.a ;
-         })
+    begin match c.dupe_ref with
+      | Some d -> d
+      | None ->
+        let duped =
+          Consts.time
+            Consts.copy_times
+            (fun () ->
+               { c with
+                 a = A.copy c.a ;
+               })
+        in
+        c.dupe_ref <- Some duped;
+        duped
+    end
+
+  let clear_copy (c:t)
+    : unit =
+    c.dupe_ref <- None
 
   let equal _ _ = failwith "not implemented"
   let hash_fold_t _ _ = failwith "not implemented"
@@ -1185,6 +1198,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         min_term_state = None;
         all_states        ;
         value_filter      ;
+        dupe_ref = None   ;
       }
     in
     List.iter
@@ -1249,6 +1263,7 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
         min_term_state = None;
         all_states        ;
         value_filter      ;
+        dupe_ref = None   ;
       }
     in
     List.iter
@@ -1577,48 +1592,51 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
     || (List.exists ~f:contains_rec ts)
 
   let term_cost ?(print=false) t =
-    let terms = ref [] in
-    let rec term_cost_internal
-        (Term (t,ts) as fullt:A.Term.t)
-      : Float.t =
-      if List.mem ~equal:A.Term.equal !terms fullt then
-        2.0
-      else
-      let simple_subcost ts =
-        List.fold
-          ~f:(+.)
-          ~init:0.
-          (List.map ~f:(term_cost_internal) ts)
-      in
-      terms := fullt::!terms;
-      begin match Transition.id t with
-        | FunctionApp _ -> (Float.of_int (List.length ts)) +. simple_subcost ts
-        | Apply ->
-          simple_subcost ts
-        | VariantConstruct i -> 2. +. simple_subcost ts
-        | UnsafeVariantDestruct _ ->
-          1. +. simple_subcost ts
-        | TupleConstruct _ ->
-          1. +. simple_subcost ts
-        | TupleDestruct _ ->
-          begin match ts with
-            | [Term (t,_)] ->
-              begin match Transition.id t with
-                | Var -> 1.
-                | _ -> 1. +. simple_subcost ts
+    if !Consts.use_random then
+      1.0
+    else
+      let terms = ref [] in
+      let rec term_cost_internal
+          (Term (t,ts) as fullt:A.Term.t)
+        : Float.t =
+        if List.mem ~equal:A.Term.equal !terms fullt then
+          2.0
+        else
+          let simple_subcost ts =
+            List.fold
+              ~f:(+.)
+              ~init:0.
+              (List.map ~f:(term_cost_internal) ts)
+          in
+          terms := fullt::!terms;
+          begin match Transition.id t with
+            | FunctionApp _ -> (Float.of_int (List.length ts)) +. simple_subcost ts
+            | Apply ->
+              simple_subcost ts
+            | VariantConstruct i -> 2. +. simple_subcost ts
+            | UnsafeVariantDestruct _ ->
+              1. +. simple_subcost ts
+            | TupleConstruct _ ->
+              1. +. simple_subcost ts
+            | TupleDestruct _ ->
+              begin match ts with
+                | [Term (t,_)] ->
+                  begin match Transition.id t with
+                    | Var -> 1.
+                    | _ -> 1. +. simple_subcost ts
+                  end
+                | _ -> failwith "invalid"
               end
-            | _ -> failwith "invalid"
+            | Var -> (*0.*)
+              1.
+            | Rec -> (*1. +. simple_subcost ts*)
+              1. +. simple_subcost ts
+            | VariantSwitch is -> (*2. +. simple_subcost ts*)
+              5. +. (Float.of_int (List.length is)) +. simple_subcost ts
+            | LetIn -> failwith "ah"
           end
-        | Var -> (*0.*)
-          1.
-        | Rec -> (*1. +. simple_subcost ts*)
-          1. +. simple_subcost ts
-        | VariantSwitch is -> (*2. +. simple_subcost ts*)
-          5. +. (Float.of_int (List.length is)) +. simple_subcost ts
-        | LetIn -> failwith "ah"
-      end
-    in
-    term_cost_internal t
+      in
+      term_cost_internal t
 
   let termstate_cost ?(print=false) t =
     term_cost (A.TermState.to_term t)
@@ -1733,7 +1751,38 @@ module Make(A : Automata.Automaton with module Symbol := Transition and module S
               basic_mts
               (*if List.is_empty (extract_unbranched_switches (A.TermState.to_term mts)) then
                 basic_mts
-              else
+                else
+                Consts.time
+                  Consts.min_elt_times
+                  (fun _ -> A.min_term_state c.a ~f:is_valid_term ~cost:term_cost ~reqs:(List.dedup_and_sort ~compare:State.compare % extract_unbranched_states)(*fun _ -> []*))*)
+          end
+        in
+        c.min_term_state <- Some mts;
+        mts
+    end
+
+  let min_term_state_silly
+      (c:t)
+      (contained:A.Term.t -> bool)
+      (endcontained:A.Term.t -> bool)
+    : A.TermState.t option =
+    begin match c.min_term_state with
+      | Some mts -> mts
+      | None ->
+        let mts =
+          let basic_mts =
+            Consts.time
+              Consts.min_elt_times
+              (fun _ -> A.min_term_state_silly c.a ~f:(fun ts -> is_valid_ts ts && not (endcontained (A.TermState.to_term ts))) ~cost ~reqs:(fun ts -> contained (A.TermState.to_term ts)))
+          in
+          begin match basic_mts with
+            | None ->
+              basic_mts
+            | Some mts ->
+              basic_mts
+              (*if List.is_empty (extract_unbranched_switches (A.TermState.to_term mts)) then
+                basic_mts
+                else
                 Consts.time
                   Consts.min_elt_times
                   (fun _ -> A.min_term_state c.a ~f:is_valid_term ~cost:term_cost ~reqs:(List.dedup_and_sort ~compare:State.compare % extract_unbranched_states)(*fun _ -> []*))*)

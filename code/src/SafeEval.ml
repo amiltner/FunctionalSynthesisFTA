@@ -237,8 +237,12 @@ let rec evaluate
       let v = evaluate current_check e in
       begin match v with
         | VWildcard -> VWildcard
-        | VTuple vs -> List.nth_exn vs i
-        | _ -> failwith "bad"
+        | VTuple vs ->
+          begin match List.nth vs i with
+            | None -> raise ExpectedException
+            | Some v -> v
+          end
+        | _ -> raise ExpectedException
       end
     | Unctor (i,e) ->
       let v = evaluate current_check e in
@@ -248,7 +252,7 @@ let rec evaluate
             e
           else
             raise ExpectedException
-        | _ -> failwith "ah"
+        | _ -> raise ExpectedException
       end
   end
 

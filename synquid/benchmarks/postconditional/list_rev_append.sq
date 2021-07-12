@@ -13,12 +13,6 @@ data NatList where
 termination measure len :: NatList -> {Int | _v >= 0} where
   Nil -> 0
   Cons x xs -> 1 + len xs
-  
-list_append :: NatList -> NatList -> NatList
-list_append = \l1 . \l2 .
-  match l1 with
-    Nil            -> l2
-    Cons head tail -> Cons head (list_append tail l2)
 
 measure hd :: NatList -> Nat where
   Nil -> Z
@@ -27,6 +21,12 @@ measure hd :: NatList -> Nat where
 measure last :: NatList -> Nat where
   Nil -> Z
   Cons h t -> if t == Nil then h else last t
+  
+list_append :: l1:NatList -> l2:NatList -> { NatList | (if (l1 == Nil) then (hd _v) == (hd l2) else (hd _v) == (hd l1)) {-&& (if (l2 == Nil) then (last _v) == (last l1) else (last _v) == (last l2))-} }
+list_append = \l1 . \l2 .
+  match l1 with
+    Nil            -> l2
+    Cons head tail -> Cons head (list_append tail l2)
   
 list_rev_append :: l1:NatList -> { NatList |
 

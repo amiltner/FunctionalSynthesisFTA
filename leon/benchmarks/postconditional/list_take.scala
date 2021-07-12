@@ -32,7 +32,7 @@ def list_take(n: Nat, xs: NatList): NatList = { choose { (out:NatList) =>
         case Cons(h,t) => h
       }
 
-    ( (len(out) == nat_to_int(n)) || (len(xs) < nat_to_int(n)) ) && ( (hd(out) == hd(xs)) || (xs == Nil) )
+    ( (len(xs) < nat_to_int(n)) || (len(out) == nat_to_int(n)) ) && ( (len(xs) >= nat_to_int(n)) || (len(out) == len(xs)) )
 
 } }
 

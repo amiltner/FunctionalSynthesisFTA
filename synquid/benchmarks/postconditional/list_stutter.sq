@@ -18,9 +18,9 @@ measure hd :: NatList -> Nat where
   Nil -> Z
   Cons h t -> h
   
-list_stutter :: n:Nat -> m:Nat -> { NatList | 
+list_stutter :: l:NatList -> { NatList | 
 
-  len _v == dec m && (m != Z ==> hd _v == n)
+  len _v == len l + len l
 
 }
 list_stutter = ??

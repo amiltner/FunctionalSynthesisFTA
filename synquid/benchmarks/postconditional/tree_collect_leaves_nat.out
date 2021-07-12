@@ -1,9 +1,0 @@
-tree_collect_leaves :: t:NatTree -> {NatList|(((((t == (Leaf) ==> _v == (Nil)) && (t == (Node (Leaf) (Z) (Leaf)) ==> _v == (Cons (Z) (Nil)))) && (t == (Node (Leaf) ((S (Z))) (Leaf)) ==> _v == (Cons ((S (Z))) (Nil)))) && (t == (Node ((Node (Leaf) ((S (Z))) (Leaf))) (Z) (Leaf)) ==> _v == (Cons ((S (Z))) ((Cons (Z) (Nil)))))) && (t == (Node ((Node (Leaf) ((S ((S (Z))))) (Leaf))) ((S (Z))) (Leaf)) ==> _v == (Cons ((S ((S (Z))))) ((Cons ((S (Z))) (Nil)))))) && True}
-tree_collect_leaves = \t . 
-  match t with
-    Leaf -> Nil
-    Node x3 x4 x5 -> 
-      match x3 with
-        Leaf -> Cons x4 Nil
-        Node x11 x12 x13 -> Cons x12
-                              (Cons x4 Nil)

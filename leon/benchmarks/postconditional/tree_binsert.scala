@@ -73,7 +73,12 @@ def tree_binsert(t: NatTree,x: Nat): NatTree = { choose { (out:NatTree) =>
             case Node(l,x,r) => size_values(l) + size_values(r) + 1
         }
 
-    (in_order(out) == T) && (contains(out,x) == T) && (size_values(out) == size_values(t) + 1)
+  def tree_content(t:NatTree) : Set[Nat] = t match {
+    case Leaf => Set.empty[Nat]
+    case Node(l,x,r) => Set(x) ++ tree_content(l) ++ tree_content(r)
+  }
+
+    ((in_order(t) == T) ==> (in_order(out) == T)) && ((tree_content(t) ++ Set(x)) subsetOf tree_content(out))
 
 } }
 

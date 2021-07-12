@@ -24,19 +24,24 @@ def list_append(l1: BooleanList, l2: BooleanList): BooleanList =
 
 def tree_collect_leaves(t: BooleanTree): BooleanList = { choose { (out:BooleanList) => 
 
-   def size_leaf(tr: BooleanTree): Int =
-        tr match {
-            case Leaf => 1
-            case Node(l,x,r) => size_leaf(l) + size_leaf(r)
-        }
-
-    def len(xs: BooleanList): Int =
-        xs match {
-            case Nil => 0
-            case Cons(h,t) => 1 + len(t)
-        }
-
-    (size_leaf(t) == len(out))
+  t match {
+    case Leaf => out == Nil
+    case Node(l,x,r) =>
+      l match {
+        case Leaf =>
+          r match {
+            case Leaf => out == Cons(x,Nil)
+            case Node(l2,x2,r2) => true
+          }
+        case Node(l1,x1,r1) =>
+          r match {
+            case Leaf => true
+            case Node(l2,x2,r2) =>
+              (l1 == Leaf && r1 == Leaf && l2 == Leaf && r2 == Leaf) ==>
+              (out == Cons(x1, Cons(x, Cons(x2,Nil))))
+          }
+      }
+  }
 
 } }
 

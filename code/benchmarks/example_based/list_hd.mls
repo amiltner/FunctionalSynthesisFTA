@@ -6,13 +6,6 @@ type list =
   | Nil
   | Cons of nat * list
 
-let hd =
-  fun (l:list) ->
-    match l with
-    | Nil -> 0
-    | Cons (x, t) -> x
-;;
-
 synth list -> nat satisfying
 
 [Nil] -> 0,

@@ -16,10 +16,6 @@ sealed abstract class Cmp
 case object LT extends Cmp
 case object EQ extends Cmp
 case object GT extends Cmp
-
-sealed abstract class Boolean
-case object T extends Boolean
-case object F extends Boolean
   
 def nat_compare(n1: Nat, n2: Nat): Cmp =
   n1 match {
@@ -36,44 +32,26 @@ def nat_compare(n1: Nat, n2: Nat): Cmp =
   }
   
 def list_sorted_insert(xs: NatList, n: Nat): NatList = { choose { (out:NatList) => 
-
    def list_sorted(xs: NatList) : Boolean =
         xs match {
-          case Nil => T
+          case Nil => true
           case Cons(h,t) => t match {
                             case Nil => list_sorted(t)
                             case Cons(t1,t2) =>
                                     if (nat_compare(h,t1) != GT) {
                                         list_sorted(t)
                                     } else {
-                                        F
+                                        false
                                     }
                         }
         }
 
-    def contained_in(x:Nat,xs:NatList) : Boolean =
-      xs match {
-        case Nil => F
-        case Cons(h,t) =>
-          if (h == x) {
-            T
-          } else {
-            contained_in(x,t)
-          }
-      }
+  def content(l: NatList): Set[Nat] = l match {
+    case Nil => Set.empty[Nat]
+    case Cons(i, t) => Set(i) ++ content(t)
+  }
 
-    def full_contained_in(xs:NatList,ys:NatList) : Boolean =
-      xs match {
-        case Nil => T
-        case Cons(h,t) =>
-          if (contained_in(h,ys) == T) {
-            full_contained_in(t,ys)
-          } else {
-            F
-          }
-      }
-
-    (list_sorted(out) == T) && (full_contained_in(Cons(n,xs),out) == T)
+    ((!(list_sorted(xs))) || list_sorted(out)) && (content(Cons(n,xs)) subsetOf content(out))
 
 } }
 

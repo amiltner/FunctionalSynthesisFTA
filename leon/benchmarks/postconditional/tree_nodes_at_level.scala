@@ -24,7 +24,27 @@ def nat_add(n1: Nat, n2: Nat): Nat =
 
 def tree_nodes_at_level(t: BooleanTree,n:Nat): Nat = { choose { (out:Nat) => 
 
-true
+  t match {
+    case Leaf => out == Z
+    case Node(Leaf,_,Leaf) =>
+      n match {
+        case Z => out == S(Z)
+        case _ => out == Z
+      }
+    case Node(Node(Leaf,_,Leaf),_,Leaf) =>
+      n match {
+        case Z => out == S(Z)
+        case S(Z) => out == S(Z)
+        case _ => out == Z
+      }
+    case Node(Leaf,_,Node(Leaf,_,Leaf)) =>
+      n match {
+        case Z => out == S(Z)
+        case S(Z) => out == S(Z)
+        case _ => out == Z
+      }
+    case _ => true
+}
 
 } }
 

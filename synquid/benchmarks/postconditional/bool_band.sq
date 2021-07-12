@@ -3,6 +3,6 @@ data Boolean where
   F :: Boolean
 
 bool_band :: p:Boolean -> q:Boolean -> { Boolean |
-  if p == F || q == F then _v == F else _v == T
+  if (p == F || q == F) then (_v == F) else (_v == T)
 }
 bool_band = ??

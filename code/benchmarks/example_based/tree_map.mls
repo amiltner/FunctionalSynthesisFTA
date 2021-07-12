@@ -15,8 +15,10 @@ let div2 =
     fun (n : nat) ->
       match n with
       | O -> O
-      | S O -> O
-      | S S np -> S (div2 np)
+      | S np ->
+        (match np with
+         | O -> O
+         | S npp -> S (div2 npp))
 ;;
 
 let inc =

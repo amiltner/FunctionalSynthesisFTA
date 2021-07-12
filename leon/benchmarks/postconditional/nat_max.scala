@@ -28,11 +28,14 @@ def nat_compare(n1: Nat, n2: Nat): Cmp =
   }
   
 def nat_max(xs: Nat,ys: Nat): Nat = { choose { (out:Nat) => 
-    nat_compare(xs,ys) match {
-        case LT => out == ys
-        case EQ => out == xs
-        case GT => out == xs
-    }
+
+    def nat_to_int(x: Nat): Int =
+      x match {
+        case Z => 0
+        case S(m) => nat_to_int(m) + 1
+      }
+
+    (nat_to_int(out) >= nat_to_int(xs)) && (nat_to_int(out) >= nat_to_int(ys))
 
 } }
 

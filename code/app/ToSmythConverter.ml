@@ -76,7 +76,7 @@ let rec to_pat
   : SmythLang.pat =
   begin match p with
     | Tuple ps -> PTuple (List.map ~f:to_pat ps)
-    | Ctor _ -> failwith "invalid"
+    | Ctor _ -> failwith (Pattern.show p)
     | Var i -> PVar (Id.to_string i)
     | Wildcard -> PWildcard
   end

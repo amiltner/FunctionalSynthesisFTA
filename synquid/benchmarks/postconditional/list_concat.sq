@@ -22,7 +22,7 @@ termination measure llen :: NatListList -> {Int | _v >= 0} where
   LNil -> 0
   LCons x xs -> 1 + llen xs
   
-list_append :: NatList -> NatList -> NatList
+list_append :: l1:NatList -> l2:NatList -> { NatList | len l1 + len l2 == len _v }
 list_append = \l1 . \l2 .
   match l1 with
     Nil            -> l2

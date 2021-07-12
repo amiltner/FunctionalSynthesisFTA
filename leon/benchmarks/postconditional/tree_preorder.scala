@@ -22,14 +22,45 @@ def list_append(l1: NatList, l2: NatList): NatList =
     case Cons(head, tail) => Cons (head, list_append(tail, l2))
   }
 
-def tree_preorder(t: NatTree): NatList = { choose { (out:NatList) => 
+def tree_preorder(t: NatTree): NatList = { choose { (out:NatList) =>
 
-t match {
-  case Leaf => out == Nil
-  case Node(Node (Leaf, a, Leaf), b, Leaf) => out == Cons (b, Cons (a, Nil))
-  case Node(Leaf, a, Node (Leaf, b, Leaf)) => out == Cons (a, Cons (b, Nil))
-  case _ => true
-}
+def to_pair_set(n:Nat,ns:NatList) : Set[(Nat,Nat)] =
+  ns match {
+    case Nil => Set.empty[(Nat,Nat)]
+    case Cons(h,t) => Set((n,h)) ++ to_pair_set(n,t)
+  }
+
+def to_pair_set_rev(n:Nat,ns:NatList) : Set[(Nat,Nat)] =
+  ns match {
+    case Nil => Set.empty[(Nat,Nat)]
+    case Cons(h,t) => Set((h,n)) ++ to_pair_set_rev(n,t)
+  }
+
+def get_afters(ns:NatList) : Set[(Nat,Nat)] =
+  ns match {
+    case Nil => Set.empty[(Nat,Nat)]
+    case Cons(h,t) => to_pair_set(h,t) ++ get_afters(t)
+  }
+
+def get_tree_afters(nt:NatTree,nl:NatList) : Set[(Nat,Nat)] =
+  nt match {
+    case Leaf => Set.empty[(Nat,Nat)]
+    case Node(l,x,r) =>
+      get_tree_afters(l,Cons(x,nl)) ++ get_tree_afters(r,Cons(x,nl)) ++
+      to_pair_set_rev(x,nl)
+  }
+
+  def tree_content(t:NatTree) : Set[Nat] = t match {
+    case Leaf => Set.empty[Nat]
+    case Node(l,x,r) => Set(x) ++ tree_content(l) ++ tree_content(r)
+  }
+
+  def list_content(l: NatList): Set[Nat] = l match {
+    case Nil => Set.empty[Nat]
+    case Cons(i, t) => Set(i) ++ list_content(t)
+  }
+
+get_tree_afters(t,Nil) == get_afters(out) && tree_content(t) == list_content(out)
 
 } }
 

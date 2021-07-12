@@ -22,11 +22,14 @@ let rec import_imports
   end
 
 module Crazy = CrazyFTASynthesizer.Create(Automata.TimbukBuilder)
+module Simple = CrazyFTASynthesizer.Create(Automata.TimbukBuilder)
 module VEQ = Synthesizers.VerifiedEquiv.Make(Synthesizers.IOSynth.OfPredSynth(Crazy))(EnumerativeVerifier.T)
+module SimpleVEQ = Synthesizers.VerifiedEquiv.Make(Synthesizers.IOSynth.OfPredSynth(Simple))(EnumerativeVerifier.T)
 
 let get_ioe_synthesizer
     ~(use_myth:bool)
     ~(use_smyth:bool)
+    ~(use_simple:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
     ~(use_vata:bool)
@@ -38,6 +41,14 @@ let get_ioe_synthesizer
       (module L2SynthesisCaller : Synthesizers.IOSynth.S)
     else if use_smyth then
       (module SmythSynthesizer.T : Synthesizers.IOSynth.S)
+    else if use_simple then
+      let builder =
+        if use_vata then
+          (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
+        else
+          (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
+      in
+      (module Synthesizers.IOSynth.OfPredSynth(SimpleFTASynthesizer.Create(val builder)) : Synthesizers.IOSynth.S)
     else
       let builder =
         if use_vata then
@@ -61,24 +72,35 @@ let synthesize_satisfying_verified_equiv
     ~(equiv:Value.t -> Value.t)
     ~(use_myth:bool)
     ~(use_smyth:bool)
+    ~(use_simple:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
     ~(use_vata:bool)
   : Expr.t =
-  let synth = get_ioe_synthesizer ~use_myth ~use_smyth ~use_l2 ~tc_synth ~use_vata in
+  let synth = get_ioe_synthesizer ~use_myth ~use_smyth ~use_simple ~use_l2 ~tc_synth ~use_vata in
   let module S = Synthesizers.VerifiedEquiv.Make(val synth)(EnumerativeVerifier.T) in
   S.synth ~problem ~context ~tin ~tout equiv
 
 let get_predicate_synthesizer
+    ~(use_simple:bool)
     ~(use_vata:bool)
   : (module Synthesizers.PredicateSynth.S) =
-  let builder =
-    if use_vata then
-      (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
-    else
-      (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
-  in
-  (module CrazyFTASynthesizer.Create(val builder) : Synthesizers.PredicateSynth.S)
+  if use_simple then
+    let builder =
+      if use_vata then
+        (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
+      else
+        (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
+    in
+    (module SimpleFTASynthesizer.Create(val builder) : Synthesizers.PredicateSynth.S)
+  else
+    let builder =
+      if use_vata then
+        (module TimbukVataBuilder.Make : Automata.AutomatonBuilder)
+      else
+        (module Automata.TimbukBuilder : Automata.AutomatonBuilder)
+    in
+    (module CrazyFTASynthesizer.Create(val builder) : Synthesizers.PredicateSynth.S)
 
 let synthesize_satisfying_postcondition
     ~(problem:Problem.t)
@@ -88,6 +110,7 @@ let synthesize_satisfying_postcondition
     ~(post:Value.t -> Value.t -> bool)
     ~(use_myth:bool)
     ~(use_smyth:bool)
+    ~(use_simple:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
     ~(use_vata:bool)
@@ -95,7 +118,7 @@ let synthesize_satisfying_postcondition
   if use_myth then failwith "invalid synthesizer for postconditions";
   if use_l2 then failwith "invalid synthesizer for postconditions";
   if tc_synth then failwith "invalid synthesizer for postconditions";
-  let synth = get_predicate_synthesizer ~use_vata in
+  let synth = get_predicate_synthesizer ~use_vata ~use_simple in
   let module S = Synthesizers.VerifiedPredicate.Make(val synth)(EnumerativeVerifier.T) in
   S.synth ~problem ~context ~tin ~tout post
 
@@ -106,6 +129,7 @@ let synthesize_satisfying_ioes
     ~(tout:Type.t)
     ~(ioes:(Value.t * Value.t) list)
     ~(use_myth:bool)
+    ~(use_simple:bool)
     ~(use_smyth:bool)
     ~(use_l2:bool)
     ~(tc_synth:bool)
@@ -118,7 +142,7 @@ let synthesize_satisfying_ioes
       (module SmythSynthesizer.T : Synthesizers.IOSynth.S)
     else
       begin
-        let synth = get_predicate_synthesizer ~use_vata in
+        let synth = get_predicate_synthesizer ~use_vata ~use_simple in
         (module Synthesizers.VerifiedPredicate.ToIOSynth(Synthesizers.VerifiedPredicate.Make(val synth)))
       end
   in
@@ -171,10 +195,11 @@ let synthesize_solution
     ~(fname:string)
     ~(use_myth:bool)
     ~(use_smyth:bool)
+    ~(use_simple:bool)
     ~(use_l2:bool)
     ~(log:bool)
     ~(nonincremental:bool)
-    ~(run_experiments:bool)
+    ~(no_experiments:bool)
     ~(print_times:bool)
     ~(tc_synth:bool)
     ~(use_vata:bool)
@@ -225,6 +250,7 @@ let synthesize_solution
           ~ioes
           ~use_myth
           ~use_smyth
+          ~use_simple
           ~use_l2
           ~tc_synth
           ~use_vata
@@ -239,6 +265,7 @@ let synthesize_solution
           ~post
           ~use_myth
           ~use_smyth
+          ~use_simple
           ~use_l2
           ~tc_synth
           ~use_vata
@@ -252,13 +279,14 @@ let synthesize_solution
           ~tout
           ~equiv
           ~use_myth
+          ~use_simple
           ~use_smyth
           ~use_l2
           ~tc_synth
           ~use_vata
     end
   in
-  if run_experiments then
+  if no_experiments then
     begin
       print_endline (Expr.show e);
       print_endline ";";
@@ -281,6 +309,12 @@ let synthesize_solution
       print_endline (Float.to_string (Consts.total Consts.accepts_term_times));
       print_endline ";";
       print_endline (Float.to_string (Consts.max Consts.accepts_term_times));
+      print_endline ";";
+      print_endline (Int.to_string (!Consts.loop_count));
+      print_endline ";";
+      print_endline (Float.to_string (Consts.total Consts.full_synth_times));
+      print_endline ";";
+      print_endline (Float.to_string (Consts.max Consts.full_synth_times));
     end
   else
     begin
@@ -306,17 +340,20 @@ let handle_inputs
     ~(fname:string)
     ~(use_myth:bool)
     ~(use_smyth:bool)
+    ~(use_simple:bool)
     ~(check_equiv1:string option)
     ~(check_equiv2:string option)
     ~(use_l2:bool)
     ~(log:bool)
     ~(nonincremental:bool)
-    ~(run_experiments:bool)
+    ~(no_experiments:bool)
     ~(print_times:bool)
     ~(tc_synth:bool)
     ~(use_vata:bool)
     ~(print_mapping:bool)
+    ~(use_random:bool)
   : unit =
+  Consts.use_random := use_random;
   begin match (check_equiv1,check_equiv2) with
     | (Some ce1,Some ce2) ->
       check_equivalence
@@ -329,10 +366,11 @@ let handle_inputs
         ~fname
         ~use_myth
         ~use_smyth
+        ~use_simple
         ~use_l2
         ~log
         ~nonincremental
-        ~run_experiments
+        ~no_experiments
         ~print_times
         ~tc_synth
         ~use_vata
@@ -346,40 +384,45 @@ let param =
       let input_spec  = anon ("input_spec" %: string)
       and use_myth   = flag "use-myth" no_arg ~doc:"Solve using the myth synthesis engine"
       and use_smyth   = flag "use-smyth" no_arg ~doc:"Solve using the smyth synthesis engine"
+      and use_simple   = flag "use-simple" no_arg ~doc:"Solve using the simple synthesis engine"
       and log   = flag "log" no_arg ~doc:"log process"
       and nonincremental   = flag "nonincremental" no_arg ~doc:"use nonincremental synthesis"
       and use_l2   = flag "use-l2" no_arg ~doc:"Solve using the l2 synthesis engine"
       and print_times   = flag "print-times" no_arg ~doc:"print the times to run various components"
-      and run_experiments   = flag "run-experiments" no_arg ~doc:"print the times to run various components"
+      and no_experiments   = flag "no-experiments" no_arg ~doc:"print the times to run various components"
       and check_equiv1   = flag "check-equiv1" (optional string) ~doc:"check equivalence of two synthesized solutions"
       and check_equiv2   = flag "check-equiv2" (optional string) ~doc:"check equivalence of two synthesized solutions"
       and tc_synth   = flag "tc-synth" no_arg ~doc:"use the FTA synthesizer with trace complete examples"
       and use_vata   = flag "use-vata" no_arg ~doc:"use vata to synthesize"
       and print_mapping   = flag "print-mapping" no_arg ~doc:"print timbuk to vata mapping"
+      and use_random   = flag "use-random" no_arg ~doc:"print timbuk to vata mapping"
       (*and no_grammar_output   = flag "no-grammar-output" no_arg ~doc:"do not output the discovered grammar"
         and log_progress   = flag "log-progress" no_arg ~doc:"output the progress log"
         and print_runtime_specs  = flag "print-runtime-specs" no_arg ~doc:"output the runtime specs"
-        and run_experiments  = flag "run-experiments" no_arg ~doc:"output experient info"
+        and no_experiments  = flag "no-experiments" no_arg ~doc:"output experient info"
         and positive_examples  = flag "pos" (listed string) ~doc:"path positive example path"
         and negative_examples  = flag "neg" (listed string) ~doc:"path negative example path"
         and pos_ndfo  = flag "pos-ndf" (optional string) ~doc:"path newline delimited positive example path"
         and neg_ndfo  = flag "neg-ndf" (optional string) ~doc:"path newline delimited negative example path"*)
       in
+      let no_experiments = not no_experiments in
       fun () ->
         handle_inputs
           ~fname:input_spec
           ~use_myth
           ~use_smyth
+          ~use_simple
           ~use_l2
           ~log
           ~nonincremental
           ~print_times
-          ~run_experiments
+          ~no_experiments
           ~tc_synth
           ~check_equiv1
           ~check_equiv2
           ~use_vata
           ~print_mapping
+          ~use_random
     ]
 
 let () =

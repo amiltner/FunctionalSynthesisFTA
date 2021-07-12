@@ -42,9 +42,9 @@ def clean(s):
         else:
             return "{:.2f}".format(float(s))
     elif s == "timeout":
-        return "t/o"
+        return "\\incorrect"
     elif s == "error":
-        return "err"
+        return "\\incorrect"
     else:
         return s
 
@@ -126,12 +126,12 @@ def gather_data(rootlength, path, base,name):
         for iteration in range(repetition_count):
             (time,datum,err) = gather_datum(path, base,flags,timeout_time)
             print(time)
+            if time >= TIMEOUT_TIME:
+                timeout = True
+                break
             if err != "":
                 print(err)
                 error = True
-                break
-            if time >= TIMEOUT_TIME:
-                timeout = True
                 break
             if datum == "":
                 memout = True
@@ -144,11 +144,11 @@ def gather_data(rootlength, path, base,name):
         if error:
             print("err")
             for col_name in col_names:
-                current_data[col_name]="err"
+                current_data[col_name]="\\incorrect"
         elif timeout:
             print("t/o")
             for col_name in col_names:
-                current_data[col_name]="t/o"
+                current_data[col_name]="\\incorrect"
         elif memout:
             print("m/o")
             for col_name in col_names:
@@ -169,7 +169,7 @@ def gather_data(rootlength, path, base,name):
         averages = [average(col) for col in cols]
         return averages
 
-    gather_col([],ctime_combiner,["PostTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
+    gather_col([],ctime_combiner,["SynquidTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
 
     return current_data
 

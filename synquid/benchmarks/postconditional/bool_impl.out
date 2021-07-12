@@ -1,7 +1,5 @@
-bool_impl :: p:Bool -> q:Bool -> {Bool|p == True && q == False <==> _v == False}
-benchmarks/postconditional/bool_impl.sq:4: Error:
-  Cannot match shape 'Bool'
-  with shape '_'
-  when checking q :: _ in
-  \p . \q . 
-      match q with
+bool_impl :: p:Boolean -> q:Boolean -> {Boolean|p == (T) && q == (F) <==> _v == (F)}
+bool_impl = \p . \q . 
+    match p with
+      T -> q
+      F -> T

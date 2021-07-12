@@ -23,13 +23,13 @@ measure tl :: NatList -> NatList where
   Nil -> Nil
   Cons x xs -> xs
   
-list_fold :: (Nat -> Nat -> Nat) -> Nat -> NatList -> Nat
-list_fold = \f . \acc . \xs .
+list_fold :: (Nat -> Nat -> Nat) -> NatList -> Nat -> Nat
+list_fold = \f . \xs . \acc .
   match xs with
     Nil            -> acc
-    Cons head tail -> f (list_fold f acc tail) head
+    Cons head tail -> f (list_fold f tail acc) head
   
-nat_add :: Nat -> Nat -> Nat
+nat_add :: n1:Nat -> n2:Nat -> { Nat | dec n1 + dec n2 == dec _v }
 nat_add = \n1 . \n2 .
   match n1 with
     Z   -> n2

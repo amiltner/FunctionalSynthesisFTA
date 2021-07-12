@@ -3,6 +3,7 @@ let nonincremental = ref false
 let print_mapping = ref false
 let pretty_ctors = ref true
 let use_abstraction = ref false
+let use_random = ref false
 let print = ref false
 
 let log thunk =
@@ -19,6 +20,9 @@ let min_elt_times = ref (0.0,0.0)
 let initial_creation_times = ref (0.0,0.0)
 let accepts_term_times = ref (0.0,0.0)
 let copy_times = ref (0.0,0.0)
+let full_synth_times = ref (0.0,0.0)
+
+let loop_count = ref 0
 
 let time t f =
   let (ttot,tmax) = !t in

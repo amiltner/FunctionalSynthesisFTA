@@ -19,9 +19,10 @@ def stddev(lst):
 
 TEST_EXT = '.mls'
 REF_EXT = '.out'
+SMYTH_EXT = '.smyth.out'
 BASELINE_EXT = '.out'
 BASE_FLAGS = []
-TIMEOUT_TIME = 600
+TIMEOUT_TIME = 120
 STILL_WORK_TIMEOUT_TIME = 120
 GENERATE_EXAMPLES_TIMEOUT_TIME = 600000
 
@@ -42,15 +43,21 @@ def find_tests(root):
         tests.extend([(path, f[0]) for f in files if f[1] == TEST_EXT])
     return tests
 
-def gather_datum(prog, path, base, timeout):
-    process_output = EasyProcess([prog] + [join(path, base + TEST_EXT)]).call(timeout=timeout)
+def gather_datum(prog, path, base, additional_flags, timeout):
+    process_output = EasyProcess([prog] + additional_flags + [join(path, base + TEST_EXT)]).call(timeout=timeout)
     return process_output.stdout
 
 
-def gather_data(rootlength, prog, path, base):
+def gather_data(rootlength, prog, path, base,run_smyth):
     if not os.path.exists(join(path,base+REF_EXT)):
-        res = gather_datum(prog, path, base,TIMEOUT_TIME)
+        res = gather_datum(prog, path, base,[],TIMEOUT_TIME)
+        print(join(path,base+REF_EXT))
         with open(join(path,base+REF_EXT), "wb") as outfile:
+            outfile.write(res)
+    if not os.path.exists(join(path,base+SMYTH_EXT)) and run_smyth:
+        print(join(path,base+SMYTH_EXT))
+        res = gather_datum(prog, path, base,["-use-smyth"],TIMEOUT_TIME)
+        with open(join(path,base+SMYTH_EXT), "wb") as outfile:
             outfile.write(res)
 
 def specsize_compare(x,y):
@@ -89,15 +96,20 @@ def main(args):
         incremental_path = args[3]
         postconditional_path = args[4]
         example_based_path = args[5]
-        rootlength = len(trace_complete_path)
-        print(trace_complete_path)
-        print(prog)
+        rootlength = len(example_based_path)
         if not os.path.exists(prog):
             print_usage(args)
-        elif os.path.exists(trace_complete_path) and os.path.isdir(trace_complete_path):
-            for path, base in find_tests(trace_complete_path):
+        elif os.path.exists(example_based_path) and os.path.isdir(example_based_path):
+            for path, base in find_tests(example_based_path):
                 print(join(path, base + TEST_EXT).replace("_","-")[rootlength:])
-                gather_data(rootlength,prog, path, base)
+                gather_data(rootlength,prog, path, base,True)
+        else:
+            print_usage(args)
+        rootlength = len(postconditional_path)
+        if os.path.exists(postconditional_path) and os.path.isdir(postconditional_path):
+            for path, base in find_tests(postconditional_path):
+                print(join(path, base + TEST_EXT).replace("_","-")[rootlength:])
+                gather_data(rootlength,prog, path, base,False)
         else:
             print_usage(args)
     else:

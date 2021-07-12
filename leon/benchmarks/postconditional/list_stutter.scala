@@ -16,7 +16,7 @@ sealed abstract class Boolean
 case object T extends Boolean
 case object F extends Boolean
   
-def list_stutter(n: Nat,m: Nat): NatList = { choose { (out:NatList) => 
+def list_stutter(l: NatList): NatList = { choose { (out:NatList) => 
 
    def len(xs: NatList): Nat =
       xs match {
@@ -24,22 +24,13 @@ def list_stutter(n: Nat,m: Nat): NatList = { choose { (out:NatList) =>
         case Cons(h,t) => S(len(t))
       }
 
-    def hd(xs: NatList): Nat =
-      xs match {
-        case Nil => Z
-        case Cons(h,t) => h
-      }
+   def double(x:Nat):Nat =
+     x match {
+       case Z => Z
+       case S(n) => S(S(double(n)))
+     }
 
-    def all_n(n: Nat,xs: NatList): Boolean =
-        xs match {
-            case Nil => T
-            case Cons(h,t) =>
-                    if (h == n) {
-                        all_n(n,t)
-                    } else { F }
-        }
-
-    (len(out) == m) && (all_n(n,out) == T)
+   double(len(l))==len(out)
 
 } }
 

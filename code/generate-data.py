@@ -42,9 +42,9 @@ def clean(s):
         else:
             return "{:.2f}".format(float(s))
     elif s == "timeout":
-        return "t/o"
+        return "\\incorrect"
     elif s == "error":
-        return "err"
+        return "\\incorrect"
     else:
         return s
 
@@ -58,7 +58,7 @@ def average(lst):
 
 TEST_EXT = '.mls'
 BASELINE_EXT = '.out'
-BASE_FLAGS = ["-run-experiments"]
+BASE_FLAGS = []
 TIMEOUT_TIME = 120
 CORRECT_TIMEOUT_TIME = 120
 STILL_WORK_TIMEOUT_TIME = 120
@@ -139,21 +139,33 @@ def gather_data(rootlength, prog, path, base,name,run_smyth):
             run_data.append(this_run_data)
             iteration = iteration+1
         if error:
-            print("err")
+            print("\\incorrect")
             for col_name in col_names:
-                current_data[col_name]="err"
+                if "ComputationTime" in col_name:
+                    current_data[col_name]="\\incorrect"
+                else:
+                    current_data[col_name]="\na"
         elif timeout:
-            print("t/o")
+            print("\\incorrect")
             for col_name in col_names:
-                current_data[col_name]="t/o"
+                if "ComputationTime" in col_name:
+                    current_data[col_name]="\\incorrect"
+                else:
+                    current_data[col_name]="\na"
         elif memout:
-            print("m/o")
+            print("\\incorrect")
             for col_name in col_names:
-                current_data[col_name]="m/o"
+                if "ComputationTime" in col_name:
+                    current_data[col_name]="\\incorrect"
+                else:
+                    current_data[col_name]="\na"
         elif incorrect:
             print("incorrect")
             for col_name in col_names:
-                current_data[col_name]="incorrect"
+                if "ComputationTime" in col_name:
+                    current_data[col_name]="\\incorrect"
+                else:
+                    current_data[col_name]="\na"
         else:
             run_data_transpose = transpose(run_data)
             combined_data = run_combiner(run_data_transpose)
@@ -166,10 +178,12 @@ def gather_data(rootlength, prog, path, base,name,run_smyth):
         averages = [average(col) for col in cols]
         return averages
 
-    gather_col([],ctime_combiner,["IsectTotal","IsectMax","MinifyTotal","MinifyMax","MinEltTotal","MinEltMax","InitialCreationTotal","InitialCreationMax","AcceptsTermTotal","AcceptsTermMax","ComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
+    gather_col([],ctime_combiner,["IsectTotal","IsectMax","MinifyTotal","MinifyMax","MinEltTotal","MinEltMax","InitialCreationTotal","InitialCreationMax","AcceptsTermTotal","AcceptsTermMax","LoopCount","FullSynth","FullSynthMax","ComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
     if run_smyth:
-        gather_col(["-use-smyth"],ctime_combiner,["SmythIsectTotal","SmythIsectMax","SmythMinifyTotal","SmythMinifyMax","SmythMinEltTotal","SmythMinEltMax","SmythInitialCreationTotal","SmythInitialCreationMax","SmythAcceptsTermTotal","SmythAcceptsTermMax","SmythComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
-    gather_col(["-nonincremental"],ctime_combiner,["NonincrementalIsectTotal","NonincrementalIsectMax","NonincrementalMinifyTotal","NonincrementalMinifyMax","NonincrementalMinEltTotal","NonincrementalMinEltMax","NonincrementalInitialCreationTotal","NonincrementalInitialCreationMax","NonincrementalAcceptsTermTotal","NonincrementalAcceptsTermMax","NonincrementalComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
+        gather_col(["-use-smyth"],ctime_combiner,["SmythIsectTotal","SmythIsectMax","SmythMinifyTotal","SmythMinifyMax","SmythMinEltTotal","SmythMinEltMax","SmythInitialCreationTotal","SmythInitialCreationMax","SmythAcceptsTermTotal","SmythAcceptsTermMax","SmythLoopCount","SmythFullSynth","SmythFullSynthMax","SmythComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
+    gather_col(["-nonincremental"],ctime_combiner,["NonincrementalIsectTotal","NonincrementalIsectMax","NonincrementalMinifyTotal","NonincrementalMinifyMax","NonincrementalMinEltTotal","NonincrementalMinEltMax","NonincrementalInitialCreationTotal","NonincrementalInitialCreationMax","NonincrementalAcceptsTermTotal","NonincrementalAcceptsTermMax","NonincrementalLoopCount","NonincrementalFullSynth","NonincrementalFullSynthMax","NonincrementalComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
+    gather_col(["-use-random"],ctime_combiner,["RandomIsectTotal","RandomIsectMax","RandomMinifyTotal","RandomMinifyMax","RandomMinEltTotal","RandomMinEltMax","RandomInitialCreationTotal","RandomInitialCreationMax","RandomAcceptsTermTotal","RandomAcceptsTermMax","RandomLoopCount","RandomFullSynth","RandomFullSynthMax","RandomComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
+    gather_col(["-use-simple"],ctime_combiner,["SimpleIsectTotal","SimpleIsectMax","SimpleMinifyTotal","SimpleMinifyMax","SimpleMinEltTotal","SimpleMinEltMax","SimpleInitialCreationTotal","SimpleInitialCreationMax","SimpleAcceptsTermTotal","SimpleAcceptsTermMax","SimpleLoopCount","SimpleFullSynth","SimpleFullSynthMax","SimpleComputationTime"],TIMEOUT_TIME,REPETITION_COUNT,False)
 
     return current_data
 
@@ -192,8 +206,8 @@ def clean_full_data(data):
 
 def print_data(data,name):
     clean_full_data(data)
-    ensure_dir("generated_data/")
-    with open("generated_data/" + name, "wb") as csvfile:
+    ensure_dir("generated-data/")
+    with open("generated-data/" + name, "wb") as csvfile:
         datawriter = csv.DictWriter(csvfile,fieldnames=data[0].keys())
         datawriter.writeheader()
         datawriter.writerows(data)
@@ -203,7 +217,7 @@ def print_usage(args):
 
 def load_data(name):
     try:
-        with open("generated_data/" + name, "r") as csvfile:
+        with open("generated-data/" + name, "r") as csvfile:
             datareader = csv.DictReader(csvfile)
             return [row for row in datareader]
     except:
@@ -255,7 +269,7 @@ def main(args):
         else:
             print(os.path.exists(prog))
             print_usage(args)
-        data = load_data("post.csv")
+        data = load_data("postconditional.csv")
         rootlength = len(postconditional_path)
         print("postconditional data")
         print(data)

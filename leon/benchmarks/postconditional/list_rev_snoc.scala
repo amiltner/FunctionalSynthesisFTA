@@ -30,45 +30,23 @@ def list_rev_snoc(xs: NatList): NatList = { choose { (out:NatList) =>
         case Cons(h,t) => len(t) + 1
       }
 
-    def hd(xs: NatList): Nat =
-      xs match {
-        case Nil => Z
-        case Cons(h,t) => h
-      }
+   def list_last(xs : NatList): Nat = {
+     xs match {
+       case Nil =>
+         Z
+       case Cons(head, tail) =>
+         tail match {
+           case Nil => head
+           case Cons(head2,tail2) => list_last(tail)
+         }
+     }
+   }
 
-    def tl(xs: NatList): Nat =
-      xs match {
-        case Nil => Z
-        case Cons(h,t) =>
-                t match {
-                    case Nil => h
-                    case Cons(t1,t2) => tl(t)
-                }
-      }
-
-    def remove_hd(xs: NatList): NatList =
-      xs match {
-        case Nil => Nil
-        case Cons(h,t) => t
-      }
-
-    def remove_tl(xs: NatList, r: NatList): NatList =
-      xs match {
-        case Nil => r
-        case Cons(h,t) =>
-            if (t == Nil) { r }
-            else { list_snoc(r,h) }
-      }
-
-    def flipped(n: NatList, m: NatList): Boolean =
-        if (len(n) == len(m)) {
-            if (len(n) == 0) { T }
-            if (hd(n) == tl(m)) {
-                flipped(remove_hd(n),remove_tl(m,Nil))
-            } else { F }
-        } else { F }
-
-    flipped(xs,out)
+  xs match {
+    case Nil => out == Nil
+    case Cons(h,t) =>
+      len(xs)==len(out) && (h == list_last(out))
+  }
 
 } }
 

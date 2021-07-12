@@ -15,15 +15,9 @@ case object Nil extends NatList
 def list_tl(xs: NatList): NatList = { choose { (out:NatList) => 
 
    xs match {
-    case Nil => out == Z
-    case Cons(h1,t1) => t1 match {
-                    case Nil => out == h1
-                    case Cons(h2,t2) => t2 match {
-                                    case Nil => out == h2
-                                    case Cons(h3,t3) => true
-                                    }
-                    }
-     }
+    case Nil => out == Nil
+    case Cons(h1,t1) => out == t1
+    }
 
 } }
 

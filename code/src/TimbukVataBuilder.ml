@@ -412,6 +412,23 @@ module Make : AutomatonBuilder =
       in
       Option.map ~f:from_timbuk_termstate tso
 
+    let min_term_state_silly
+        ~(f:TermState.t -> bool)
+        ~(cost:TermState.t -> Float.t)
+        ~(reqs:TermState.t -> bool)
+        (x:t)
+      : term_state option =
+      (*let x = get_small_aut x in*)
+      let aut = get_aut x in
+      let tso =
+        TimbukAut.min_term_state_silly
+          ~f:(f % from_timbuk_termstate)
+          ~cost:(cost % from_timbuk_termstate)
+          ~reqs:(reqs % from_timbuk_termstate)
+          aut
+      in
+      Option.map ~f:from_timbuk_termstate tso
+
     let size
         (x:t)
       : int =

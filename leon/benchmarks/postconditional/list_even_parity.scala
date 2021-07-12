@@ -16,7 +16,7 @@ sealed abstract class Nat
 case class S(nat: Nat) extends Nat
 case object Z extends Nat
   
-def list_even_parity(xs: BoolList): Boolean = { choose { (out:BoolList) => 
+def list_even_parity(xs: BoolList): Boolean = { choose { (out:Boolean) => 
     def len(xs: BoolList): Nat =
       xs match {
         case Nil => Z
@@ -32,7 +32,20 @@ def list_even_parity(xs: BoolList): Boolean = { choose { (out:BoolList) =>
                     }
       }
 
-    T == iseven(len(xs))
+    def only_trues(xs: BoolList) : BoolList =
+      xs match {
+        case Nil => Nil
+        case Cons(h,t) =>
+          h match {
+            case F => only_trues(t)
+            case T => Cons(h,only_trues(t))
+          }
+      }
+
+    iseven(len(only_trues(xs))) match {
+      case F => out == F
+      case T => out == T
+    }
 
 } }
 

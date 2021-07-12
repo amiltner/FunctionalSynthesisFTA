@@ -10,11 +10,12 @@ case object F extends Boolean
   
 def bool_impl(p: Boolean, q: Boolean): Boolean = { choose { (out:Boolean) => 
 
-   (((p == T) && (q == T)) ==> (out == T)) &&
-   (((p == T) && (q == F)) ==> (out == F)) &&
-// (((p == F) && (q == T)) ==> (out == T)) &&
-   (((p == F) && (q == F)) ==> (out == T)) &&
-   true
+   if ((p == T) && (q == F))
+   {
+     out == F
+   } else {
+     out == T
+   }
 
 } }
 

@@ -50,29 +50,6 @@ def list_compress(xs: NatList): NatList = { choose { (out:NatList) =>
     case Cons(i, t) => Set(i) ++ content(t)
   }
 
-
-    /*def contained_in(x:Nat,xs:NatList) : Boolean =
-      xs match {
-        case Nil => false
-        case Cons(h,t) =>
-          if (h == x) {
-            true
-          } else {
-            contained_in(x,t)
-          }
-      }
-
-    def full_contained_in(xs:NatList,ys:NatList) : Boolean =
-      xs match {
-        case Nil => true
-        case Cons(h,t) =>
-          if (contained_in(h,ys)) {
-            full_contained_in(t,ys)
-          } else {
-            false
-          }
-      }*/
-
     no_dupes(out) && (content(xs) subsetOf content(out))
 } }
 

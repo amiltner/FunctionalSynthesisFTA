@@ -33,4 +33,5 @@ synth (nat -> bool) -> list -> list satisfying
 [is_even,Nil] -> Nil,
 [is_even,Cons(2,Nil)] -> Cons(2,Nil),
 [is_even,Cons(0,Cons(0,Nil))] -> Cons(0,Cons(0,Nil)),
+[is_even,Cons(1,Cons(0,Cons(1,Nil)))] -> Cons(0,Nil),
 [is_nonzero,Cons(0,Nil)] -> Nil,
